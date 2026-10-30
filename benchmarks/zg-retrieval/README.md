@@ -115,3 +115,67 @@ A partial or incompatible experiment cannot produce a valid overview. Candidate 
 ## Limits
 
 These public development questions support regression diagnosis, not broad generalization claims. A file hit does not establish that its returned snippet answers the question. Reports do not claim complete candidate/fusion histories or embedding inputs; a miss alone cannot identify the responsible stage. Answer correctness and agent token use require separate evaluations.
+
+## G4 code graph profile (v7)
+
+The original v6 SWE-QA20 protocol and commands above are unchanged. Select
+`--protocol g4-code-v7` explicitly for the Rust/Python graph experiment. It uses
+one frozen ripgrep revision and the existing requests revision, 48 structured
+explore questions, 24 Off/Augment pairs and 16 Off/Constrain pairs. The original
+`requests:16` question is an additional, separately reported file-retrieval row.
+There is no answering agent, document graph or claim about eight-language support.
+
+Build `zg` with `knowledge-graph-graphdb` in Release and package that binary using
+`npm run pack:local -- --no-build`. The package must contain the matching patched
+zvec read-only runtime described in the Rust README. Use fresh output and corpus
+directories, and keep them outside the indexed checkout:
+
+```sh
+node benchmarks/zg-retrieval/run.mjs --protocol g4-code-v7 \
+  --package /absolute/path/to/candidate.tgz \
+  --output /absolute/path/to/NEW_RESULTS \
+  --corpus /absolute/path/to/NEW_CORPUS \
+  --model-cache /absolute/path/to/model-cache \
+  --candidate-commit FULL_CANDIDATE_COMMIT
+
+node benchmarks/zg-retrieval/report.mjs --protocol g4-code-v7 \
+  /absolute/path/to/NEW_RESULTS
+```
+
+`--source-cache /absolute/path/to/frozen-checkouts` can clone the two pinned Git
+checkouts locally; it never copies their indexes. Each run builds a fresh text
+index, publishes a graph-only candidate, verifies reopening, and exercises the
+public MCP index graph configuration before freezing the query view. CLI build
+costs, the additional MCP maintenance check and query latency are reported
+separately. Exact process RSS collection uses the system `time` command; if the
+host forbids its counters, the measurement failure remains visible.
+
+For local macOS hosts where an extracted Mach-O is killed while the original
+build path runs, `--binary /absolute/path/to/zg --native-library-dir /path/to/lib`
+can execute the original build files. Both executable and runtime library must
+match the package payload SHA-256 exactly. The execution-path limitation is
+recorded; this does not validate launching the installed package. It does not
+change signatures, product code, budgets or labels.
+
+Source facts and expected parser abstention are separate in `data/g4-code-v1.json`.
+The annotation generator uses CPython AST and an independent Rust lexical scan,
+with explicitly source-reviewed call pairs; it never reads zg graph output.
+These are partial development labels without independent human review. Additional
+unlabelled relationships are unknown, not false positives. Changing a frozen
+question, label or source requires a new input version.
+
+Quality is computed from public text only, including its visible Graph JSON
+section. Source filenames, ranges, outlines and retrieved-evidence pointers do
+not earn body evidence credit. Verified bytes must match captured source files;
+ordinary source lines must match those files exactly. Off/Augment ordinary output
+must agree. Constrain uses its own scoped gold and checks every visible source
+interval against the independently annotated boundary.
+
+All requests, responses, errors, view stamps, source/model/storage inventories and
+raw hashes are retained. Missing calls, drift, invalid evidence and scope leakage
+fail integrity. A repository that cannot prepare retains every planned call as
+blocked; offline replay cannot turn it into a successful empty experiment.
+Runtime errors and low quality are reported rather than retried away. Results
+apply to the frozen questions and existing Rust/Python capabilities only.
+
+The frozen G4 experiment is summarized in [the validation report](../../knowledge/G4_VALIDATION_REPORT.md). Its [evidence archive](../../knowledge/archive/g4-validation/README.md) includes restoration and offline replay instructions; use a new output directory for subsequent experiments.

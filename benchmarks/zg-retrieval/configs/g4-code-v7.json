@@ -1,0 +1,25 @@
+{
+  "id": "zg-code-graph-l1-l2-v7",
+  "schema_version": 7,
+  "inputs": "data/g4-code-v1.json",
+  "model": "local/potion-code-16m-v2",
+  "device": "cpu",
+  "retrieval": "hybrid",
+  "graph_modes": ["off", "augment", "constrain"],
+  "limit": 10,
+  "repetitions": 5,
+  "quality_repetition": 5,
+  "request": {
+    "autoUpdate": false,
+    "freshness": "eventual",
+    "preferSymbol": false
+  },
+  "execution": { "request_timeout_ms": 30000, "graph_timeout_ms": 5000 },
+  "index_policy": "fresh-per-repository-and-run-no-index-cache",
+  "call_order": "task-repetition-alternating-arms",
+  "latency_policy": "all-calls-wall-time-including-open-and-qualification;shared-session;not-cold-disk",
+  "integrity_gate": "fail-on-missing-calls-version-drift-invalid-evidence-or-scope-leakage",
+  "quality_gate": "report-only;partial-source-oracle;no-required-positive-gain",
+  "annotation_human_reviewed": false,
+  "scope": "Rust/Python code;L0-L2;no-agent-or-document-claims"
+}

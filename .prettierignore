@@ -6,3 +6,6 @@ package-lock.json
 *.tgz
 *.md
 rust/
+knowledge/
+# Frozen G4 source evidence retains its recorded byte identity.
+benchmarks/zg-retrieval/data/g4-code-v1.json
