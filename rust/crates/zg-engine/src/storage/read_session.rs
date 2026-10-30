@@ -17,6 +17,9 @@ use crate::{
 
 use super::{IndexStore, types::WorkspaceIndexStorageOptions};
 
+#[cfg(feature = "knowledge-graph-graphdb")]
+mod graph;
+
 const REAP_INTERVAL: Duration = Duration::from_millis(50);
 static CACHES: OnceLock<Mutex<Vec<Weak<CacheInner>>>> = OnceLock::new();
 
@@ -49,7 +52,10 @@ struct CachedSession {
 struct ReadSession {
     // Native handles must close before releasing the residency lock.
     storage: IndexStore,
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    graph: Option<graph::GraphReadSession>,
     storage_home: PathBuf,
+    graph_key: Option<String>,
     _residency: Option<FileLock>,
 }
 
@@ -105,6 +111,69 @@ impl ReadSessionCache {
         storage_home: &Path,
         open: impl FnOnce() -> EngineResult<IndexStore>,
     ) -> EngineResult<ReadSessionLease> {
+        self.acquire_session(home, storage_home, None, || {
+            Ok(ReadSession {
+                storage: open()?,
+                #[cfg(feature = "knowledge-graph-graphdb")]
+                graph: None,
+                storage_home: storage_home.to_path_buf(),
+                graph_key: None,
+                _residency: None,
+            })
+        })
+    }
+
+    /// Borrow an immutable graph owner; the request validates eligibility with its own budget.
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn acquire_graph_query(
+        &self,
+        manifest: &crate::workspace::manifest::WorkspaceManifest,
+    ) -> EngineResult<ReadSessionLease> {
+        let storage_home = manifest.storage_home();
+        let key = graph::GraphReadSession::key(manifest)?;
+        let lease = self.acquire_session(&manifest.path, &storage_home, Some(&key), || {
+            let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+                storage_path: storage_home.clone(),
+            })?;
+            let graph = graph::GraphReadSession::open(manifest, &key, &storage)?;
+            Ok(ReadSession {
+                storage,
+                graph: Some(graph),
+                storage_home: storage_home.clone(),
+                graph_key: Some(key.clone()),
+                _residency: None,
+            })
+        })?;
+        Ok(lease)
+    }
+
+    #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+    pub(crate) fn acquire_graph(
+        &self,
+        manifest: &crate::workspace::manifest::WorkspaceManifest,
+    ) -> EngineResult<ReadSessionLease> {
+        let lease = self.acquire_graph_query(manifest)?;
+        let context = zg_knowledge::processing::ProcessingContext {
+            max_input_bytes: 64 << 20,
+            max_output_items: 1_000_000,
+            deadline: Some(Instant::now() + Duration::from_secs(120)),
+            cancellation: tokio_util::sync::CancellationToken::new(),
+        };
+        lease.graph_facts(
+            manifest,
+            zg_knowledge::graph::GraphLimits::default(),
+            &context,
+        )?;
+        Ok(lease)
+    }
+
+    fn acquire_session(
+        &self,
+        home: &Path,
+        storage_home: &Path,
+        graph_key: Option<&str>,
+        open: impl FnOnce() -> EngineResult<ReadSession>,
+    ) -> EngineResult<ReadSessionLease> {
         let slot = {
             let mut state = lock(&self.inner.state);
             if self.inner.closed.load(Ordering::Acquire) {
@@ -122,10 +191,10 @@ impl ReadSessionCache {
                 "index read cache has been closed",
             ));
         }
-        if entry
-            .as_ref()
-            .is_some_and(|entry| entry.session.storage_home != storage_home)
-        {
+        if entry.as_ref().is_some_and(|entry| {
+            entry.session.storage_home != storage_home
+                || entry.session.graph_key.as_deref() != graph_key
+        }) {
             entry.take();
         }
         if entry.is_none() {
@@ -134,13 +203,12 @@ impl ReadSessionCache {
                 LockMode::Read,
                 "context.cache",
             )?;
-            let storage = open()?;
+            let session = ReadSession {
+                _residency: Some(residency),
+                ..open()?
+            };
             *entry = Some(CachedSession {
-                session: Arc::new(ReadSession {
-                    storage,
-                    storage_home: storage_home.to_path_buf(),
-                    _residency: Some(residency),
-                }),
+                session: Arc::new(session),
                 last_used: Instant::now(),
             });
         }
@@ -224,6 +292,9 @@ impl ReadSessionLease {
                     storage_path: storage_home.to_path_buf(),
                 })?,
                 storage_home: storage_home.to_path_buf(),
+                #[cfg(feature = "knowledge-graph-graphdb")]
+                graph: None,
+                graph_key: None,
                 _residency: None,
             }),
             cache: Weak::new(),
@@ -233,6 +304,94 @@ impl ReadSessionLease {
 
     pub(crate) fn storage(&self) -> &IndexStore {
         &self.session.storage
+    }
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "G2 lease contract precedes G3 query entry points")
+    )]
+    pub(crate) fn graph_facts(
+        &self,
+        manifest: &crate::workspace::manifest::WorkspaceManifest,
+        limits: zg_knowledge::graph::GraphLimits,
+        context: &zg_knowledge::processing::ProcessingContext,
+    ) -> EngineResult<zg_knowledge::relations::bound::FactCatalog> {
+        if self.session.storage_home != manifest.storage_home() {
+            return Err(EngineError::resource_busy("graph text generation changed"));
+        }
+        self.session
+            .graph
+            .as_ref()
+            .ok_or_else(|| EngineError::resource_busy("this read lease has no selected graph"))?
+            .read(manifest, self.storage(), limits, context)
+    }
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn open_graph(
+        manifest: &crate::workspace::manifest::WorkspaceManifest,
+    ) -> EngineResult<Self> {
+        let storage_home = manifest.storage_home();
+        let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+            storage_path: storage_home.clone(),
+        })?;
+        let key = graph::GraphReadSession::key(manifest)?;
+        let graph = graph::GraphReadSession::open(manifest, &key, &storage)?;
+        Ok(Self {
+            session: Arc::new(ReadSession {
+                storage,
+                graph: Some(graph),
+                storage_home,
+                graph_key: Some(key),
+                _residency: None,
+            }),
+            cache: Weak::new(),
+            cached: false,
+        })
+    }
+    /// Used only while the caller retains the workspace admission lock.
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn fork(&self) -> Self {
+        Self {
+            session: Arc::clone(&self.session),
+            cache: self.cache.clone(),
+            cached: self.cached,
+        }
+    }
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn validate_graph(
+        &self,
+        manifest: &crate::workspace::manifest::WorkspaceManifest,
+        limits: zg_knowledge::graph::GraphLimits,
+        context: &zg_knowledge::processing::ProcessingContext,
+    ) -> EngineResult<()> {
+        self.session
+            .graph
+            .as_ref()
+            .ok_or_else(|| EngineError::resource_busy("graph view missing"))?
+            .validate_query(manifest, self.storage(), limits, context, true)
+    }
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn graph_reader(
+        &self,
+        limits: zg_knowledge::graph::GraphLimits,
+    ) -> EngineResult<zg_knowledge::graph::GraphDbStore> {
+        self.session
+            .graph
+            .as_ref()
+            .ok_or_else(|| EngineError::resource_busy("graph view missing"))?
+            .query_owner(limits)
+    }
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn graph_stamp(
+        &self,
+        manifest: &crate::workspace::manifest::WorkspaceManifest,
+    ) -> EngineResult<zg_knowledge::query::ViewStamp> {
+        self.session
+            .graph
+            .as_ref()
+            .ok_or_else(|| EngineError::resource_busy("graph view missing"))?
+            .query_stamp(manifest)
     }
 
     pub(crate) fn close(self) -> EngineResult<()> {
@@ -282,3 +441,6 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+mod graph_tests;

@@ -26,6 +26,28 @@ const PROTOCOL_VERSION: &str = "MCP-Protocol-Version";
 const EVENT_STREAM: &str = "text/event-stream";
 const JSON: &str = "application/json";
 
+pub(crate) async fn get_json(uri: &str) -> Result<Vec<u8>, DaemonError> {
+    let request = request_builder(Method::GET, uri)
+        .map_err(|e| DaemonError::McpBridge(e.to_string()))?
+        .body(Full::new(Bytes::new()))
+        .map_err(|e| DaemonError::McpBridge(e.to_string()))?;
+    let response = send_http_request(request)
+        .await
+        .map_err(|e| DaemonError::McpBridge(e.to_string()))?;
+    if !response.status().is_success() {
+        return Err(DaemonError::McpBridge(
+            "daemon capability check failed".into(),
+        ));
+    }
+    Ok(response
+        .into_body()
+        .collect()
+        .await
+        .map_err(|e| DaemonError::McpBridge(e.to_string()))?
+        .to_bytes()
+        .to_vec())
+}
+
 pub(crate) async fn post_json(uri: &str, body: Vec<u8>) -> Result<Vec<u8>, DaemonError> {
     let response = post_response(uri, body).await?;
     let bytes = response
@@ -41,6 +63,10 @@ async fn post_response(uri: &str, body: Vec<u8>) -> Result<http::Response<Incomi
     let mut builder = request_builder(Method::POST, uri)
         .map_err(|error| DaemonError::McpBridge(error.to_string()))?
         .header(CONTENT_TYPE, JSON)
+        .header(
+            "X-Zvec-Grep-Protocol",
+            zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION.to_string(),
+        )
         .header(ACCEPT, JSON);
     if let Some(token) = crate::resolve_token(None)? {
         builder = builder.header(AUTHORIZATION, format!("Bearer {token}"));

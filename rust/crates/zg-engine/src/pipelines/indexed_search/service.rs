@@ -27,7 +27,11 @@ use crate::{
 use super::{
     context::{context_from_index, normalize_context_request},
     pipeline::{RequestEmbeddingRuntime, SearchEmbeddingRuntime},
+    retained::RankedContext,
 };
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+use crate::pipelines::explore::augmentation::{AugmentInput, GraphExecution};
 
 pub(crate) async fn context(
     indexing: &WorkspaceIndexService,
@@ -35,6 +39,39 @@ pub(crate) async fn context(
     options: &ContextOptions,
     read_sessions: Option<&ReadSessionCache>,
     refresh_completed: bool,
+) -> Result<ContextResult, EngineError> {
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    let graph = (!options.graph.is_off())
+        .then(|| GraphExecution::new(options))
+        .transpose()?;
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    let graph_options = graph.as_ref().map(|g| g.options(options));
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    let options = graph_options.as_ref().unwrap_or(options);
+    let outcome = Box::pin(context_inner(
+        indexing,
+        models,
+        options,
+        read_sessions,
+        refresh_completed,
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        graph.as_ref(),
+    ))
+    .await;
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    if let Some(graph) = &graph {
+        graph.check()?;
+    }
+    outcome
+}
+
+async fn context_inner(
+    indexing: &WorkspaceIndexService,
+    models: &ModelRuntimeManager,
+    options: &ContextOptions,
+    read_sessions: Option<&ReadSessionCache>,
+    refresh_completed: bool,
+    #[cfg(feature = "knowledge-graph-graphdb")] graph: Option<&GraphExecution>,
 ) -> Result<ContextResult, EngineError> {
     let wait = LockWait::new(options.signal.as_ref(), options.lock_timeout_ms)?;
     wait.check_cancelled()?;
@@ -66,14 +103,29 @@ pub(crate) async fn context(
         })
         && indexing.workspace_needs_refresh(&location, &wait).await?
     {
-        indexing
-            .index(models, refresh_options(options, location.root.clone()))
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        let skip_empty = matches!(
+            options.graph,
+            crate::api::context::graph::GraphQueryMode::Constrain { .. }
+        ) && !graph
+            .ok_or_else(|| EngineError::internal("scope execution missing"))?
+            .has_scope(options.clone())
             .await?;
+        #[cfg(not(feature = "knowledge-graph-graphdb"))]
+        let skip_empty = false;
+        if !skip_empty {
+            indexing
+                .index(models, refresh_options(options, location.root.clone()))
+                .await?;
+        }
     }
     let allows_writer = options.refresh.map_or(!options.auto_update, |policy| {
         policy != crate::api::context::options::RefreshPolicy::Wait
-    });
-    let _lock = loop {
+    }) && !matches!(
+        options.graph,
+        crate::api::context::graph::GraphQueryMode::Constrain { .. }
+    );
+    let admission = loop {
         wait.check_cancelled()?;
         if allows_writer
             && let Some(result) =
@@ -102,24 +154,209 @@ pub(crate) async fn context(
             "workspace index has not been built",
         ));
     }
-    let acquired = query_models(models, &manifest, options, &location.root, &request)?;
-    let storage = match read_sessions {
-        Some(cache) => cache.acquire(&location.home, &manifest.storage_home())?,
-        None => ReadSessionLease::open(&manifest.storage_home())?,
+    query_published(
+        models,
+        options,
+        &request,
+        read_sessions,
+        manifest,
+        admission,
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        graph,
+    )
+    .await
+}
+
+async fn query_published(
+    models: &ModelRuntimeManager,
+    options: &ContextOptions,
+    request: &super::context::NormalizedContextRequest,
+    read_sessions: Option<&ReadSessionCache>,
+    manifest: WorkspaceManifest,
+    admission: crate::workspace::lock::FileLock,
+    #[cfg(feature = "knowledge-graph-graphdb")] graph: Option<&GraphExecution>,
+) -> Result<ContextResult, EngineError> {
+    // Off keeps its existing acquisition order. Graph queries pin the selected
+    // text generation and candidate descriptor before model use and retrieval.
+    let acquired = options
+        .graph
+        .is_off()
+        .then(|| {
+            query_models(
+                models,
+                &manifest,
+                options,
+                &manifest.workspace.root,
+                request,
+            )
+        })
+        .transpose()?;
+    let (storage, graph_unavailable) = open_read(read_sessions, &manifest, options)?;
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    let text_proof = graph
+        .map(|_| crate::pipelines::explore::augmentation::text_proof(&storage, &manifest))
+        .transpose()?;
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    if matches!(
+        options.graph,
+        crate::api::context::graph::GraphQueryMode::Constrain { .. }
+    ) {
+        return query_constrained(
+            models,
+            options,
+            request,
+            storage,
+            manifest,
+            admission,
+            graph.ok_or_else(|| EngineError::internal("scope execution missing"))?,
+        )
+        .await;
+    }
+    let acquired = match acquired {
+        Some(models) => models,
+        None => query_models(
+            models,
+            &manifest,
+            options,
+            &manifest.workspace.root,
+            request,
+        )?,
     };
     let result = query_storage(
         &acquired,
-        &location.root,
+        &manifest.workspace.root,
         &manifest,
         storage.storage(),
         options,
-        &request,
+        request,
     )
     .await;
+    let (mut result, hits) = result?.into_parts();
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    if let Some(graph) = graph {
+        return graph
+            .finish(AugmentInput {
+                read: storage,
+                manifest,
+                admission: std::sync::Arc::new(admission),
+                hits,
+                mode: options.graph.clone(),
+                result,
+                expected_text: text_proof
+                    .ok_or_else(|| EngineError::internal("missing text proof"))?,
+                unavailable: graph_unavailable,
+            })
+            .await;
+    }
+    let _ = hits;
+    if let Some(reason) = graph_unavailable {
+        result.graph = Some(crate::api::context::graph_result::GraphSupplement::degraded(reason));
+    }
     let close = storage.close();
-    let result = result?;
     close?;
+    drop(admission);
     Ok(result)
+}
+
+fn open_read(
+    cache: Option<&ReadSessionCache>,
+    manifest: &WorkspaceManifest,
+    options: &ContextOptions,
+) -> Result<(ReadSessionLease, Option<String>), EngineError> {
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    if !options.graph.is_off() {
+        let selected = match cache {
+            Some(cache) => cache.acquire_graph_query(manifest),
+            None => ReadSessionLease::open_graph(manifest),
+        };
+        match selected {
+            Ok(read) => return Ok((read, None)),
+            Err(error) if error.code() == EngineError::RESOURCE_BUSY => {
+                if matches!(
+                    options.graph,
+                    crate::api::context::graph::GraphQueryMode::Constrain { .. }
+                ) {
+                    return Err(error);
+                }
+                let (read, _) = open_text_read(cache, manifest)?;
+                return Ok((read, Some(error.message().into())));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    let _ = options;
+    open_text_read(cache, manifest)
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+async fn query_constrained(
+    models: &ModelRuntimeManager,
+    options: &ContextOptions,
+    request: &super::context::NormalizedContextRequest,
+    storage: ReadSessionLease,
+    manifest: WorkspaceManifest,
+    admission: crate::workspace::lock::FileLock,
+    graph: &GraphExecution,
+) -> Result<ContextResult, EngineError> {
+    use crate::pipelines::explore::augmentation::text_proof;
+    let admission = std::sync::Arc::new(admission);
+    let expected = text_proof(&storage, &manifest)?;
+    let scope = graph
+        .resolve(
+            storage.fork(),
+            manifest.clone(),
+            admission.clone(),
+            options.clone(),
+        )
+        .await?;
+    let acquired = if scope.units.is_empty() {
+        Vec::new()
+    } else {
+        query_models(
+            models,
+            &manifest,
+            options,
+            &manifest.workspace.root,
+            request,
+        )?
+    };
+    let scoped = graph.scoped_storage(&storage, &scope);
+    let (mut result, hits) = query_storage(
+        &acquired,
+        &manifest.workspace.root,
+        &manifest,
+        &scoped,
+        options,
+        request,
+    )
+    .await?
+    .into_parts();
+    for hit in hits {
+        hit.verify(storage.storage())?;
+    }
+    graph.finish_scope(scope, &mut result)?;
+    if text_proof(&storage, &manifest)? != expected {
+        return Err(EngineError::storage_failure(
+            "text view changed during constrained retrieval",
+        ));
+    }
+    storage.close()?;
+    drop(admission);
+    graph.check()?;
+    Ok(result)
+}
+
+fn open_text_read(
+    cache: Option<&ReadSessionCache>,
+    manifest: &WorkspaceManifest,
+) -> Result<(ReadSessionLease, Option<String>), EngineError> {
+    Ok((
+        match cache {
+            Some(cache) => cache.acquire(&manifest.path, &manifest.storage_home())?,
+            None => ReadSessionLease::open(&manifest.storage_home())?,
+        },
+        None,
+    ))
 }
 
 async fn try_writer_context(
@@ -172,7 +409,7 @@ async fn try_writer_context(
     } else {
         Vec::new()
     };
-    query_storage(
+    let (mut result, _) = query_storage(
         &acquired,
         &location.root,
         manifest,
@@ -180,8 +417,16 @@ async fn try_writer_context(
         options,
         request,
     )
-    .await
-    .map(Some)
+    .await?
+    .into_parts();
+    if !options.graph.is_off() {
+        result.graph = Some(
+            crate::api::context::graph_result::GraphSupplement::degraded(
+                "writer_view_unavailable".into(),
+            ),
+        );
+    }
+    Ok(Some(result))
 }
 
 fn uses_vectors(request: &super::context::NormalizedContextRequest) -> bool {
@@ -216,10 +461,10 @@ async fn query_storage(
     acquired: &[ModelRuntimeLease],
     root: &Path,
     manifest: &WorkspaceManifest,
-    storage: &IndexStore,
+    storage: &dyn super::storage::SearchStorage,
     options: &ContextOptions,
     request: &super::context::NormalizedContextRequest,
-) -> Result<ContextResult, EngineError> {
+) -> Result<RankedContext, EngineError> {
     let runtimes = acquired
         .iter()
         .map(|model| RequestEmbeddingRuntime {

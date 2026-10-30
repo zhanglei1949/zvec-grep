@@ -74,6 +74,7 @@ pub(crate) struct StorageSearchFilter {
     pub path: Option<StoragePathFilter>,
     pub file_ids: Option<Vec<FileId>>,
     pub entity_ids: Option<Vec<EntityId>>,
+    pub fragment_ids: Option<Vec<String>>,
     pub symbol_names: Option<Vec<String>>,
     pub symbol_types: Option<Vec<SymbolType>>,
 }

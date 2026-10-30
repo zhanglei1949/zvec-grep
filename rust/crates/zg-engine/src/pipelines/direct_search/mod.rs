@@ -172,6 +172,7 @@ fn context_from_lexical(
         }
     });
     ContextResult {
+        graph: None,
         freshness: None,
         background_refresh: None,
         query,

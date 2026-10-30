@@ -30,13 +30,12 @@ use crate::{
         info::result::IndexStats,
     },
     domain::{
-        Content, ContentKind, Entity, EntityFragment, EntityId, EntityMetadata, FileCategory,
-        FileFormat, FileId, FileIndexStatus, FileRecord, FileSnapshot, FragmentId, Range,
-        SourcePath, Workspace,
+        Content, ContentKind, Entity, EntityId, EntityMetadata, FileCategory, FileFormat, FileId,
+        FileIndexStatus, FileRecord, FileSnapshot, FragmentId, Range, SourcePath, Workspace,
         model::{EmbeddingModelInfo, EmbeddingPurpose, EmbeddingResult},
     },
     extraction::{
-        ExtractedEntity, SourceKind, TextSource, extract_for_indexing, source_kind,
+        SourceKind, TextSource, bind_entities, extract_for_indexing, source_kind,
         vector_content_for_fragment,
     },
     file_selection::ScanPolicy,
@@ -49,6 +48,9 @@ use crate::{
 };
 
 use super::{input_budget::index_chunk_options, model_progress, storage::IndexStorage};
+
+#[cfg(test)]
+use crate::domain::EntityFragment;
 
 const MAX_SKIPPED_FILE_SAMPLES: usize = 20;
 // All default file-size limits are at least this large.
@@ -121,6 +123,8 @@ pub(crate) struct IndexingContext<'context> {
     pub on_progress: Option<IndexProgressReporter>,
     pub signal: Option<CancellationToken>,
     pub changes: &'context [WorkspaceChange],
+    #[cfg(feature = "knowledge-graph")]
+    pub graph_capture: Option<&'context Arc<crate::graph_facts::binding::FactCapture>>,
 }
 
 pub(crate) async fn index_workspace(
@@ -183,6 +187,10 @@ pub(crate) async fn index_workspace(
         EngineError::storage_failure(format!("failed to finalize index storage: {error}"))
     })?;
     timings.record("index_optimize", finalize_started.elapsed(), 1);
+    #[cfg(feature = "knowledge-graph")]
+    if let Some(capture) = context.graph_capture {
+        capture.finish(context.storage.list_files()?);
+    }
 
     let result = build_index_result(&passes, started.elapsed(), timings);
     if result.files_failed > 0 {
@@ -281,6 +289,64 @@ pub(crate) async fn get_workspace_index_status(
     })
 }
 
+/// Full selection + raw-content check for model-free graph work. Never infer
+/// unchanged from watcher hints or mtime. Retained bytes are bounded and belong
+/// to this scan/read; changed inputs are not mixed into a later text update.
+#[cfg(feature = "knowledge-graph-graphdb")]
+pub(crate) async fn graph_snapshot(
+    workspace: &Workspace,
+    storage: &dyn IndexStorage,
+    scanner: &dyn WorkspaceScannerPort,
+    signal: Option<CancellationToken>,
+    captured: &std::collections::HashSet<PathBuf>,
+) -> Result<Option<HashMap<PathBuf, Vec<u8>>>, EngineError> {
+    let stored = storage.list_files()?;
+    if stored.iter().any(|f| !f.index_status.is_indexed()) {
+        return Ok(None);
+    }
+    let control = task_control(signal);
+    let snapshot = scanner
+        .discover(
+            &ScanRequest {
+                roots: vec![host_root(workspace)?],
+                scope_paths: Vec::new(),
+            },
+            &control,
+        )
+        .await
+        .map_err(map_host_error)?;
+    let (selected, _) = classify_files(workspace, snapshot.files, &stored, &control).await?;
+    if selected.len() != stored.len() {
+        return Ok(None);
+    }
+    let mut inputs = HashMap::new();
+    let mut total = 0usize;
+    for discovered in selected {
+        let Some(file) = stored
+            .iter()
+            .find(|f| f.relative_path == discovered.relative_path)
+        else {
+            return Ok(None);
+        };
+        let path = file.relative_path.to_path_buf();
+        if captured.contains(&path) {
+            continue;
+        }
+        let n = usize::try_from(discovered.discovered.size_bytes)
+            .map_err(|_| EngineError::invalid_argument("graph input budget exceeded"))?;
+        total = total
+            .checked_add(n)
+            .filter(|n| *n <= 64 * 1024 * 1024)
+            .ok_or_else(|| EngineError::invalid_argument("graph input budget exceeded"))?;
+        let source = read_source(scanner, &control, &discovered.discovered).await?;
+        if file.snapshot.content_hash.as_deref() != Some(sha256_hex(&source.bytes).as_str()) {
+            return Ok(None);
+        }
+        inputs.insert(path, source.bytes);
+    }
+    Ok(Some(inputs))
+}
+
 #[derive(Clone, Copy)]
 struct ProgressBase {
     files_succeeded: usize,
@@ -359,6 +425,10 @@ impl ScannedFile {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "keep scan/diff and deletion-before-replacement ordering visible"
+)]
 async fn run_index_pass(
     context: &IndexingContext<'_>,
     timings: &mut TimingCollector,
@@ -412,10 +482,14 @@ async fn run_index_pass(
         .await
         .map_err(map_host_error)?;
     let mut skipped = skipped_files(&snapshot);
+    #[cfg(feature = "knowledge-graph")]
+    let verify_content = context.graph_capture.is_some();
+    #[cfg(not(feature = "knowledge-graph"))]
+    let verify_content = false;
     let (scanned, classification_skips) = classify_files(
         context.workspace_index,
         snapshot.files,
-        &all_stored,
+        if verify_content { &[] } else { &all_stored },
         &control,
     )
     .await?;
@@ -426,7 +500,7 @@ async fn run_index_pass(
     timings.record("index_scan", scan_started.elapsed(), scanned.len());
 
     let diff_started = Instant::now();
-    let mut diff = compute_diff(scanned, &existing);
+    let mut diff = compute_diff_verified(scanned, &existing, verify_content);
     timings.record("index_diff", diff_started.elapsed(), diff.files_scanned);
     report(
         context,
@@ -511,6 +585,13 @@ fn resolve_scanned_identities(
 }
 
 fn compute_diff(scanned: Vec<ScannedFile>, existing_files: &[FileRecord]) -> DiffPlan {
+    compute_diff_verified(scanned, existing_files, false)
+}
+fn compute_diff_verified(
+    scanned: Vec<ScannedFile>,
+    existing_files: &[FileRecord],
+    verify_content: bool,
+) -> DiffPlan {
     let mut existing_by_path = existing_files
         .iter()
         .cloned()
@@ -531,7 +612,8 @@ fn compute_diff(scanned: Vec<ScannedFile>, existing_files: &[FileRecord]) -> Dif
             None => CandidateKind::Added,
             Some(existing) if !existing.index_status.is_indexed() => CandidateKind::Pending,
             Some(existing)
-                if scanned.detection_error.is_none()
+                if !verify_content
+                    && scanned.detection_error.is_none()
                     && file_is_unchanged(existing, &scanned.discovered) =>
             {
                 plan.unchanged += 1;
@@ -613,6 +695,11 @@ struct PreparedFile {
     file: FileRecord,
     entities: Vec<Entity>,
     fragments: Vec<PreparedFragment>,
+    #[cfg(feature = "knowledge-graph")]
+    graph_facts: Option<(
+        Arc<crate::graph_facts::binding::FactCapture>,
+        zg_knowledge::relations::bound::BoundFileFacts,
+    )>,
 }
 
 enum PreparedCandidate {
@@ -682,6 +769,14 @@ async fn index_candidates(
                 continue;
             }
             Ok(PreparedCandidate::File(prepared)) => *prepared,
+            Err(error)
+                if matches!(
+                    error.code(),
+                    EngineError::CANCELLED | EngineError::DEADLINE_EXCEEDED
+                ) =>
+            {
+                return Err(error);
+            }
             Err(error) => {
                 let file = candidate.scanned.to_record()?;
                 let reason = mark_file_failed(context.storage, &file, "prepare", &error)?;
@@ -924,6 +1019,10 @@ fn commit_file(
         })
         .collect::<Vec<_>>();
     storage.replace_file(&file.file, &file.entities, &entries)?;
+    #[cfg(feature = "knowledge-graph")]
+    if let Some((capture, facts)) = file.graph_facts {
+        capture.committed(facts);
+    }
     stats.files_indexed += 1;
     stats.entities_created += public_entities;
     Ok(())
@@ -973,8 +1072,30 @@ async fn prepare_candidate(
         formats: formats.clone(),
         text: source_text.into_owned(),
     };
+    #[cfg(feature = "knowledge-graph")]
+    let (extracted, raw_facts) = if let Some(capture) = context.graph_capture {
+        capture.extract(
+            &text,
+            chunk_options,
+            file.snapshot
+                .content_hash
+                .as_deref()
+                .ok_or_else(|| EngineError::internal("captured source digest missing"))?,
+        )?
+    } else {
+        (extract_for_indexing(&text, chunk_options)?, None)
+    };
+    #[cfg(not(feature = "knowledge-graph"))]
     let extracted = extract_for_indexing(&text, chunk_options)?;
     let entities = bind_entities(file.id, extracted)?;
+    #[cfg(feature = "knowledge-graph")]
+    let graph_facts = if let Some(capture) = context.graph_capture {
+        capture
+            .bind(&file, &entities, raw_facts)?
+            .map(|facts| (Arc::clone(capture), facts))
+    } else {
+        None
+    };
     let owners = entities
         .iter()
         .map(|entity| {
@@ -995,6 +1116,8 @@ async fn prepare_candidate(
         file,
         entities,
         fragments,
+        #[cfg(feature = "knowledge-graph")]
+        graph_facts,
     })))
 }
 
@@ -1108,40 +1231,6 @@ fn append_contents(output: &mut String, contents: &[Content]) {
         }
         output.push('\n');
     }
-}
-
-fn bind_entities(
-    file_id: FileId,
-    extracted: Vec<ExtractedEntity>,
-) -> Result<Vec<Entity>, EngineError> {
-    extracted
-        .into_iter()
-        .map(|entity| {
-            let id = EntityId::new(file_id, &entity.content, entity.source_range)?;
-            let fragments = entity
-                .fragments
-                .into_iter()
-                .enumerate()
-                .map(|(ordinal, fragment)| {
-                    let ordinal = u32::try_from(ordinal).map_err(|_| {
-                        EngineError::invalid_argument("fragment ordinal exceeds u32 limits")
-                    })?;
-                    Ok(EntityFragment {
-                        id: FragmentId::new(&id, ordinal),
-                        range: fragment.range,
-                    })
-                })
-                .collect::<Result<Vec<_>, EngineError>>()?;
-            Ok(Entity {
-                id,
-                file_id,
-                source_range: entity.source_range,
-                content: entity.content,
-                metadata: entity.metadata,
-                fragments,
-            })
-        })
-        .collect()
 }
 
 fn mark_file_failed(
@@ -1786,6 +1875,12 @@ fn describe_files(files: &[PreparedFile]) -> String {
 }
 
 fn validate_context(context: &IndexingContext<'_>) -> Result<(), EngineError> {
+    #[cfg(feature = "knowledge-graph")]
+    if let Some(capture) = context.graph_capture {
+        capture
+            .roots
+            .validate_workspace(&context.workspace_index.root)?;
+    }
     if context.storage.is_read_only() {
         return Err(EngineError::invalid_argument(
             "indexing requires writable workspace storage",
@@ -2177,6 +2272,7 @@ fn build_index_result(
     let first = &passes[0];
     let final_pass = passes.last().expect("an index pass is always present");
     IndexResult {
+        graph: None,
         files_scanned: first.files_scanned,
         files_added: passes.iter().map(|pass| pass.diff.added).sum(),
         files_modified: passes.iter().map(|pass| pass.diff.modified).sum(),
@@ -2379,6 +2475,8 @@ mod tests {
             },
             entities,
             fragments,
+            #[cfg(feature = "knowledge-graph")]
+            graph_facts: None,
         };
         let vectors = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
         commit_file(
@@ -2880,6 +2978,8 @@ mod tests {
                 on_progress: None,
                 signal: None,
                 changes: &[],
+                #[cfg(feature = "knowledge-graph")]
+                graph_capture: None,
             })
             .await
             .expect_err("a storage failure must abort indexing");
@@ -2920,6 +3020,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("embedding errors allow the index to finish");
@@ -2960,6 +3062,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         };
 
         let error = index_workspace(&context)
@@ -3005,6 +3109,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect_err("shared embedding failure must abort indexing");
@@ -3040,6 +3146,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         };
         let operation = index_workspace(&context);
         tokio::pin!(operation);
@@ -3134,6 +3242,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect_err("exhausted transient failures must abort indexing");
@@ -3168,6 +3278,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("request-specific failures remain file failures");
@@ -3207,6 +3319,8 @@ mod tests {
             on_progress: None,
             signal: Some(signal),
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect_err("pre-cancelled indexing must stop before preparation");
@@ -3259,6 +3373,8 @@ mod tests {
                 on_progress: None,
                 signal: None,
                 changes: &[],
+                #[cfg(feature = "knowledge-graph")]
+                graph_capture: None,
             };
             index_workspace(&context)
                 .await
@@ -3293,6 +3409,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         };
         index_workspace(&context).await.expect("initial index");
         assert_eq!(model.prepare_calls.load(Ordering::Acquire), 1);
@@ -3415,6 +3533,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         };
         index_workspace(&context).await.expect("initial index");
         let calls = model.calls.load(Ordering::Acquire);
@@ -3479,6 +3599,8 @@ mod tests {
             on_progress: Some(reporter),
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         };
 
         let first = index_workspace(&context).await.expect("initial index");
@@ -3535,6 +3657,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("initial index");
@@ -3551,6 +3675,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &changes,
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("narrow index");
@@ -3605,6 +3731,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("initial index");
@@ -3645,6 +3773,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &changes,
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("repair during scoped update");
@@ -3736,6 +3866,8 @@ mod tests {
             on_progress: None,
             signal: None,
             changes: &[],
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: None,
         })
         .await
         .expect("index supported sources");
@@ -3990,5 +4122,398 @@ mod tests {
         assert_eq!(error.origin().line, origin_line);
         let invalid = map_host_error(HostError::invalid_argument("bad root"));
         assert_eq!(invalid.code(), EngineError::INVALID_ARGUMENT);
+    }
+
+    #[cfg(feature = "knowledge-graph")]
+    fn fact_capture() -> Arc<crate::graph_facts::binding::FactCapture> {
+        use crate::graph_facts::{
+            module_roots::{ModuleRoot, ModuleRoots, PackageLayout},
+            relations::Language,
+        };
+        crate::graph_facts::binding::FactCapture::new(
+            "capture-g1".into(),
+            1,
+            ModuleRoots::new(vec![
+                ModuleRoot {
+                    root: PathBuf::new(),
+                    language: Language::Rust,
+                    namespace: "fixture".into(),
+                    module_prefix: Vec::new(),
+                    layout: PackageLayout::Flat,
+                },
+                ModuleRoot {
+                    root: PathBuf::from("pkg"),
+                    language: Language::Python,
+                    namespace: "python-fixture".into(),
+                    module_prefix: Vec::new(),
+                    layout: PackageLayout::Flat,
+                },
+            ])
+            .expect("module roots"),
+            zg_knowledge::processing::ProcessingContext {
+                max_input_bytes: 1 << 20,
+                max_output_items: 100_000,
+                deadline: None,
+                cancellation: CancellationToken::new(),
+            },
+        )
+    }
+
+    #[cfg(feature = "knowledge-graph")]
+    #[tokio::test]
+    async fn graph_capture_never_accepts_failed_text_writes() {
+        let directory = tempdir().expect("workspace");
+        std::fs::create_dir(directory.path().join("pkg")).expect("configured Python root");
+        std::fs::write(
+            directory.path().join("lib.rs"),
+            "fn helper() {} fn run() {helper();}",
+        )
+        .expect("source");
+        let workspace = workspace(directory.path());
+        let scanner = RecordingScanner::new();
+        let storage = MemoryStorage::default();
+        let id = storage
+            .resolve_file_ids(&[PathBuf::from("lib.rs")])
+            .expect("ID")[0];
+        storage
+            .fail_replacements_once
+            .lock()
+            .expect("injection")
+            .insert(id);
+        let model = ConcurrentModel::new();
+        let capture = fact_capture();
+        index_workspace(&IndexingContext {
+            workspace_index: &workspace,
+            storage: &storage,
+            scanner: &scanner,
+            embedding_models: &[&model],
+            embedding_concurrency: None,
+            on_progress: None,
+            signal: None,
+            changes: &[],
+            graph_capture: Some(&capture),
+        })
+        .await
+        .expect_err("text write fails");
+        assert!(capture.collected().is_empty());
+        let mut failing_model = ConcurrentModel::new();
+        failing_model.fail_embeddings = true;
+        index_workspace(&IndexingContext {
+            workspace_index: &workspace,
+            storage: &storage,
+            scanner: &scanner,
+            embedding_models: &[&failing_model],
+            embedding_concurrency: None,
+            on_progress: None,
+            signal: None,
+            changes: &[],
+            graph_capture: Some(&capture),
+        })
+        .await
+        .expect("embedding failure recorded");
+        assert!(capture.collected().is_empty());
+    }
+
+    #[cfg(feature = "knowledge-graph")]
+    #[tokio::test]
+    async fn python_extension_aliases_keep_text_indexing_and_graph_capture() {
+        let directory = tempdir().expect("workspace");
+        std::fs::create_dir(directory.path().join("pkg")).expect("Python root");
+        for name in ["a.py", "b.pyi", "c.pyw", "__init__.pyi"] {
+            std::fs::write(
+                directory.path().join("pkg").join(name),
+                "def helper(): pass\ndef run():\n    helper()\n",
+            )
+            .expect("Python source");
+        }
+        let workspace = workspace(directory.path());
+        let scanner = RecordingScanner::new();
+        let storage = MemoryStorage::default();
+        let model = ConcurrentModel::new();
+        let capture = fact_capture();
+        let result = index_workspace(&IndexingContext {
+            workspace_index: &workspace,
+            storage: &storage,
+            scanner: &scanner,
+            embedding_models: &[&model],
+            embedding_concurrency: None,
+            on_progress: None,
+            signal: None,
+            changes: &[],
+            graph_capture: Some(&capture),
+        })
+        .await
+        .expect("index all host-supported Python extensions");
+        assert_eq!(result.files_added, 4);
+        assert_eq!(result.files_failed, 0);
+        assert!(
+            storage
+                .list_files()
+                .expect("text inventory")
+                .iter()
+                .all(|f| f.index_status.is_indexed())
+        );
+        let bound = capture.collected();
+        assert_eq!(bound.len(), 4);
+        for file in bound {
+            let facts = file.facts.expect("Python facts");
+            assert_eq!(facts.language, zg_knowledge::relations::Language::Python);
+            assert!(!facts.references.is_empty());
+            assert!(file.reference_entities.iter().all(|ids| !ids.is_empty()));
+            assert_eq!(
+                facts.module.expect("module identity").is_package,
+                file.record.path.ends_with("__init__.pyi")
+            );
+        }
+    }
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    #[tokio::test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one fixture verifies same-extraction binding and both real stores across close/reopen"
+    )]
+    async fn same_pipeline_entity_ids_round_trip_real_zvec_and_graphdb() {
+        use crate::storage::{IndexStore, types::WorkspaceIndexStorageOptions};
+        use zg_knowledge::{
+            graph::{GraphDbStore, GraphLimits},
+            processing::stable_digest,
+            relations::bound::FactCatalog,
+        };
+        let directory = tempdir().expect("workspace");
+        std::fs::write(
+            directory.path().join("lib.rs"),
+            "\u{feff}fn helper() {}\r\nfn run() { helper(); }\r\n",
+        )
+        .expect("rust");
+        std::fs::write(
+            directory.path().join("readme.md"),
+            "# 中文\r\n[x](other.md#target) [code](lib.rs)\r\n",
+        )
+        .expect("doc");
+        std::fs::write(directory.path().join("other.md"), "# Target\n").expect("target");
+        std::fs::write(
+            directory.path().join("native.cpp"),
+            "int helper() { return 1; }\n",
+        )
+        .expect("ordinary code only");
+        std::fs::create_dir(directory.path().join("pkg")).expect("python directory");
+        std::fs::write(
+            directory.path().join("pkg/a.py"),
+            b"# coding: latin-1\r\ndef caf\xe9(): pass\r\ndef run():\r\n    caf\xe9()\r\n",
+        )
+        .expect("Python cookie source");
+        let workspace = workspace(directory.path());
+        let scanner = RecordingScanner::new();
+        let model = ConcurrentModel::new();
+        let home = tempdir().expect("storage");
+        let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
+            storage_path: home.path().to_owned(),
+            embeddings: vec![model.info.clone()],
+        })
+        .expect("real zvec");
+        let capture = fact_capture();
+        let result = index_workspace(&IndexingContext {
+            workspace_index: &workspace,
+            storage: &storage,
+            scanner: &scanner,
+            embedding_models: &[&model],
+            embedding_concurrency: None,
+            on_progress: None,
+            signal: None,
+            changes: &[],
+            graph_capture: Some(&capture),
+        })
+        .await
+        .expect("index");
+        assert_eq!(result.files_added, 5);
+        assert_eq!(result.files_failed, 0);
+        let bound = capture.collected();
+        assert_eq!(bound.len(), 5);
+        assert!(
+            bound
+                .iter()
+                .find(|f| f.record.path == "native.cpp")
+                .expect("unsupported inventory")
+                .facts
+                .is_none()
+        );
+        let hits = storage
+            .search_vector(&model.info.model.reference(), &[1.0, 0.0], 1000, None)
+            .expect("native vectors");
+        let loaded = storage
+            .load_search_hits(&hits)
+            .expect("actual canonical entities");
+        let files = storage.list_files().expect("actual catalog");
+        for file in &bound {
+            let actual = files
+                .iter()
+                .find(|f| f.id.get() == file.record.file_id)
+                .expect("actual file");
+            assert!(actual.index_status.is_indexed());
+            assert_eq!(actual.snapshot.content_hash, file.record.content_hash);
+            let ids = loaded
+                .entities
+                .values()
+                .filter(|e| e.entity.file_id == actual.id)
+                .map(|e| e.entity.id.as_str().to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                file.record.entity_ids_digest,
+                zg_knowledge::relations::bound::entity_ids_digest(&ids).expect("digest")
+            );
+            for id in file
+                .node_entities
+                .iter()
+                .chain(&file.reference_entities)
+                .flatten()
+            {
+                assert!(ids.contains(id), "mapping must use stored host IDs");
+            }
+        }
+        for file in &bound {
+            let Some(facts) = &file.facts else {
+                continue;
+            };
+            let format = match facts.language {
+                zg_knowledge::relations::Language::Rust => FileFormat::Rust,
+                zg_knowledge::relations::Language::Python => FileFormat::Python,
+                zg_knowledge::relations::Language::Markdown => FileFormat::Markdown,
+            };
+            let raw =
+                std::fs::read(directory.path().join(&file.record.path)).expect("verification read");
+            let decoded = decode_index_text(&[format], &raw).expect("verification decode");
+            assert_eq!(sha256_hex(decoded.as_bytes()), facts.version.decoded_digest);
+            assert_eq!(sha256_hex(&raw), facts.version.raw_digest);
+            for (reference, ids) in facts.references.iter().zip(&file.reference_entities) {
+                for id in ids {
+                    let entity = &loaded
+                        .entities
+                        .values()
+                        .find(|e| e.entity.id.as_str() == id)
+                        .expect("stored entity")
+                        .entity;
+                    let Range::Text(range) = entity.source_range else {
+                        panic!("text source range");
+                    };
+                    let Content::Text(body) = &entity.content else {
+                        panic!("text body");
+                    };
+                    assert_eq!(
+                        body.get(
+                            reference.span.start - range.start_byte_offset()
+                                ..reference.span.end - range.start_byte_offset()
+                        ),
+                        decoded.get(reference.span.start..reference.span.end)
+                    );
+                }
+            }
+        }
+        let embedding_calls = model.calls.load(Ordering::Acquire);
+        let catalog = FactCatalog::resolve(
+            bound,
+            stable_digest(&"pipeline-config").expect("fp"),
+            stable_digest(&"pipeline-selection").expect("fp"),
+            &capture.context,
+        )
+        .expect("resolve");
+        let graph_path = home.path().join("candidate-graph");
+        let graph = GraphDbStore::create(&graph_path, GraphLimits::default()).expect("real graph");
+        graph
+            .write_facts(&catalog, &capture.context)
+            .expect("write graph");
+        assert_eq!(graph.read_facts(&capture.context).expect("read"), catalog);
+        graph.checkpoint().expect("graph checkpoint");
+        drop(graph);
+        storage.checkpoint().expect("text checkpoint");
+        storage.close().expect("close text");
+        drop(storage);
+        let text = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+            storage_path: home.path().to_owned(),
+        })
+        .expect("text read only");
+        let graph =
+            GraphDbStore::open(&graph_path, true, GraphLimits::default()).expect("graph read only");
+        assert_eq!(
+            graph.read_facts(&capture.context).expect("reopened facts"),
+            catalog
+        );
+        let hits = text
+            .search_vector(&model.info.model.reference(), &[1.0, 0.0], 1000, None)
+            .expect("reopened vector");
+        let after = text.load_search_hits(&hits).expect("reopened evidence");
+        assert_eq!(after.entities.len(), loaded.entities.len());
+        for file in &catalog.files {
+            for id in file
+                .node_entities
+                .iter()
+                .chain(&file.reference_entities)
+                .flatten()
+            {
+                assert!(after.entities.keys().any(|k| k.as_str() == id));
+            }
+        }
+        text.close().expect("close reader");
+        assert_eq!(
+            model.calls.load(Ordering::Acquire),
+            embedding_calls,
+            "graph binding/persistence must not embed again"
+        );
+        // No GraphRoot/Receipt/HEAD or graph-ready claim in this G2.1 seam.
+    }
+
+    #[cfg(feature = "knowledge-graph")]
+    #[tokio::test]
+    async fn optional_fact_budget_preserves_text_and_cancel_preserves_previous_file() {
+        let directory = tempdir().expect("workspace");
+        std::fs::create_dir(directory.path().join("pkg")).expect("configured root");
+        let path = directory.path().join("lib.rs");
+        std::fs::write(&path, "fn helper() {} fn run() {helper();}").expect("source");
+        let workspace = workspace(directory.path());
+        let scanner = RecordingScanner::new();
+        let model = ConcurrentModel::new();
+        let storage = MemoryStorage::default();
+        let mut capture = fact_capture();
+        Arc::get_mut(&mut capture)
+            .expect("unique capture")
+            .context
+            .max_output_items = 0;
+        let result = index_workspace(&IndexingContext {
+            workspace_index: &workspace,
+            storage: &storage,
+            scanner: &scanner,
+            embedding_models: &[&model],
+            embedding_concurrency: None,
+            on_progress: None,
+            signal: None,
+            changes: &[],
+            graph_capture: Some(&capture),
+        })
+        .await
+        .expect("optional graph failure preserves text");
+        assert_eq!(result.files_failed, 0);
+        assert_eq!(result.files_added, 1);
+        assert!(capture.collected().is_empty());
+        let before = storage.list_files().expect("successful file");
+        assert!(before[0].index_status.is_indexed());
+        std::fs::write(&path, "fn changed() {} fn run() {changed();}").expect("modified source");
+        let capture = fact_capture();
+        capture.context.cancellation.cancel();
+        let error = index_workspace(&IndexingContext {
+            workspace_index: &workspace,
+            storage: &storage,
+            scanner: &scanner,
+            embedding_models: &[&model],
+            embedding_concurrency: None,
+            on_progress: None,
+            signal: None,
+            changes: &[],
+            graph_capture: Some(&capture),
+        })
+        .await
+        .expect_err("cancel during graph preparation");
+        assert_eq!(error.code(), EngineError::CANCELLED);
+        assert_eq!(storage.list_files().expect("preserved file"), before);
+        assert_eq!(storage.failed_markers.load(Ordering::Acquire), 0);
     }
 }

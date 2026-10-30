@@ -21,6 +21,35 @@ pub(super) struct Entities {
 }
 
 impl Entities {
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(super) fn file_ids(&self, file_id: FileId, count: u64) -> EngineResult<Vec<String>> {
+        let limit = count
+            .checked_add(1)
+            .and_then(|n| i32::try_from(n).ok())
+            .ok_or_else(|| corrupt("entity verification budget exceeded"))?;
+        let mut query = native(
+            zvec_rust::SearchQuery::scalar(limit),
+            "verify file entity identities",
+        )?;
+        native(
+            query.set_filter(&format!("file_id = {}", file_id.get())),
+            "filter file entities",
+        )?;
+        native(
+            query.set_output_fields(&["entity_id"]),
+            "project entity identities",
+        )?;
+        native(query.set_include_vector(false), "omit entity vectors")?;
+        let mut ids = native(self.collection.query(&query), "read file entity identities")?
+            .iter()
+            .map(|d| string_field(d, "entity_id"))
+            .collect::<EngineResult<Vec<_>>>()?;
+        if ids.len() as u64 != count {
+            return Err(corrupt("file entity count mismatch"));
+        }
+        ids.sort();
+        Ok(ids)
+    }
     #[cfg(test)]
     pub(super) fn collection(&self) -> &Collection {
         &self.collection

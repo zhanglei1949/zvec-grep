@@ -1,0 +1,8 @@
+{
+  "upstream": "https://github.com/alibaba/zvec.git",
+  "revision": "1ab7975dfc2d2160054bafff614831b7099cd930",
+  "source_file": "src/core/interface/index.cc",
+  "before_sha256": "be71089bf417438c456a62d195fe0d3a9974d905235019978c36bf120db778b2",
+  "after_sha256": "a92cd3ef0db2d44043224b1aa63d382c3561009ee8a72ab6af8e464906d1fc39",
+  "patch_sha256": "20dbc0913f40008a4725364cecffa53d2b4447dca06e21af85f17cff4cec01d0"
+}

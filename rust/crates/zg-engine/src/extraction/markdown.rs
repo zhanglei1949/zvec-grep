@@ -37,7 +37,8 @@ pub(super) fn extract(
     validate_formats(&source.formats)?;
     let (max_chars, overlap_chars) = resolve_options(options)?;
     let lines = source.text.split('\n').collect::<Vec<_>>();
-    let headings = scan_headings(&lines);
+    let line_offsets = line_byte_offsets(&source.text);
+    let headings = scan_headings(&source.text, &line_offsets);
     if headings.is_empty() {
         return Ok(extract_plain_text_entities(
             source,
@@ -45,7 +46,6 @@ pub(super) fn extract(
             overlap_chars,
         ));
     }
-    let line_offsets = line_byte_offsets(&source.text);
     let entities = build_sections(&headings, &lines)
         .into_iter()
         .enumerate()
@@ -106,82 +106,29 @@ fn resolve_options(options: ChunkOptions) -> Result<(usize, usize), EngineError>
     Ok((max_chars, overlap_chars))
 }
 
-fn scan_headings(lines: &[&str]) -> Vec<Heading> {
-    let mut headings = Vec::new();
-    let mut fence = None;
-    let mut index = 0;
-
-    while index < lines.len() {
-        let line = lines[index];
-        let trimmed = line.trim_start();
-        if let Some(marker) = fence {
-            if trimmed.starts_with(marker) {
-                fence = None;
+fn scan_headings(text: &str, line_offsets: &[usize]) -> Vec<Heading> {
+    // Heading detection is shared with the knowledge graph via zg-markdown
+    // (CommonMark); only the flat retrieval-section spanning below stays
+    // engine-specific. Byte offsets map back to the engine's line-index model.
+    zg_markdown::parse(text)
+        .filter_map(|node| match node {
+            zg_markdown::MdNode::Heading(heading) => {
+                let line_index = line_index_of(heading.span.start, line_offsets);
+                Some(Heading {
+                    level: heading.level as usize,
+                    text: heading.text,
+                    line_index,
+                })
             }
-            index += 1;
-            continue;
-        }
-        if trimmed.starts_with("```") {
-            fence = Some("```");
-            index += 1;
-            continue;
-        }
-        if trimmed.starts_with("~~~") {
-            fence = Some("~~~");
-            index += 1;
-            continue;
-        }
-
-        if let Some((level, text)) = parse_atx_heading(line) {
-            headings.push(Heading {
-                level,
-                text,
-                line_index: index,
-            });
-            index += 1;
-            continue;
-        }
-
-        if !line.trim().is_empty() && index + 1 < lines.len() {
-            let next = lines[index + 1].trim();
-            if !next.is_empty() && next.chars().all(|character| character == '=') {
-                headings.push(Heading {
-                    level: 1,
-                    text: line.trim().to_owned(),
-                    line_index: index,
-                });
-                index += 2;
-                continue;
-            }
-            if !next.is_empty() && next.chars().all(|character| character == '-') {
-                headings.push(Heading {
-                    level: 2,
-                    text: line.trim().to_owned(),
-                    line_index: index,
-                });
-                index += 2;
-                continue;
-            }
-        }
-        index += 1;
-    }
-    headings
+            zg_markdown::MdNode::Link(_) => None,
+        })
+        .collect()
 }
 
-fn parse_atx_heading(line: &str) -> Option<(usize, String)> {
-    if !line.starts_with('#') {
-        return None;
-    }
-    let level = line.bytes().take_while(|byte| *byte == b'#').count();
-    if !(1..=6).contains(&level) {
-        return None;
-    }
-    let rest = &line[level..];
-    if !rest.starts_with(char::is_whitespace) {
-        return None;
-    }
-    let text = rest.trim().trim_end_matches('#').trim_end().to_owned();
-    (!text.is_empty()).then_some((level, text))
+fn line_index_of(byte_offset: usize, line_offsets: &[usize]) -> usize {
+    line_offsets
+        .partition_point(|&start| start <= byte_offset)
+        .saturating_sub(1)
 }
 
 fn build_sections(headings: &[Heading], lines: &[&str]) -> Vec<Section> {
@@ -279,7 +226,11 @@ mod tests {
             },
         )
         .expect("markdown extraction");
-        assert!(fragments.len() >= 4);
+        // CommonMark: a setext underline after a list item is a lazy
+        // continuation, not a heading, so "Setext child" folds into the Child
+        // section. Entities are preamble + Parent + Child; the pre-CommonMark
+        // line scanner over-detected "Setext child" as a fourth heading.
+        assert_eq!(fragments.len(), 3);
         assert!(fragments.iter().any(|item| matches!(
             &test_metadata(item),
             Some(EntityMetadata::Markdown(MarkdownMetadata { heading: Some(heading), .. })) if heading == "Parent"
@@ -306,6 +257,39 @@ mod tests {
         );
 
         assert_source_backed(&source, &fragments);
+    }
+
+    #[test]
+    fn commonmark_detects_headings_the_old_line_scanner_missed() {
+        // Regression cover for the P0 audit defects D1-D4: indented ATX,
+        // blockquote headings, inline-code heading text and multi-line setext
+        // are all detected via CommonMark (zg-markdown), unlike the old scanner.
+        let source = test_source(
+            FileFormat::Markdown,
+            "README.md",
+            "   # Indented ATX\n> # Quoted\n## Use `code` Here\nMulti\nLine\n===\n",
+        );
+        let entities = extract(&source, ChunkOptions::default()).expect("extract");
+        let headings: Vec<(String, Option<usize>)> = entities
+            .iter()
+            .filter_map(|entity| match test_metadata(entity) {
+                Some(EntityMetadata::Markdown(MarkdownMetadata {
+                    heading: Some(heading),
+                    level,
+                    ..
+                })) => Some((heading.clone(), *level)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            headings,
+            vec![
+                ("Indented ATX".to_owned(), Some(1)),
+                ("Quoted".to_owned(), Some(1)),
+                ("Use code Here".to_owned(), Some(2)),
+                ("Multi Line".to_owned(), Some(1)),
+            ]
+        );
     }
 
     fn assert_source_backed(source: &super::TextSource, fragments: &[super::ExtractedEntity]) {

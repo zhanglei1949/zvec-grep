@@ -1,5 +1,8 @@
 //! Types used by [`crate::ZvecGrep::context`].
 
+pub mod graph;
+pub mod graph_result;
+
 pub use options::ContextOptions;
 pub use result::ContextResult;
 
@@ -64,6 +67,11 @@ pub mod options {
         pub refresh: Option<RefreshPolicy>,
         pub trace: bool,
         pub prefer_symbol: bool,
+        /// Optional code graph augmentation or exact retrieval scope.
+        #[serde(default, skip_serializing_if = "super::graph::GraphQueryMode::is_off")]
+        pub graph: super::graph::GraphQueryMode,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub graph_execution: Option<crate::api::explore::ExecutionOptions>,
         /// Temporary filter over indexed files; does not alter workspace selection.
         #[serde(default)]
         pub filter: QueryFilter,
@@ -109,7 +117,20 @@ pub mod options {
     }
 
     impl ContextOptions {
-        pub(crate) fn validate_file_selection(&self) -> crate::EngineResult<()> {
+        /// Validates file selection, graph mode and execution limits without opening resources.
+        /// # Errors
+        /// Returns invalid argument for conflicting or malformed options, and
+        /// unsupported when the compiled engine cannot execute the graph mode.
+        pub fn validate(&self) -> crate::EngineResult<()> {
+            if let Some(execution) = self.graph_execution {
+                execution.validate()?;
+                if self.graph.is_off() {
+                    return Err(crate::EngineError::invalid_argument(
+                        "graph_execution requires a graph query mode",
+                    ));
+                }
+            }
+            self.graph.ensure_supported(self.rg)?;
             if self.rg {
                 if self.filter != QueryFilter::default() {
                     return Err(crate::EngineError::invalid_argument(
@@ -153,6 +174,8 @@ pub mod options {
                 refresh: None,
                 trace: false,
                 prefer_symbol: false,
+                graph: super::graph::GraphQueryMode::Off {},
+                graph_execution: None,
                 filter: QueryFilter::default(),
                 globs: Vec::new(),
                 insensitive_globs: Vec::new(),
@@ -243,7 +266,7 @@ pub mod options {
                 hidden: true,
                 ..Default::default()
             };
-            assert!(indexed.validate_file_selection().is_err());
+            assert!(indexed.validate().is_err());
             let rg = ContextOptions {
                 rg: true,
                 filter: QueryFilter {
@@ -252,12 +275,12 @@ pub mod options {
                 },
                 ..Default::default()
             };
-            assert!(rg.validate_file_selection().is_err());
+            assert!(rg.validate().is_err());
             let indexed = ContextOptions {
                 filter: rg.filter,
                 ..Default::default()
             };
-            assert!(indexed.validate_file_selection().is_ok());
+            assert!(indexed.validate().is_ok());
 
             let rg_time_filter = RgOptions {
                 modified_after_epoch_ms: Some(0),
@@ -267,13 +290,13 @@ pub mod options {
                 rg_options: rg_time_filter.clone(),
                 ..Default::default()
             };
-            assert!(indexed.validate_file_selection().is_err());
+            assert!(indexed.validate().is_err());
             let rg = ContextOptions {
                 rg: true,
                 rg_options: rg_time_filter,
                 ..Default::default()
             };
-            assert!(rg.validate_file_selection().is_ok());
+            assert!(rg.validate().is_ok());
         }
 
         #[test]
@@ -373,6 +396,8 @@ pub mod result {
         pub freshness: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub background_refresh: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub graph: Option<super::graph_result::GraphSupplement>,
         pub root: PathBuf,
         pub source: ContextSource,
         pub coverage: ContextCoverage,

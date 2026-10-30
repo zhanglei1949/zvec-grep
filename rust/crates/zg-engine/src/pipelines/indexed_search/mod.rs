@@ -3,7 +3,8 @@
 pub(crate) mod context;
 mod format_filter;
 mod path_filter;
-mod pipeline;
+pub(in crate::pipelines) mod pipeline;
+pub(in crate::pipelines) mod retained;
 pub(crate) mod service;
 pub(crate) mod storage;
 

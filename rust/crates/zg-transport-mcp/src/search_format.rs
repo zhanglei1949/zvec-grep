@@ -53,6 +53,7 @@ pub(crate) fn format_search_result(reply: &ContextResult, preview: SearchPreview
             }
             .to_owned(),
         );
+        append_graph(&mut lines, reply);
         return lines.join("\n");
     }
 
@@ -85,7 +86,17 @@ pub(crate) fn format_search_result(reply: &ContextResult, preview: SearchPreview
         }
         append_item(&mut lines, item, preview);
     }
+    append_graph(&mut lines, reply);
     lines.join("\n")
+}
+
+fn append_graph(lines: &mut Vec<String>, reply: &ContextResult) {
+    if let Some(graph) = &reply.graph {
+        match serde_json::to_string_pretty(graph) {
+            Ok(value) => lines.push(format!("\nGraph\n```json\n{value}\n```")),
+            Err(error) => lines.push(format!("graph output failed: {error}")),
+        }
+    }
 }
 
 fn append_item(lines: &mut Vec<String>, item: &ContextItem, preview: SearchPreview) {

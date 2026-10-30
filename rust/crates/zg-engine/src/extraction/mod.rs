@@ -1,7 +1,7 @@
 //! Deterministic source extraction used by the indexing and lexical-enrichment paths.
 
 mod chunking;
-mod code;
+pub(crate) mod code;
 mod image;
 mod markdown;
 mod service;
@@ -19,7 +19,10 @@ pub(crate) use spi::{ExtractedEntity, ExtractedEntityFragment};
 
 use crate::{
     EngineError,
-    domain::{Content, EntityMetadata, FileFormat, TextRange},
+    domain::{
+        Content, Entity, EntityFragment, EntityId, EntityMetadata, FileFormat, FileId, FragmentId,
+        TextRange,
+    },
 };
 
 // Shared implementation helpers used by the format-specific extractors.
@@ -52,4 +55,38 @@ pub(crate) fn vector_content_for_fragment(
     max_chars: Option<usize>,
 ) -> Vec<Content> {
     service::vector_content_for_fragment(content, metadata, max_chars)
+}
+
+pub(crate) fn bind_entities(
+    file_id: FileId,
+    extracted: Vec<ExtractedEntity>,
+) -> Result<Vec<Entity>, EngineError> {
+    extracted
+        .into_iter()
+        .map(|entity| {
+            let id = EntityId::new(file_id, &entity.content, entity.source_range)?;
+            let fragments = entity
+                .fragments
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, fragment)| {
+                    let ordinal = u32::try_from(ordinal).map_err(|_| {
+                        EngineError::invalid_argument("fragment ordinal exceeds u32 limits")
+                    })?;
+                    Ok(EntityFragment {
+                        id: FragmentId::new(&id, ordinal),
+                        range: fragment.range,
+                    })
+                })
+                .collect::<Result<Vec<_>, EngineError>>()?;
+            Ok(Entity {
+                id,
+                file_id,
+                source_range: entity.source_range,
+                content: entity.content,
+                metadata: entity.metadata,
+                fragments,
+            })
+        })
+        .collect()
 }

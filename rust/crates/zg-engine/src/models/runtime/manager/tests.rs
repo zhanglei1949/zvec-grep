@@ -9,6 +9,8 @@ use tokio::sync::{Barrier, Semaphore as TokioSemaphore};
 use crate::domain::model::Metric;
 
 use super::*;
+#[cfg(feature = "knowledge-graph-graphdb")]
+mod graph_indexing;
 use crate::domain::model::EmbeddingPurpose;
 
 struct ConcurrentFixtureModel {
@@ -894,3 +896,13 @@ fn runtime_key_separates_resource_affecting_options_without_storing_api_keys() {
     assert_eq!(base.api_key_fingerprint, same.api_key_fingerprint);
     assert_ne!(base.api_key_fingerprint, different.api_key_fingerprint);
 }
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+mod graph_augment;
+#[cfg(feature = "knowledge-graph-graphdb")]
+mod graph_explore;
+#[cfg(feature = "knowledge-graph-graphdb")]
+mod graph_impl;
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+mod graph_constrain;

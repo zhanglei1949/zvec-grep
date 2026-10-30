@@ -52,6 +52,11 @@ use super::pipeline::{
 
 const DEFAULT_LOCAL_EMBEDDING: &str = "local/potion-code-16m-v2";
 
+#[cfg(test)]
+type BeforeManifest = Arc<dyn Fn(&WorkspaceManifest) + Send + Sync>;
+#[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+type AfterManifest = Arc<dyn Fn(&WorkspaceManifest) -> crate::EngineResult<()> + Send + Sync>;
+
 #[derive(Clone)]
 pub(crate) struct WorkspaceIndexService {
     pub(crate) writers: crate::pipelines::indexed_search::writer::WriterContexts,
@@ -61,6 +66,10 @@ pub(crate) struct WorkspaceIndexService {
     _registry_directory: Option<Arc<tempfile::TempDir>>,
     #[cfg(test)]
     fail_index_completion: bool,
+    #[cfg(test)]
+    before_manifest: Option<BeforeManifest>,
+    #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+    after_manifest: Option<AfterManifest>,
 }
 
 impl WorkspaceIndexService {
@@ -73,6 +82,10 @@ impl WorkspaceIndexService {
             _registry_directory: None,
             #[cfg(test)]
             fail_index_completion: false,
+            #[cfg(test)]
+            before_manifest: None,
+            #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+            after_manifest: None,
         }
     }
 
@@ -88,7 +101,24 @@ impl WorkspaceIndexService {
             ),
             _registry_directory: Some(directory),
             fail_index_completion: false,
+            #[cfg(test)]
+            before_manifest: None,
+            #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+            after_manifest: None,
         }
+    }
+
+    #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+    pub(crate) fn stop_resume_after_commit(
+        id: String,
+        reason: zg_knowledge::graph::QueryStopReason,
+    ) {
+        super::graph::stop_after_resume_commit(id, reason);
+    }
+
+    #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+    pub(crate) fn clear_resume_commit_hook() {
+        super::graph::clear_after_resume_commit();
     }
 
     fn registry(&self) -> Result<WorkspaceRegistry, EngineError> {
@@ -151,6 +181,113 @@ impl WorkspaceIndexService {
         Ok(name)
     }
 
+    #[cfg_attr(
+        not(feature = "knowledge-graph-graphdb"),
+        expect(
+            clippy::unused_async,
+            clippy::unused_async_trait_impl,
+            reason = "the capability-only default build preserves the async service interface"
+        )
+    )]
+    pub(crate) async fn recover_graph(
+        &self,
+        options: crate::api::index::graph::GraphRecoveryOptions,
+    ) -> Result<crate::api::index::graph::GraphRecoveryResult, EngineError> {
+        #[cfg(not(feature = "knowledge-graph-graphdb"))]
+        {
+            let _ = options;
+            Err(EngineError::unsupported(
+                "graph recovery requires graphdb support",
+            ))
+        }
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        {
+            use crate::api::index::graph::GraphRecoveryAction;
+            if !crate::storage::graph_state::valid_uuid(&options.graph_build_id)
+                || options
+                    .generation
+                    .as_ref()
+                    .is_some_and(|id| !crate::storage::graph_state::valid_uuid(id))
+            {
+                return Err(EngineError::invalid_argument(
+                    "invalid graph recovery identity",
+                ));
+            }
+            if options.action != GraphRecoveryAction::Inspect
+                && (options.expected_operation_id.is_none() || options.expected_attempt.is_none())
+            {
+                return Err(EngineError::invalid_argument(
+                    "inspect first; graph recovery requires expected operation and attempt",
+                ));
+            }
+            let root = resolve_root(options.root.as_deref())?;
+            validate_workspace_root(&root)?;
+            let location = find_nearest_workspace(&root)?
+                .map_or_else(|| workspace_index_location(&root), Ok)?;
+            let admission = Arc::new(
+                LockWait::new(options.signal.as_ref(), options.lock_timeout_ms)?
+                    .acquire(&location.home, LockMode::Write, "graph.recover")
+                    .await?,
+            );
+            let active = inspect_workspace_manifest(&location.home)?.into_manifest(false)?;
+            super::graph::recovery::run(location.home, active, options, &self.scanner, admission)
+                .await
+        }
+    }
+
+    #[cfg_attr(
+        not(feature = "knowledge-graph-graphdb"),
+        expect(
+            clippy::unused_async,
+            clippy::unused_async_trait_impl,
+            reason = "the capability-only default build preserves the async service interface"
+        )
+    )]
+    pub(crate) async fn recover_text_state(
+        &self,
+        options: crate::api::index::graph::TextStateRecoveryOptions,
+    ) -> Result<crate::api::index::graph::TextStateRecoveryResult, EngineError> {
+        #[cfg(not(feature = "knowledge-graph-graphdb"))]
+        {
+            let _ = options;
+            Err(EngineError::unsupported(
+                "text state recovery requires graphdb support",
+            ))
+        }
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        {
+            if !crate::storage::graph_state::valid_uuid(&options.generation) {
+                return Err(EngineError::invalid_argument("invalid recovery generation"));
+            }
+            if options.repair
+                && (options.expected_operation_id.is_none()
+                    || options.expected_attempt.is_none()
+                    || options.expected_text_revision.is_none())
+            {
+                return Err(EngineError::invalid_argument(
+                    "inspect first; text recovery requires full expected identity",
+                ));
+            }
+            let root = resolve_root(options.root.as_deref())?;
+            validate_workspace_root(&root)?;
+            let location = find_nearest_workspace(&root)?
+                .map_or_else(|| workspace_index_location(&root), Ok)?;
+            let admission = Arc::new(
+                LockWait::new(options.signal.as_ref(), options.lock_timeout_ms)?
+                    .acquire(&location.home, LockMode::Write, "text.recover")
+                    .await?,
+            );
+            let manifest = inspect_workspace_manifest(&location.home)?
+                .into_manifest(false)?
+                .ok_or_else(|| EngineError::invalid_argument("no selected text generation"))?;
+            super::graph::text_recovery::run(manifest, options, &self.scanner, admission).await
+        }
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep write admission, policy changes, model-free planning and candidate ownership in order"
+    )]
     pub(crate) async fn index(
         &self,
         models: &ModelRuntimeManager,
@@ -181,6 +318,10 @@ impl WorkspaceIndexService {
         // Check the on-disk version before any registry, recovery or storage mutation.
         let mut existing =
             inspect_workspace_manifest(&location.home)?.into_manifest(options.rebuild)?;
+        // Graph parameters and capability are checked before model resolution,
+        // policy mutation or candidate recovery. None inherits persisted intent.
+        let requested_graph = graph_request(&options, &location.root)?;
+        let mut graph_policy = crate::workspace::graph_policy::GraphPolicy::read(&location.home)?;
         let abandoned = match read_build_registration(&location.home) {
             Ok(registration) => registration,
             Err(_) if options.rebuild => None,
@@ -210,11 +351,32 @@ impl WorkspaceIndexService {
         // Validate before model acquisition; invalid globs must not trigger downloads or inference.
         let scan = resolve_scan(existing.as_ref(), &options);
         crate::file_selection::GlobMatcher::new(&location.root, &scan.globs)?;
+        graph_policy = admit_graph_policy(
+            &location,
+            existing.as_ref(),
+            requested_graph,
+            graph_policy,
+            options.signal.as_ref(),
+        )?;
         if options.reset_paths
             || options.scan != crate::api::index::options::ScanRulesUpdate::default()
         {
             // A changed selection can admit files outside a watcher's narrow change scope.
             options.changes.clear();
+        }
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        if let Some(result) = self
+            .try_graph_only(
+                existing.as_ref(),
+                graph_policy.as_ref(),
+                &options,
+                &scan,
+                rebuilding,
+                &home_lock,
+            )
+            .await?
+        {
+            return Ok(result);
         }
         let IndexModels {
             runtimes: acquired,
@@ -245,7 +407,14 @@ impl WorkspaceIndexService {
         };
         let pending = build.clone();
         let result = self
-            .run_index(manifest, build, acquired, options, Arc::clone(&home_lock))
+            .run_index(
+                manifest,
+                build,
+                acquired,
+                options,
+                Arc::clone(&home_lock),
+                graph_policy,
+            )
             .await;
         if result.is_err()
             && let Some(build) = pending
@@ -257,6 +426,72 @@ impl WorkspaceIndexService {
         result
     }
 
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    async fn try_graph_only(
+        &self,
+        existing: Option<&WorkspaceManifest>,
+        policy: Option<&crate::workspace::graph_policy::GraphPolicy>,
+        options: &IndexOptions,
+        scan: &crate::domain::ScanRules,
+        rebuilding: bool,
+        home_lock: &Arc<FileLock>,
+    ) -> Result<Option<IndexResult>, EngineError> {
+        let (Some(active), Some(policy)) = (existing, policy) else {
+            return Ok(None);
+        };
+        if rebuilding
+            || !policy.configuration.scope.enabled()
+            || *scan != active.workspace.scan
+            || options.embedding.is_some()
+            || options.api_key.is_some()
+            || options.endpoint.is_some()
+            || options.device.is_some()
+            || options.runtime_device.is_some()
+            || options.model_cache.is_some()
+        {
+            return Ok(None);
+        }
+        let text = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+            storage_path: active.storage_home(),
+        })?;
+        let inputs = super::pipeline::graph_snapshot(
+            &active.workspace,
+            &text,
+            &self.scanner,
+            options.signal.clone(),
+            &std::collections::HashSet::new(),
+        )
+        .await;
+        let files = text.list_files()?;
+        let close = text.close();
+        drop(text);
+        let inputs = inputs?;
+        close?;
+        if let Some(inputs) = inputs {
+            let graph = super::graph::run(
+                active.clone(),
+                policy.clone(),
+                inputs,
+                Vec::new(),
+                options.signal.clone(),
+                super::graph::GraphWorkMode::GraphOnly,
+                Arc::clone(home_lock),
+            )
+            .await?;
+            return Ok(Some(IndexResult {
+                files_scanned: files.len(),
+                files_unchanged: files.len(),
+                graph: Some(graph),
+                ..IndexResult::default()
+            }));
+        }
+        Ok(None)
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep checkpoint, handle retirement, graph construction and manifest selection ordered together"
+    )]
     async fn run_index(
         &self,
         mut manifest: WorkspaceManifest,
@@ -264,6 +499,7 @@ impl WorkspaceIndexService {
         models: Vec<ModelRuntimeLease>,
         options: IndexOptions,
         home_lock: Arc<FileLock>,
+        graph_policy: Option<crate::workspace::graph_policy::GraphPolicy>,
     ) -> Result<IndexResult, EngineError> {
         let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
             storage_path: manifest.storage_home(),
@@ -274,10 +510,23 @@ impl WorkspaceIndexService {
                 storage,
                 models,
                 manifest.clone(),
-                home_lock,
+                Arc::clone(&home_lock),
             ),
             build.is_none(),
         );
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        let capture = graph_policy
+            .as_ref()
+            .filter(|p| p.configuration.scope.enabled())
+            .map(|p| {
+                super::graph::capture(
+                    &manifest,
+                    &writer.session.storage,
+                    p,
+                    options.signal.clone(),
+                )
+            })
+            .transpose()?;
         let embedding_models = writer
             .session
             .models
@@ -293,6 +542,17 @@ impl WorkspaceIndexService {
             on_progress: options.on_progress,
             signal: options.signal.clone(),
             changes: &options.changes,
+            #[cfg(feature = "knowledge-graph")]
+            graph_capture: {
+                #[cfg(feature = "knowledge-graph-graphdb")]
+                {
+                    capture.as_ref()
+                }
+                #[cfg(not(feature = "knowledge-graph-graphdb"))]
+                {
+                    None
+                }
+            },
         })
         .await;
         #[cfg(test)]
@@ -304,11 +564,31 @@ impl WorkspaceIndexService {
                 Ok(indexed)
             }
         });
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        let graph_inputs = if result.is_ok() && capture.is_some() {
+            let captured = capture.as_ref().map_or_else(Vec::new, |c| c.collected());
+            let paths = captured
+                .iter()
+                .map(|b| PathBuf::from(&b.record.path))
+                .collect();
+            Some(
+                super::pipeline::graph_snapshot(
+                    &manifest.workspace,
+                    &writer.session.storage,
+                    &self.scanner,
+                    options.signal.clone(),
+                    &paths,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
         // Closing precedes publication: all checkpoints and native handles belong
         // to the completed generation before the active manifest can select it.
         writer.retire().await;
         let close_result = writer.session.storage.close();
-        let indexed = result?;
+        let mut indexed = result?;
         close_result?;
         if options
             .signal
@@ -320,11 +600,104 @@ impl WorkspaceIndexService {
             ));
         }
         let now = epoch_millis();
-        if let Some(build) = build {
-            publish_build(build, now)?;
-        } else {
+        if build.is_none() {
+            #[cfg(test)]
+            if let Some(callback) = &self.before_manifest {
+                callback(&manifest);
+            }
+            // The graph root binds this selection policy. Persist it before
+            // selecting a new HEAD in the already active text generation.
             manifest.record_update(now);
             write_workspace_manifest(&manifest.path, &manifest)?;
+        }
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        if let Some(policy) = &graph_policy
+            && policy.configuration.scope.enabled()
+        {
+            indexed.graph = Some(match graph_inputs {
+                Some(Ok(Some(inputs))) => {
+                    super::graph::run(
+                        manifest.clone(),
+                        policy.clone(),
+                        inputs,
+                        capture.as_ref().map_or_else(Vec::new, |c| c.collected()),
+                        options.signal.clone(),
+                        if build.is_some() {
+                            super::graph::GraphWorkMode::TextRebuild
+                        } else {
+                            super::graph::GraphWorkMode::TextUpdate
+                        },
+                        Arc::clone(&home_lock),
+                    )
+                    .await?
+                }
+                Some(Err(error)) if error.code() == EngineError::CANCELLED => {
+                    return Err(error);
+                }
+                _ => crate::api::index::graph::GraphIndexResult::unavailable(
+                    "text_snapshot_not_ready",
+                    true,
+                ),
+            });
+        }
+        if indexed.graph.is_none()
+            && let Some(policy) = &graph_policy
+        {
+            indexed.graph = Some(crate::api::index::graph::GraphIndexResult::unavailable(
+                if policy.configuration.scope.enabled() {
+                    "graph_backend_unavailable"
+                } else {
+                    "graph_disabled"
+                },
+                true,
+            ));
+        }
+        if let Some(build) = build {
+            #[cfg(test)]
+            if let Some(callback) = &self.before_manifest {
+                callback(&manifest);
+            }
+            if options
+                .signal
+                .as_ref()
+                .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
+            {
+                return Err(EngineError::cancelled(
+                    "indexing cancelled before manifest selection",
+                ));
+            }
+            #[cfg(feature = "knowledge-graph-graphdb")]
+            let graph_selection_pending = super::graph::begin_manifest_selection(
+                &manifest,
+                indexed.graph.as_ref(),
+                options.signal.clone(),
+                Arc::clone(&home_lock),
+            )
+            .await?;
+            let publication = publish_build(build, now);
+            #[cfg(feature = "knowledge-graph-graphdb")]
+            if publication.is_err() && graph_selection_pending {
+                return Err(EngineError::storage_failure(
+                    "manifest selection recovery_required",
+                ));
+            }
+            publication?;
+            #[cfg(all(test, feature = "knowledge-graph-graphdb"))]
+            if graph_selection_pending && let Some(callback) = &self.after_manifest {
+                callback(&manifest)?;
+            }
+            #[cfg(feature = "knowledge-graph-graphdb")]
+            super::graph::confirm_manifest_selection(
+                &manifest,
+                indexed.graph.as_mut(),
+                options
+                    .signal
+                    .as_ref()
+                    .is_some_and(tokio_util::sync::CancellationToken::is_cancelled),
+            )?;
+        }
+        if let Some(graph) = &mut indexed.graph {
+            graph.text_published = true;
         }
         Ok(indexed)
     }
@@ -477,6 +850,49 @@ impl WorkspaceIndexService {
         }
         Ok(has_data || registration.is_some())
     }
+}
+
+fn graph_request(
+    options: &IndexOptions,
+    root: &Path,
+) -> Result<Option<crate::api::index::graph::GraphOptions>, EngineError> {
+    let requested = options
+        .graph
+        .clone()
+        .map(|g| g.normalized(root))
+        .transpose()?;
+    if requested.as_ref().is_some_and(|g| g.scope.enabled())
+        && !cfg!(feature = "knowledge-graph-graphdb")
+    {
+        return Err(EngineError::unsupported("graphdb backend is not compiled"));
+    }
+    Ok(requested)
+}
+fn admit_graph_policy(
+    location: &WorkspaceIndexLocation,
+    existing: Option<&WorkspaceManifest>,
+    requested: Option<crate::api::index::graph::GraphOptions>,
+    previous: Option<crate::workspace::graph_policy::GraphPolicy>,
+    signal: Option<&tokio_util::sync::CancellationToken>,
+) -> Result<Option<crate::workspace::graph_policy::GraphPolicy>, EngineError> {
+    if let Some(active) = existing {
+        crate::storage::graph_state::TextState::read(&active.storage_home())?;
+    }
+    if signal.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
+        return Err(EngineError::cancelled(
+            "indexing cancelled before graph policy admission",
+        ));
+    }
+    let Some(configuration) = requested else {
+        return Ok(previous);
+    };
+    let policy = crate::workspace::graph_policy::GraphPolicy::save(&location.home, configuration)?;
+    if !policy.configuration.scope.enabled()
+        && let Some(active) = existing
+    {
+        crate::storage::graph_state::GraphHead::revoke(&active.storage_home())?;
+    }
+    Ok(Some(policy))
 }
 
 fn workspace_has_index_data(location: &WorkspaceIndexLocation) -> Result<bool, EngineError> {
@@ -929,6 +1345,525 @@ mod tests {
     };
 
     use super::{ModelRuntimeManager, WorkspaceIndexService};
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    #[tokio::test]
+    async fn graph_cancel_after_prepared_head_keeps_previous_manifest_selected() {
+        use crate::api::index::graph::{GraphOptions, GraphScope};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+        let directory = tempdir().expect("workspace");
+        let models = ModelRuntimeManager::new();
+        let mut service = WorkspaceIndexService::with_test_registry();
+        service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial empty native text generation");
+        let home = directory.path().join(".zvec-grep");
+        let previous = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("active");
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let token = cancel.clone();
+        let observed = Arc::new(AtomicBool::new(false));
+        let proof = Arc::clone(&observed);
+        service.before_manifest = Some(Arc::new(move |candidate| {
+            assert!(
+                super::super::graph::verify_prepared_graph(candidate)
+                    .expect("real graph close/reopen commit proof")
+            );
+            let head = crate::storage::graph_state::GraphHead::read(&candidate.storage_home())
+                .expect("head")
+                .expect("prepared");
+            let value: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(
+                    candidate
+                        .storage_home()
+                        .join("graph/builds")
+                        .join(head.graph_build_id)
+                        .join("attempt.json"),
+                )
+                .expect("attempt"),
+            )
+            .expect("json");
+            assert_eq!(value["commitEffect"], "committed");
+            assert_eq!(value["selectionEffect"], "not_selected");
+            proof.store(true, Ordering::Release);
+            token.cancel();
+        }));
+        let error = service
+            .index(
+                &models,
+                IndexOptions {
+                    rebuild: true,
+                    graph: Some(GraphOptions {
+                        scope: GraphScope::Documents,
+                        ..Default::default()
+                    }),
+                    signal: Some(cancel),
+                    ..empty_index_options(directory.path())
+                },
+            )
+            .await
+            .expect_err("cancel before authoritative manifest selection");
+        assert_eq!(error.code(), crate::EngineError::CANCELLED);
+        assert!(observed.load(Ordering::Acquire));
+        assert_eq!(
+            super::read_workspace_manifest(&home)
+                .expect("manifest")
+                .expect("active")
+                .storage_generation,
+            previous.storage_generation
+        );
+        assert!(previous.storage_home().exists());
+        assert!(!super::has_build(&home));
+    }
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    #[tokio::test]
+    async fn graph_manifest_response_loss_after_switch_recovers_selected_effect() {
+        use crate::api::index::graph::{
+            GraphOptions, GraphRecoveryAction, GraphRecoveryOptions, GraphScope,
+        };
+        use std::sync::{Arc, Mutex};
+
+        let directory = tempdir().expect("workspace");
+        let models = ModelRuntimeManager::new();
+        let mut service = WorkspaceIndexService::with_test_registry();
+        let graph = || {
+            Some(GraphOptions {
+                scope: GraphScope::Documents,
+                ..Default::default()
+            })
+        };
+        service
+            .index(
+                &models,
+                IndexOptions {
+                    graph: graph(),
+                    ..empty_index_options(directory.path())
+                },
+            )
+            .await
+            .expect("initial graph generation");
+        let home = directory.path().join(".zvec-grep");
+        let previous = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("active");
+        let selected = Arc::new(Mutex::new(None));
+        let observed = Arc::clone(&selected);
+        service.after_manifest = Some(Arc::new(move |candidate| {
+            let active = super::read_workspace_manifest(&candidate.path)
+                .expect("manifest")
+                .expect("active");
+            assert_eq!(active.storage_generation, candidate.storage_generation);
+            assert!(
+                super::super::graph::verify_prepared_graph(candidate)
+                    .expect("committed root and receipt")
+            );
+            let head = crate::storage::graph_state::GraphHead::read(&candidate.storage_home())
+                .expect("head")
+                .expect("prepared");
+            *observed.lock().expect("selected id") = Some(head.graph_build_id);
+            Err(crate::EngineError::storage_failure(
+                "injected adapter response loss after manifest switch; recovery_required",
+            ))
+        }));
+        let error = service
+            .index(
+                &models,
+                IndexOptions {
+                    rebuild: true,
+                    graph: graph(),
+                    ..empty_index_options(directory.path())
+                },
+            )
+            .await
+            .expect_err("lost host response after authoritative switch");
+        assert!(error.message().contains("recovery_required"));
+        let id = selected
+            .lock()
+            .expect("selected id")
+            .clone()
+            .expect("hook ran after switch");
+        let active = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("active");
+        assert_ne!(active.storage_generation, previous.storage_generation);
+        let options = GraphRecoveryOptions {
+            root: Some(directory.path().into()),
+            graph_build_id: id,
+            ..Default::default()
+        };
+        let engine = crate::ZvecGrep::new();
+        let inspected = engine
+            .recover_graph(options.clone())
+            .await
+            .expect("inspect selected native effect");
+        assert!(inspected.candidate_committed && inspected.selected && inspected.eligible);
+        let reconciled = engine
+            .recover_graph(GraphRecoveryOptions {
+                action: GraphRecoveryAction::Reconcile,
+                expected_operation_id: Some(inspected.operation_id.clone()),
+                expected_attempt: Some(inspected.attempt),
+                ..options
+            })
+            .await
+            .expect("reconcile lost host response");
+        assert!(reconciled.candidate_committed && reconciled.selected);
+    }
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    #[tokio::test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "real dual-store recovery lifecycle with negative cases"
+    )]
+    async fn dirty_text_recovery_requires_current_sources_and_never_revives_old_head() {
+        use crate::api::index::graph::{GraphOptions, GraphScope, TextStateRecoveryOptions};
+        use crate::storage::graph_state::{self, GraphHead, TextPhase, TextState};
+        let dir = tempdir().expect("workspace");
+        let service = WorkspaceIndexService::with_test_registry();
+        let models = ModelRuntimeManager::new();
+        service
+            .index(
+                &models,
+                IndexOptions {
+                    graph: Some(GraphOptions {
+                        scope: GraphScope::Documents,
+                        ..Default::default()
+                    }),
+                    ..empty_index_options(dir.path())
+                },
+            )
+            .await
+            .expect("real text and graph");
+        let home = dir.path().join(".zvec-grep");
+        let manifest = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("selected");
+        let storage = manifest.storage_home();
+        let mut dirty = TextState::read(&storage).expect("state").expect("present");
+        dirty.state = TextPhase::Mutating;
+        graph_state::write_record(&storage.join("graph/STATE.json"), &dirty)
+            .expect("interrupted fence");
+        let before_state = std::fs::read(storage.join("graph/STATE.json")).expect("bytes");
+        let before_head = std::fs::read(storage.join("graph/HEAD.json")).expect("head bytes");
+        let mut options = TextStateRecoveryOptions {
+            root: Some(dir.path().into()),
+            generation: manifest.storage_generation.clone().expect("generation"),
+            ..Default::default()
+        };
+        let inspected = service
+            .recover_text_state(options.clone())
+            .await
+            .expect("read-only inspection");
+        assert!(inspected.dirty && inspected.sources_match && !inspected.repaired);
+        assert_eq!(
+            std::fs::read(storage.join("graph/STATE.json")).expect("state bytes"),
+            before_state
+        );
+        assert_eq!(
+            std::fs::read(storage.join("graph/HEAD.json")).expect("head bytes"),
+            before_head
+        );
+        options.repair = true;
+        assert!(
+            service.recover_text_state(options.clone()).await.is_err(),
+            "requires inspected identity"
+        );
+        options.expected_operation_id = Some(inspected.operation_id);
+        options.expected_attempt = Some(inspected.attempt);
+        options.expected_text_revision = Some(inspected.text_revision + 1);
+        assert!(
+            service.recover_text_state(options.clone()).await.is_err(),
+            "stale revision"
+        );
+        options.expected_text_revision = Some(inspected.text_revision);
+        std::fs::write(dir.path().join("new.md"), "# New").expect("changed sources");
+        assert!(
+            service.recover_text_state(options.clone()).await.is_err(),
+            "do not repair incomplete indexing"
+        );
+        assert_eq!(
+            std::fs::read(storage.join("graph/STATE.json")).expect("state bytes"),
+            before_state
+        );
+        std::fs::remove_file(dir.path().join("new.md")).expect("restore sources");
+        let cancel = tokio_util::sync::CancellationToken::new();
+        cancel.cancel();
+        options.signal = Some(cancel);
+        assert!(service.recover_text_state(options.clone()).await.is_err());
+        options.signal = None;
+        let repaired = service
+            .recover_text_state(options.clone())
+            .await
+            .expect("explicit repair");
+        assert!(repaired.repaired && !repaired.dirty && repaired.sources_match);
+        assert_eq!(repaired.text_revision, inspected.text_revision + 1);
+        assert!(GraphHead::read(&storage).expect("head").is_none());
+        assert!(
+            service.recover_text_state(options.clone()).await.is_err(),
+            "old repair cannot replay"
+        );
+        let stable = TextState::read(&storage).expect("state").expect("stable");
+        assert_eq!(stable.state, TextPhase::Stable);
+        assert_eq!(stable.text_revision, repaired.text_revision);
+        let result = service
+            .index(
+                &models,
+                IndexOptions {
+                    graph: Some(GraphOptions {
+                        scope: GraphScope::Documents,
+                        ..Default::default()
+                    }),
+                    ..empty_index_options(dir.path())
+                },
+            )
+            .await
+            .expect("new graph build after repair");
+        assert!(result.graph.expect("graph result").graph_selected);
+    }
+
+    #[cfg(all(feature = "knowledge-graph-graphdb", unix))]
+    #[tokio::test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "real manifest write refusal, native recovery and safe generation discard share one fixture"
+    )]
+    async fn graph_manifest_io_failure_preserves_pending_candidate_and_commit_proof() {
+        use crate::api::index::graph::{
+            GraphOptions, GraphRecoveryAction, GraphRecoveryOptions, GraphScope,
+        };
+        use std::{
+            os::unix::fs::PermissionsExt,
+            sync::{Arc, Mutex},
+        };
+        let directory = tempdir().expect("workspace");
+        let models = ModelRuntimeManager::new();
+        let mut service = WorkspaceIndexService::with_test_registry();
+        service
+            .index(&models, empty_index_options(directory.path()))
+            .await
+            .expect("initial text");
+        let home = directory.path().join(".zvec-grep");
+        let previous = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("active");
+        let saved = Arc::new(Mutex::new(None));
+        let candidate = Arc::clone(&saved);
+        service.before_manifest = Some(Arc::new(move |build| {
+            assert!(
+                super::super::graph::verify_prepared_graph(build)
+                    .expect("durable real root/receipt")
+            );
+            *candidate.lock().expect("saved candidate") = Some(build.clone());
+            std::fs::set_permissions(&build.path, std::fs::Permissions::from_mode(0o500))
+                .expect("deny final manifest rename");
+        }));
+        let outcome = service
+            .index(
+                &models,
+                IndexOptions {
+                    rebuild: true,
+                    graph: Some(GraphOptions {
+                        scope: GraphScope::Documents,
+                        ..Default::default()
+                    }),
+                    ..empty_index_options(directory.path())
+                },
+            )
+            .await;
+        std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700))
+            .expect("restore fixture permissions");
+        let error = outcome.expect_err("manifest I/O failure");
+        assert!(error.message().contains("recovery_required"));
+        let candidate = saved
+            .lock()
+            .expect("saved candidate")
+            .clone()
+            .expect("candidate observed");
+        assert!(candidate.storage_home().exists());
+        assert!(super::has_build(&home));
+        assert!(super::recover_build(&home).is_err());
+        assert_eq!(
+            super::read_workspace_manifest(&home)
+                .expect("manifest")
+                .expect("active")
+                .storage_generation,
+            previous.storage_generation
+        );
+        assert!(
+            super::super::graph::verify_prepared_graph(&candidate)
+                .expect("commit proof preserved after failed selection")
+        );
+        let head = crate::storage::graph_state::GraphHead::read(&candidate.storage_home())
+            .expect("head")
+            .expect("prepared");
+        let mut options = GraphRecoveryOptions {
+            root: Some(directory.path().into()),
+            generation: candidate.storage_generation.clone(),
+            graph_build_id: head.graph_build_id,
+            ..Default::default()
+        };
+        let inspected = service
+            .recover_graph(options.clone())
+            .await
+            .expect("inspect unselected native generation");
+        assert!(inspected.candidate_committed && !inspected.selected && !inspected.eligible);
+        assert!(
+            super::recover_build(&home).is_err(),
+            "read-only inspect retains pending protection"
+        );
+        options.expected_operation_id = Some(inspected.operation_id);
+        options.expected_attempt = Some(inspected.attempt);
+        options.action = GraphRecoveryAction::Select;
+        assert_eq!(
+            service
+                .recover_graph(options.clone())
+                .await
+                .expect_err("graph recovery cannot select a text generation")
+                .code(),
+            crate::EngineError::RESOURCE_BUSY
+        );
+        options.action = GraphRecoveryAction::Reconcile;
+        service
+            .recover_graph(options)
+            .await
+            .expect("confirm graph committed but host not selected");
+        super::recover_build(&home).expect("known unselected generation can now be discarded");
+        assert!(!candidate.storage_home().exists());
+        assert!(previous.storage_home().exists());
+    }
+
+    #[cfg(not(feature = "knowledge-graph-graphdb"))]
+    #[tokio::test]
+    async fn graph_recovery_without_native_feature_does_not_create_workspace_files() {
+        let dir = tempdir().expect("workspace");
+        let error = crate::ZvecGrep::new()
+            .recover_graph(crate::api::index::graph::GraphRecoveryOptions {
+                root: Some(dir.path().into()),
+                graph_build_id: uuid::Uuid::new_v4().to_string(),
+                ..Default::default()
+            })
+            .await
+            .expect_err("native backend absent");
+        assert_eq!(error.code(), crate::EngineError::UNSUPPORTED);
+        assert!(!dir.path().join(".zvec-grep").exists());
+    }
+
+    #[cfg(not(feature = "knowledge-graph-graphdb"))]
+    #[tokio::test]
+    async fn text_recovery_without_native_feature_does_not_create_workspace_files() {
+        let dir = tempdir().expect("workspace");
+        let error = crate::ZvecGrep::new()
+            .recover_text_state(crate::api::index::graph::TextStateRecoveryOptions {
+                root: Some(dir.path().into()),
+                generation: uuid::Uuid::new_v4().to_string(),
+                ..Default::default()
+            })
+            .await
+            .expect_err("native backend absent");
+        assert_eq!(error.code(), crate::EngineError::UNSUPPORTED);
+        assert!(!dir.path().join(".zvec-grep").exists());
+    }
+
+    #[cfg(all(feature = "knowledge-graph-graphdb", unix))]
+    #[tokio::test]
+    async fn graph_incremental_metadata_failure_cannot_select_head_for_unsaved_scan() {
+        use crate::api::index::graph::{GraphOptions, GraphScope};
+        use std::{os::unix::fs::PermissionsExt, sync::Arc};
+        let directory = tempdir().expect("workspace");
+        let models = ModelRuntimeManager::new();
+        let mut service = WorkspaceIndexService::with_test_registry();
+        service
+            .index(
+                &models,
+                IndexOptions {
+                    graph: Some(GraphOptions {
+                        scope: GraphScope::Documents,
+                        ..Default::default()
+                    }),
+                    ..empty_index_options(directory.path())
+                },
+            )
+            .await
+            .expect("initial native graph and text");
+        let home = directory.path().join(".zvec-grep");
+        let active = super::read_workspace_manifest(&home)
+            .expect("manifest")
+            .expect("active");
+        let metadata = std::fs::read(home.join("manifest.json")).expect("manifest bytes");
+        let head =
+            std::fs::read(active.storage_home().join("graph/HEAD.json")).expect("head bytes");
+        service.before_manifest = Some(Arc::new(|manifest| {
+            std::fs::set_permissions(&manifest.path, std::fs::Permissions::from_mode(0o500))
+                .expect("deny selection policy write");
+        }));
+        let result = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().into()),
+                    scan: ScanRulesUpdate {
+                        hidden: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            )
+            .await;
+        std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700))
+            .expect("restore fixture permissions");
+        assert!(result.is_err());
+        assert_eq!(
+            std::fs::read(home.join("manifest.json")).expect("old metadata"),
+            metadata
+        );
+        assert_eq!(
+            std::fs::read(active.storage_home().join("graph/HEAD.json")).expect("old head"),
+            head
+        );
+        assert_eq!(
+            std::fs::read_dir(active.storage_home().join("graph/builds"))
+                .expect("builds")
+                .count(),
+            1
+        );
+    }
+
+    #[cfg(not(feature = "knowledge-graph-graphdb"))]
+    #[tokio::test]
+    async fn graph_enable_without_backend_fails_before_models_or_policy() {
+        let directory = tempdir().expect("workspace");
+        let models = ModelRuntimeManager::new();
+        let service = WorkspaceIndexService::with_test_registry();
+        let error = service
+            .index(
+                &models,
+                IndexOptions {
+                    root: Some(directory.path().into()),
+                    graph: Some(crate::api::index::graph::GraphOptions {
+                        scope: crate::api::index::graph::GraphScope::Documents,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("backend unsupported");
+        assert_eq!(error.code(), crate::EngineError::UNSUPPORTED);
+        assert_eq!(models.snapshot().cached_runtimes, 0);
+        assert!(
+            !directory
+                .path()
+                .join(".zvec-grep/graph/POLICY.json")
+                .exists()
+        );
+        assert!(!directory.path().join(".zvec-grep/manifest.json").exists());
+    }
 
     fn write_previous_index_version(
         home: &std::path::Path,

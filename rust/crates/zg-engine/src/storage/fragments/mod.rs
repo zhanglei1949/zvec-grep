@@ -416,6 +416,9 @@ pub(super) fn build_filter(
     if let Some(ids) = &filter.entity_ids {
         clauses.push(in_filter("entity_id", ids.iter().map(EntityId::as_str)));
     }
+    if let Some(ids) = &filter.fragment_ids {
+        clauses.push(in_filter("document_id", ids.iter().map(String::as_str)));
+    }
     if let Some(names) = &filter.symbol_names {
         clauses.push(metadata_in_filter(
             CodeMetadata::SYMBOL_NAME,
@@ -573,6 +576,7 @@ pub(super) fn empty_filter(filter: Option<&StorageSearchFilter>) -> bool {
     filter.is_some_and(|filter| {
         filter.file_ids.as_ref().is_some_and(Vec::is_empty)
             || filter.entity_ids.as_ref().is_some_and(Vec::is_empty)
+            || filter.fragment_ids.as_ref().is_some_and(Vec::is_empty)
             || filter.symbol_names.as_ref().is_some_and(Vec::is_empty)
             || filter.symbol_types.as_ref().is_some_and(Vec::is_empty)
     })

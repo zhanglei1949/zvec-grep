@@ -182,6 +182,52 @@ pub async fn execute_command(
     home: &std::path::Path,
     command: zg_daemon_protocol::DaemonCommand,
 ) -> Result<zg_daemon_protocol::DaemonReply, DaemonError> {
+    if let zg_daemon_protocol::DaemonCommand::Explore(options) = &command {
+        options.validate()?;
+        return within_graph_request(
+            options.execution.request_timeout_ms,
+            options.signal.clone(),
+            execute_command_inner(home, command),
+        )
+        .await;
+    }
+    if let zg_daemon_protocol::DaemonCommand::Context(options)
+    | zg_daemon_protocol::DaemonCommand::QueryAuthorization(options) = &command
+        && !options.graph.is_off()
+    {
+        options.graph.validate()?;
+        let execution = options.graph_execution.unwrap_or_default();
+        execution.validate()?;
+        return within_graph_request(
+            execution.request_timeout_ms,
+            options.signal.clone(),
+            execute_command_inner(home, command),
+        )
+        .await;
+    }
+    execute_command_inner(home, command).await
+}
+
+async fn within_graph_request<T>(
+    timeout_ms: u64,
+    signal: Option<tokio_util::sync::CancellationToken>,
+    operation: impl std::future::Future<Output = Result<T, DaemonError>>,
+) -> Result<T, DaemonError> {
+    let signal = signal.unwrap_or_default();
+    tokio::select! {
+        biased;
+        () = signal.cancelled() => Err(zg_engine::EngineError::cancelled("graph query cancelled during daemon dispatch").into()),
+        result = tokio::time::timeout(Duration::from_millis(timeout_ms), operation) => {
+            result.map_err(|_| zg_engine::EngineError::deadline_exceeded("graph query deadline exceeded during daemon dispatch"))?
+        }
+    }
+}
+
+async fn execute_command_inner(
+    home: &std::path::Path,
+    mut command: zg_daemon_protocol::DaemonCommand,
+) -> Result<zg_daemon_protocol::DaemonReply, DaemonError> {
+    let started = std::time::Instant::now();
     let status = server_status(home).await?;
     if !status.ready {
         return Err(DaemonError::NotReady);
@@ -194,6 +240,42 @@ pub async fn execute_command(
             "daemon published an invalid server URL".to_owned(),
         ));
     }
+    let capability = match &command {
+        zg_daemon_protocol::DaemonCommand::Explore(_) => Some("explore.code.v1"),
+        zg_daemon_protocol::DaemonCommand::Context(options)
+        | zg_daemon_protocol::DaemonCommand::QueryAuthorization(options)
+            if !options.graph.is_off() =>
+        {
+            Some(match options.graph {
+                zg_engine::api::context::graph::GraphQueryMode::Constrain { .. } => {
+                    "constrain.code.v1"
+                }
+                _ => "augment.code.v1",
+            })
+        }
+        _ => None,
+    };
+    if let Some(capability) = capability {
+        let health = url
+            .strip_suffix("/admin/execute")
+            .ok_or_else(|| DaemonError::McpBridge("invalid daemon URL".into()))?;
+        let capabilities: serde_json::Value =
+            serde_json::from_slice(&http_client::get_json(&format!("{health}/healthz")).await?)?;
+        require_query_capability(&capabilities, capability)?;
+        let elapsed = started.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
+        match &mut command {
+            zg_daemon_protocol::DaemonCommand::Explore(options) => {
+                shrink_execution(&mut options.execution, elapsed)?;
+            }
+            zg_daemon_protocol::DaemonCommand::Context(options)
+            | zg_daemon_protocol::DaemonCommand::QueryAuthorization(options) => {
+                let mut execution = options.graph_execution.unwrap_or_default();
+                shrink_execution(&mut execution, elapsed)?;
+                options.graph_execution = Some(execution);
+            }
+            _ => {}
+        }
+    }
     let body = serde_json::to_vec(&command)?;
     let reply = http_client::post_json(&url, body).await?;
     match serde_json::from_slice::<zg_daemon_protocol::ExecutionResult>(&reply)? {
@@ -203,6 +285,40 @@ pub async fn execute_command(
             retryable: error.retryable,
         }),
     }
+}
+
+fn require_query_capability(
+    capabilities: &serde_json::Value,
+    capability: &str,
+) -> Result<(), DaemonError> {
+    if capabilities["protocol_version"] != zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION
+        || !capabilities["capabilities"]
+            .as_array()
+            .is_some_and(|v| v.iter().any(|s| s == capability))
+    {
+        return Err(DaemonError::McpBridge(format!(
+            "daemon does not support protocol {} {capability}; restart with a compatible graph-enabled binary",
+            zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION
+        )));
+    }
+    Ok(())
+}
+
+fn shrink_execution(
+    execution: &mut zg_engine::api::explore::ExecutionOptions,
+    elapsed: u64,
+) -> Result<(), DaemonError> {
+    execution.request_timeout_ms = execution
+        .request_timeout_ms
+        .checked_sub(elapsed)
+        .filter(|n| *n > 0)
+        .ok_or_else(|| {
+            zg_engine::EngineError::deadline_exceeded(
+                "graph query deadline exceeded before dispatch",
+            )
+        })?;
+    execution.graph_timeout_ms = execution.graph_timeout_ms.min(execution.request_timeout_ms);
+    Ok(())
 }
 
 /// Executes an index operation while forwarding live progress snapshots.
@@ -262,6 +378,78 @@ mod tests {
 
     use super::ListenAddress;
 
+    #[tokio::test(start_paused = true)]
+    async fn explore_dispatch_timeout_and_cancellation_keep_engine_error_codes() {
+        use std::future::pending;
+        use tokio_util::sync::CancellationToken;
+        let error = super::within_graph_request::<()>(1, None, pending())
+            .await
+            .expect_err("deadline");
+        assert!(
+            matches!(error,super::DaemonError::Engine(ref e) if e.code()==zg_engine::EngineError::DEADLINE_EXCEEDED)
+        );
+        let token = CancellationToken::new();
+        let cancel = token.clone();
+        let operation = async move {
+            cancel.cancel();
+            pending::<Result<(), super::DaemonError>>().await
+        };
+        let error = super::within_graph_request(30_000, Some(token), operation)
+            .await
+            .expect_err("cancel during dispatch");
+        assert!(
+            matches!(error,super::DaemonError::Engine(ref e) if e.code()==zg_engine::EngineError::CANCELLED)
+        );
+        let token = CancellationToken::new();
+        token.cancel();
+        let work = std::future::poll_fn::<Result<(), super::DaemonError>, _>(|_| {
+            panic!("cancelled dispatch must not poll work")
+        });
+        let error = super::within_graph_request(1, Some(token), work)
+            .await
+            .expect_err("pre-cancelled");
+        assert!(
+            matches!(error,super::DaemonError::Engine(ref e) if e.code()==zg_engine::EngineError::CANCELLED)
+        );
+    }
+
+    #[test]
+    fn explore_requires_current_protocol_and_explicit_capability() {
+        for value in [
+            serde_json::json!({"status":"ok"}),
+            serde_json::json!({"protocol_version":12,"capabilities":["explore.code.v1"]}),
+            serde_json::json!({"protocol_version":13,"capabilities":[]}),
+        ] {
+            assert!(super::require_query_capability(&value, "explore.code.v1").is_err());
+        }
+        assert!(
+            super::require_query_capability(
+                &serde_json::json!({
+                    "protocol_version":14,"capabilities":["explore.code.v1"]
+                }),
+                "explore.code.v1"
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn augmentation_requires_protocol_14_and_its_own_capability() {
+        for value in [
+            serde_json::json!({"protocol_version":13,"capabilities":["augment.code.v1"]}),
+            serde_json::json!({"protocol_version":14,"capabilities":["explore.code.v1"]}),
+        ] {
+            assert!(super::require_query_capability(&value, "augment.code.v1").is_err());
+        }
+        assert!(
+            super::require_query_capability(
+                &serde_json::json!({"protocol_version":14,"capabilities":["augment.code.v1"]}),
+                "augment.code.v1"
+            )
+            .is_ok()
+        );
+    }
+
     #[test]
     fn listen_address_accepts_only_loopback() {
         assert!(ListenAddress::from_str("127.0.0.1:7999").is_ok());
@@ -269,5 +457,17 @@ mod tests {
         assert!(ListenAddress::from_str("[::1]:7999").is_ok());
         assert!(ListenAddress::from_str("0.0.0.0:7999").is_err());
         assert!(ListenAddress::from_str("127.0.0.1:0").is_err());
+    }
+}
+
+#[cfg(test)]
+mod constrain_capability_tests {
+    #[test]
+    fn constrain_requires_its_own_declared_capability() {
+        let old = serde_json::json!({"protocol_version":14,"capabilities":["explore.code.v1","augment.code.v1"]});
+        assert!(super::require_query_capability(&old, "constrain.code.v1").is_err());
+        let current =
+            serde_json::json!({"protocol_version":14,"capabilities":["constrain.code.v1"]});
+        assert!(super::require_query_capability(&current, "constrain.code.v1").is_ok());
     }
 }

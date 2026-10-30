@@ -58,6 +58,7 @@ pub(crate) struct ResolvedSearchRoute {
 #[derive(Clone, Debug)]
 pub(crate) struct SearchEvidence {
     pub fragment: EntityFragment,
+    pub route_id: String,
 }
 
 #[derive(Clone, Debug)]
@@ -183,7 +184,11 @@ pub(crate) async fn search_workspace_index(
     let plan_duration = plan_started.elapsed();
 
     let filter_started = Instant::now();
-    let filter = search_plan_to_storage_filter(workspace_root, &plan, storage)?;
+    let filter = storage.restrict_filter(search_plan_to_storage_filter(
+        workspace_root,
+        &plan,
+        storage,
+    )?)?;
     let filter_duration = filter_started.elapsed();
     let has_searchable_files = !filter_matches_no_files(filter.as_ref());
 
@@ -586,6 +591,7 @@ fn candidate_to_hit(
         }
         loaded_evidence.push(SearchEvidence {
             fragment: fragment.clone(),
+            route_id: evidence.route_id,
         });
     }
     if loaded_evidence.is_empty() {
@@ -686,7 +692,7 @@ fn extract_symbol_names(query: &str) -> Vec<String> {
     names
 }
 
-fn search_plan_to_storage_filter(
+pub(in crate::pipelines) fn search_plan_to_storage_filter(
     workspace_root: &Path,
     plan: &SearchPlan,
     storage: &dyn SearchStorage,
@@ -775,8 +781,8 @@ fn resolve_filtered_paths<'a>(
         .collect()
 }
 
-#[cfg(test)]
-fn resolve_filtered_file_ids(
+#[cfg(any(test, feature = "knowledge-graph-graphdb"))]
+pub(in crate::pipelines) fn resolve_filtered_file_ids(
     workspace_root: &Path,
     plan: &SearchPlan,
     files: &[FileRecord],
@@ -801,6 +807,7 @@ fn filter_matches_no_files(filter: Option<&StorageSearchFilter>) -> bool {
     filter.is_some_and(|filter| {
         filter.file_ids.as_ref().is_some_and(Vec::is_empty)
             || filter.path == Some(StoragePathFilter::None)
+            || filter.fragment_ids.as_ref().is_some_and(Vec::is_empty)
     })
 }
 

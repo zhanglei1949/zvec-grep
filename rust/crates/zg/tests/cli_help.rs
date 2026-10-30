@@ -29,6 +29,7 @@ fn main_help_aliases_have_one_stable_surface() {
 
 #[test]
 fn command_help_and_topic_aliases_are_identical() {
+    assert_eq!(stdout(&["explore", "--help"]), stdout(&["help", "explore"]));
     assert_eq!(stdout(&["query", "--help"]), stdout(&["help", "query"]));
     assert_eq!(
         stdout(&["query", "ignored", "--help", "also-ignored"]),
@@ -40,6 +41,7 @@ fn command_help_and_topic_aliases_are_identical() {
 #[test]
 fn every_documented_help_topic_is_available() {
     for topic in [
+        "explore",
         "query",
         "index",
         "status",

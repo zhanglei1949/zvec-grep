@@ -139,10 +139,19 @@ pub fn query_authorizations(
     options: &crate::api::context::ContextOptions,
 ) -> Result<Vec<QueryAuthorization>, EngineError> {
     use crate::api::context::options::{ContextRouteMode, RefreshPolicy};
+    options.validate()?;
     if options.rg {
         return Ok(Vec::new());
     }
     let request = crate::pipelines::indexed_search::context::normalize_context_request(options)?;
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    if matches!(
+        options.graph,
+        crate::api::context::graph::GraphQueryMode::Constrain { .. }
+    ) && crate::pipelines::explore::constrain::inspect_scope(options)?.empty
+    {
+        return Ok(Vec::new());
+    }
     let query_text = request
         .routes
         .iter()
@@ -181,6 +190,77 @@ pub fn query_authorizations(
             workspace_content,
         })
         .collect())
+}
+
+/// Async transports keep native scope checks in a joined blocking worker.
+/// # Errors
+/// Returns the same failures as `query_authorizations`, including cancellation.
+pub async fn query_authorizations_async(
+    options: &crate::api::context::ContextOptions,
+) -> Result<Vec<QueryAuthorization>, EngineError> {
+    if !matches!(
+        options.graph,
+        crate::api::context::graph::GraphQueryMode::Constrain { .. }
+    ) {
+        return query_authorizations(options);
+    }
+    let mut options = options.clone();
+    let signal = options.signal.clone().unwrap_or_default().child_token();
+    let _cancel_on_drop = signal.clone().drop_guard();
+    options.signal = Some(signal);
+    tokio::task::spawn_blocking(move || query_authorizations(&options))
+        .await
+        .map_err(|_| EngineError::internal("scope authorization worker failed"))?
+}
+
+/// Read-only preflight costs; carries no reusable scope, IDs or native lease.
+#[derive(Clone, Copy, Debug)]
+pub struct ConstrainPreflight {
+    pub empty: bool,
+    pub usage: crate::api::explore::BudgetUsage,
+    pub elapsed_micros: u64,
+    pub qualification_micros: u64,
+    pub query_micros: u64,
+    pub output_limit: u64,
+}
+
+/// Checks a Constrain scope before a transport schedules refresh work.
+/// Execution resolves again under its own lease; no scope object escapes.
+/// # Errors
+/// Returns invalid mode, incompatible view, incomplete scope or budget failures.
+#[cfg_attr(
+    not(feature = "knowledge-graph-graphdb"),
+    expect(
+        clippy::unused_async,
+        reason = "Retain one async preflight API when the graph backend is disabled"
+    )
+)]
+pub async fn inspect_constrain_scope(
+    options: &crate::api::context::ContextOptions,
+) -> Result<ConstrainPreflight, EngineError> {
+    options.validate()?;
+    if !matches!(
+        options.graph,
+        crate::api::context::graph::GraphQueryMode::Constrain { .. }
+    ) {
+        return Err(EngineError::invalid_argument(
+            "scope preflight requires constrain",
+        ));
+    }
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    {
+        let mut options = options.clone();
+        let signal = options.signal.clone().unwrap_or_default().child_token();
+        let _cancel_on_drop = signal.clone().drop_guard();
+        options.signal = Some(signal);
+        tokio::task::spawn_blocking(move || {
+            crate::pipelines::explore::constrain::inspect_scope(&options)
+        })
+        .await
+        .map_err(|_| EngineError::internal("scope preflight worker failed"))?
+    }
+    #[cfg(not(feature = "knowledge-graph-graphdb"))]
+    Err(EngineError::unsupported("constrain requires graphdb"))
 }
 
 /// Persists a destination explicitly approved by the terminal user.

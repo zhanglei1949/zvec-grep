@@ -684,7 +684,11 @@ fn full_toolset_exposes_lifecycle_tools_and_runs_managed_rg() -> Result<(), Box<
     let response = loop {
         let response = post_json(port, Some(&session), &index_status.to_string())?;
         assert!(!response.contains("\"job_state\":\"failed\""), "{response}");
-        if response.contains("\"job_state\":\"succeeded\"") {
+        // A succeeded watcher job can precede the persisted status snapshot.
+        if response.contains("\"job_state\":\"succeeded\"")
+            && response.contains("\"indexed\":1")
+            && response.contains("\"failed\":0")
+        {
             break response;
         }
         assert!(
@@ -884,6 +888,7 @@ fn default_connections_reuse_either_toolset_and_explicit_conflicts_fail()
                 .ok_or("tool list")?
                 .len(),
             if profile == "agent" { 1 } else { 6 }
+                + usize::from(zg_engine::ZvecGrep::supports_explore())
         );
         bridge.close()?;
         let current: serde_json::Value =
@@ -1112,7 +1117,10 @@ fn concurrent_stdio_bootstraps_share_one_resident_daemon() -> Result<(), Box<dyn
     let tools = list["result"]["tools"]
         .as_array()
         .ok_or("tools/list did not return an array")?;
-    assert_eq!(tools.len(), 6);
+    assert_eq!(
+        tools.len(),
+        6 + usize::from(zg_engine::ZvecGrep::supports_explore())
+    );
 
     for bridge in bridges {
         bridge.close()?;
@@ -1406,6 +1414,373 @@ fn stdio_remote_consent_controls_transmission_and_persistence() -> Result<(), Bo
     bridge.close()?;
     assert_command_success(&guard.stop()?);
     Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+#[test]
+fn code_explore_matches_rust_cli_daemon_and_mcp_without_model_calls() -> Result<(), Box<dyn Error>>
+{
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
+    let home = TempDir::new()?;
+    let workspace = TempDir::new()?;
+    let embedding = EmbeddingServer::start()?;
+    let registry = home.path().join("workspaces.json");
+    std::fs::create_dir(workspace.path().join("src"))?;
+    std::fs::write(
+        workspace.path().join("src/lib.rs"),
+        "fn target() {}\nfn caller() { target(); target(); caller(); }\nstruct Widget;type Alias=Widget;impl Widget{fn ping(){Self::pong();}fn pong(){}}fn invoke(){Widget::ping();Alias::ping();}\nstruct Frame<'a>(&'a str);impl<'a> Frame<'a>{fn lifetime_ping(){Self::lifetime_pong();}fn lifetime_pong(){}}fn lifetime_invoke(){Frame::lifetime_ping();}\n",
+    )?;
+    let graph = json!({"scope":"code","module_roots":[{
+        "root":"src","language":"rust","namespace":"test","module_prefix":[],"layout":"flat"
+    }]});
+    let config = home.path().join("graph.json");
+    std::fs::write(&config, serde_json::to_vec(&graph)?)?;
+    let indexed = Command::new(&binary)
+        .current_dir(workspace.path())
+        .env("ZVEC_GREP_HOME", home.path())
+        .env("ZVEC_GREP_WORKSPACE_REGISTRY", &registry)
+        .env("ZVEC_GREP_API_KEY", "test-key")
+        .args([
+            "index",
+            "--mode",
+            "direct",
+            "--allow-remote",
+            "--embedding",
+            "qwen/text-embedding-v4",
+            "--endpoint",
+        ])
+        .arg(format!("http://{}/embeddings", embedding.address))
+        .arg("--graph-options")
+        .arg(&config)
+        .output()?;
+    assert_command_success(&indexed);
+    let (mut guard, _) = start_server(&binary, &home, "full", None, |c| {
+        c.env("ZVEC_GREP_WORKSPACE_REGISTRY", &registry);
+    })?;
+    let mut bridge = StdioBridge::spawn(&binary, home.path(), &guard.listen)?;
+    bridge.request(
+        &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+        "protocolVersion":"2025-11-25","capabilities":{"elicitation":{"form":{}}},
+        "clientInfo":{"name":"explore-test","version":"1"}}}),
+    )?;
+    bridge.notify(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}))?;
+    let list = bridge.request(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}))?;
+    assert_explore_tool_schema(&list)?;
+    let (index, _) = bridge.request_with_consent(&json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+        "name":"zvec_grep_index","arguments":{"root":workspace.path(),"graph":graph,
+        "embedding":"qwen/text-embedding-v4","endpoint":format!("http://{}/embeddings",embedding.address),
+        "apiKey":"test-key","wait":true}}}),"once")?;
+    assert_eq!(index["result"]["isError"], false, "{index}");
+    assert_eq!(
+        index["result"]["structuredContent"]["graph"]["domains"]["code"]["ready"]["state"], "ready",
+        "{index}"
+    );
+    let before = embedding.requests.load(Ordering::SeqCst);
+    let request = json!({"domain":"code","operation":{"operation":"neighbors",
+        "anchor":{"by":"name","name":"target"},"relations":["calls"],"direction":"incoming"}});
+    let expected = rust_explore_payload(workspace.path(), &request)?;
+    assert_eq!(
+        expected["relations"].as_array().ok_or("relations")?.len(),
+        2
+    );
+    for mode in ["direct", "server"] {
+        let result = Command::new(&binary)
+            .current_dir(workspace.path())
+            .env("ZVEC_GREP_HOME", home.path())
+            .env("ZVEC_GREP_WORKSPACE_REGISTRY", &registry)
+            .args(["explore", "--mode", mode, "callers", "--name", "target"])
+            .output()?;
+        assert_command_success(&result);
+        let mut value: serde_json::Value = serde_json::from_slice(&result.stdout)?;
+        value.as_object_mut().ok_or("result")?.remove("execution");
+        assert_eq!(value, expected, "{mode}");
+    }
+    let reply = bridge.request(
+        &json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{
+        "name":"zvec_grep_explore","arguments":{"root":workspace.path(),"request":request}}}),
+    )?;
+    assert_eq!(reply["result"]["isError"], false, "{reply}");
+    let mut actual = reply["result"]["structuredContent"].clone();
+    actual
+        .as_object_mut()
+        .ok_or("structured result")?
+        .remove("execution");
+    assert_eq!(actual, expected);
+    assert_inherent_explore_entries(&binary, &home, workspace.path(), &registry, &mut bridge)?;
+    assert_all_graph_search_entries(&binary, &home, workspace.path(), &registry, &mut bridge)?;
+    assert_eq!(
+        embedding.requests.load(Ordering::SeqCst),
+        before,
+        "explore contacted the model"
+    );
+    bridge.close()?;
+    assert_command_success(&guard.stop()?);
+    Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn assert_inherent_explore_entries(
+    binary: &Path,
+    home: &TempDir,
+    root: &Path,
+    registry: &Path,
+    bridge: &mut StdioBridge,
+) -> Result<(), Box<dyn Error>> {
+    for (operation, name, count) in [
+        ("callees", "invoke", 2),
+        ("callees", "ping", 1),
+        ("callees", "lifetime_invoke", 1),
+        ("callees", "lifetime_ping", 1),
+    ] {
+        let request = json!({"domain":"code","operation":{"operation":"neighbors","anchor":{"by":"name","name":name},"relations":["calls"],"direction":"outgoing"}});
+        let expected = rust_explore_payload(root, &request)?;
+        assert_eq!(
+            expected["relations"].as_array().ok_or("relations")?.len(),
+            count
+        );
+        for mode in ["direct", "server"] {
+            let result = Command::new(binary)
+                .current_dir(root)
+                .env("ZVEC_GREP_HOME", home.path())
+                .env("ZVEC_GREP_WORKSPACE_REGISTRY", registry)
+                .args(["explore", "--mode", mode, operation, "--name", name])
+                .output()?;
+            assert_command_success(&result);
+            let mut actual: serde_json::Value = serde_json::from_slice(&result.stdout)?;
+            actual
+                .as_object_mut()
+                .ok_or("CLI result")?
+                .remove("execution");
+            assert_eq!(actual, expected, "{name}: {mode}");
+        }
+        let reply=bridge.request(&json!({"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"zvec_grep_explore","arguments":{"root":root,"request":request}}}))?;
+        assert_eq!(reply["result"]["isError"], false, "{reply}");
+        let mut actual = reply["result"]["structuredContent"].clone();
+        actual
+            .as_object_mut()
+            .ok_or("MCP result")?
+            .remove("execution");
+        assert_eq!(actual, expected, "MCP {name}");
+    }
+    Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn assert_explore_tool_schema(list: &serde_json::Value) -> Result<(), Box<dyn Error>> {
+    let tool = list["result"]["tools"]
+        .as_array()
+        .ok_or("tools")?
+        .iter()
+        .find(|t| t["name"] == "zvec_grep_explore")
+        .ok_or("explore tool")?;
+    assert!(tool["outputSchema"]["properties"]["view"].is_object());
+    Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn assert_all_graph_search_entries(
+    binary: &Path,
+    home: &TempDir,
+    root: &Path,
+    registry: &Path,
+    bridge: &mut StdioBridge,
+) -> Result<(), Box<dyn Error>> {
+    assert_graph_search_entries(
+        binary,
+        home,
+        root,
+        registry,
+        bridge,
+        &json!({"mode":"augment","seeds":5,"expansion":{"max_hops":1}}),
+        "caller",
+    )?;
+    assert_graph_search_entries(
+        binary,
+        home,
+        root,
+        registry,
+        bridge,
+        &json!({"mode":"constrain","scope":{"anchor":{"by":"name","name":"caller"},"traversal":{"max_hops":1}}}),
+        "target",
+    )?;
+    assert_empty_scope_refresh(home.path(), root)?;
+    Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn assert_empty_scope_refresh(home: &Path, root: &Path) -> Result<(), Box<dyn Error>> {
+    use zg_daemon_protocol::{DaemonCommand, DaemonReply};
+    use zg_engine::api::context::{ContextOptions, graph::GraphQueryMode, options::RefreshPolicy};
+    let runtime = tokio::runtime::Runtime::new()?;
+    for refresh in [RefreshPolicy::Background, RefreshPolicy::Wait] {
+        let options = ContextOptions {
+            root: Some(root.into()),
+            queries: vec!["outside".into()],
+            auto_update: true,
+            refresh: Some(refresh),
+            graph: serde_json::from_value::<GraphQueryMode>(
+                json!({"mode":"constrain","scope":{"anchor":{"by":"name","name":"target"},"traversal":{"max_hops":1}}}),
+            )?,
+            ..Default::default()
+        };
+        let authorization = runtime.block_on(zg_daemon::execute_command(
+            home,
+            DaemonCommand::QueryAuthorization(options.clone()),
+        ))?;
+        assert!(
+            matches!(authorization,DaemonReply::QueryAuthorization(targets) if targets.is_empty())
+        );
+        let checked =
+            runtime.block_on(zg_engine::authorization::inspect_constrain_scope(&options))?;
+        let mut limited = options.clone();
+        let mut execution = limited.graph_execution.unwrap_or_default();
+        execution.budget.nodes = checked.usage.nodes;
+        limited.graph_execution = Some(execution);
+        let stopped = runtime
+            .block_on(zg_daemon::execute_command(
+                home,
+                DaemonCommand::Context(limited),
+            ))
+            .expect_err("preflight shares request budget");
+        assert!(
+            matches!(stopped, zg_daemon::DaemonError::Remote { report, .. } if report.code == zg_engine::EngineError::RESOURCE_BUSY)
+        );
+        let reply = runtime.block_on(zg_daemon::execute_command(
+            home,
+            DaemonCommand::Context(options),
+        ))?;
+        let DaemonReply::Context(result) = reply else {
+            return Err("context reply".into());
+        };
+        assert!(result.items.is_empty());
+        assert_eq!(result.background_refresh.as_deref(), Some("off"));
+        assert_eq!(
+            result
+                .graph
+                .ok_or("graph")?
+                .scope
+                .ok_or("scope")?
+                .filtered_fragment_count,
+            0
+        );
+    }
+    Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn assert_graph_search_entries(
+    binary: &Path,
+    home: &TempDir,
+    root: &Path,
+    registry: &Path,
+    bridge: &mut StdioBridge,
+    graph: &serde_json::Value,
+    query: &str,
+) -> Result<(), Box<dyn Error>> {
+    use zg_engine::api::context::{
+        ContextOptions,
+        graph::GraphQueryMode,
+        options::{ContextRoute, ContextRouteMode, RefreshPolicy},
+    };
+    let options = ContextOptions {
+        root: Some(root.into()),
+        auto_update: false,
+        refresh: Some(RefreshPolicy::Off),
+        routes: vec![ContextRoute {
+            mode: ContextRouteMode::Fts,
+            query: query.into(),
+        }],
+        graph: serde_json::from_value::<GraphQueryMode>(graph.clone())?,
+        ..Default::default()
+    };
+    let engine = zg_engine::ZvecGrep::new();
+    let runtime = tokio::runtime::Runtime::new()?;
+    let result = runtime.block_on(engine.context(options));
+    engine.close();
+    let mut expected = serde_json::to_value(result?.graph.ok_or("graph")?)?;
+    expected
+        .as_object_mut()
+        .ok_or("graph object")?
+        .remove("execution");
+    assert_eq!(expected["status"], "complete");
+    assert_eq!(
+        expected["relations"].as_array().ok_or("relations")?.len(),
+        2
+    );
+    let input = home.path().join("augment.json");
+    std::fs::write(&input, serde_json::to_vec(&graph)?)?;
+    for mode in ["direct", "server"] {
+        let output = Command::new(binary)
+            .current_dir(root)
+            .env("ZVEC_GREP_HOME", home.path())
+            .env("ZVEC_GREP_WORKSPACE_REGISTRY", registry)
+            .args([
+                "query",
+                "--mode",
+                mode,
+                "--fts",
+                query,
+                "--refresh",
+                "off",
+                "--preview",
+                "full",
+                "--graph-request",
+            ])
+            .arg(&input)
+            .output()?;
+        assert_command_success(&output);
+        assert_eq!(
+            rendered_graph(&String::from_utf8(output.stdout)?)?,
+            expected,
+            "{mode}"
+        );
+    }
+    let reply = bridge.request(&json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{
+        "name":"zvec_grep_search","arguments":{"root":root,"fts":query,"freshness":"eventual","autoUpdate":false,"preview":"full","graph":graph}}}))?;
+    assert_ne!(reply["result"]["isError"], true, "{reply}");
+    assert_eq!(
+        rendered_graph(
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .ok_or("search text")?
+        )?,
+        expected
+    );
+    Ok(())
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn rendered_graph(text: &str) -> Result<serde_json::Value, Box<dyn Error>> {
+    let json = text
+        .split("\nGraph\n```json\n")
+        .nth(1)
+        .ok_or("graph section")?
+        .split("\n```")
+        .next()
+        .ok_or("graph JSON")?;
+    let mut value: serde_json::Value = serde_json::from_str(json)?;
+    value
+        .as_object_mut()
+        .ok_or("graph object")?
+        .remove("execution");
+    Ok(value)
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+fn rust_explore_payload(
+    root: &Path,
+    request: &serde_json::Value,
+) -> Result<serde_json::Value, Box<dyn Error>> {
+    let mut options =
+        zg_engine::api::explore::ExploreOptions::new(serde_json::from_value(request.clone())?);
+    options.root = Some(root.into());
+    let runtime = tokio::runtime::Runtime::new()?;
+    let engine = zg_engine::ZvecGrep::new();
+    let reply = runtime.block_on(engine.explore(options));
+    engine.close();
+    let mut value = serde_json::to_value(reply?)?;
+    value.as_object_mut().ok_or("result")?.remove("execution");
+    Ok(value)
 }
 
 struct EmbeddingServer {

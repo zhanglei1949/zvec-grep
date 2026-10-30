@@ -1,10 +1,13 @@
 //! Command-line parsing, validation, request construction, and terminal rendering.
 
 mod authorization;
+mod explore;
 mod install;
 mod jsonc;
 mod managed_rg;
+pub use explore::ExploreArgs;
 mod progress;
+mod query_graph;
 mod render;
 pub use progress::IndexProgressDisplay;
 
@@ -64,6 +67,8 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum CommandLine {
+    /// Read published code relationships without refreshing or loading models.
+    Explore(ExploreArgs),
     /// Search indexed context or run managed ripgrep.
     Query(QueryArgs),
     /// Build, rebuild, or drop the workspace index.
@@ -447,6 +452,15 @@ fn ordered_glob_rules(matches: &clap::ArgMatches) -> Vec<GlobRule> {
 #[derive(Debug, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct QueryArgs {
+    /// Add related code after normal retrieval.
+    #[arg(long, value_enum, conflicts_with = "graph_request")]
+    pub graph_mode: Option<GraphModeArg>,
+    /// `GraphQueryMode` JSON file with traversal and boundary options.
+    #[arg(long)]
+    pub graph_request: Option<PathBuf>,
+    /// Graph execution deadlines and budgets as JSON.
+    #[arg(long)]
+    pub graph_execution: Option<PathBuf>,
     #[arg(long, env = "ZVEC_GREP_MODE", default_value = "auto")]
     pub mode: ClientMode,
     #[arg(long = "force-direct")]
@@ -501,9 +515,17 @@ pub struct QueryArgs {
     pub values: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum GraphModeArg {
+    Off,
+    Augment,
+}
+
 #[derive(Debug, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct IndexArgs {
+    #[arg(long = "graph-options")]
+    pub graph_options: Option<PathBuf>,
     pub root: Option<PathBuf>,
     /// Set or rename the unique workspace name; new workspaces default to the root directory name.
     #[arg(long, value_name = "NAME")]
@@ -620,6 +642,11 @@ pub struct ServerStatusArgs {
 
 #[derive(Debug)]
 pub enum CliPlan {
+    Explore {
+        mode: ClientMode,
+        home: Option<PathBuf>,
+        request: Box<zg_engine::api::explore::ExploreOptions>,
+    },
     Query {
         mode: ClientMode,
         home: Option<PathBuf>,
@@ -674,6 +701,8 @@ pub enum ServerPlan {
 
 #[derive(Debug, Error)]
 pub enum CliError {
+    #[error("{0}")]
+    InvalidExplore(String),
     #[error("zg query requires text or --hybrid/--fts/--vector routes")]
     MissingQuery,
     #[error("--rg cannot be combined with --hybrid, --fts, --vector, or --fuse")]
@@ -762,6 +791,7 @@ impl Cli {
             return Ok(CliPlan::Help(None));
         };
         match command {
+            CommandLine::Explore(args) => explore::plan(args, &current_dir),
             CommandLine::Query(args) => query_plan(args, current_dir),
             CommandLine::Index(args) => index_plan(args, &current_dir),
             CommandLine::Status(args) => Ok(CliPlan::Status {
@@ -842,7 +872,8 @@ fn normalize_help_and_version(mut arguments: Vec<OsString>) -> Result<Vec<OsStri
         Some(command)
             if matches!(
                 command,
-                "query"
+                "explore"
+                    | "query"
                     | "index"
                     | "status"
                     | "config"
@@ -937,6 +968,9 @@ fn query_option_with_value(value: &str) -> bool {
     matches!(
         value,
         "--mode"
+            | "--graph-mode"
+            | "--graph-request"
+            | "--graph-execution"
             | "--preview"
             | "--color"
             | "--limit"
@@ -968,6 +1002,9 @@ fn query_option_with_value(value: &str) -> bool {
 
 fn query_attached_option(value: &str) -> bool {
     value.starts_with("--mode=")
+        || value.starts_with("--graph-mode=")
+        || value.starts_with("--graph-request=")
+        || value.starts_with("--graph-execution=")
         || value.starts_with("--preview=")
         || value.starts_with("--color=")
         || value.starts_with("--limit=")
@@ -1060,6 +1097,7 @@ fn validate_query(args: &QueryArgs) -> Result<(), CliError> {
 
 fn query_plan(args: QueryArgs, current_dir: PathBuf) -> Result<CliPlan, CliError> {
     validate_query(&args)?;
+    let (graph, graph_execution) = query_graph::options(&args, &current_dir)?;
     let mode = args.mode;
     let home = args.home.clone();
     let output = OutputOptions {
@@ -1122,6 +1160,8 @@ fn query_plan(args: QueryArgs, current_dir: PathBuf) -> Result<CliPlan, CliError
         }
     };
     request.allow_remote = args.allow_remote;
+    request.graph = graph;
+    request.graph_execution = graph_execution;
     request.api_key = args.api_key;
     request.device = args.device.map(Into::into);
     request.model_cache = args
@@ -1171,7 +1211,8 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
         ..OutputOptions::default()
     };
     if args.drop {
-        if args.name.is_some()
+        if args.graph_options.is_some()
+            || args.name.is_some()
             || args.rebuild
             || args.reset_paths
             || args.embedding.is_some()
@@ -1219,6 +1260,11 @@ fn index_plan(mut args: IndexArgs, current_dir: &Path) -> Result<CliPlan, CliErr
         operation: IndexOperation::Build(Box::new(IndexOptions {
             root: Some(root),
             name: args.name,
+            graph: args
+                .graph_options
+                .as_ref()
+                .map(|path| explore::json_file(&resolve_from(current_dir, Some(path))))
+                .transpose()?,
             rebuild: args.rebuild,
             reset_paths: args.reset_paths,
             scan,

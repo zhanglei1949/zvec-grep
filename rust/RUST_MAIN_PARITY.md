@@ -1,5 +1,7 @@
 # Rust / main parity checklist
 
+历史运行记录已迁入[归档索引](../knowledge/archive/pre-g4-validation/README.md)；文中的旧 reports 路径指归档内位置，机器记录链接的标题保留原始路径。
+
 Tracks changes from the Node.js `main` branch that must be reflected in the Rust implementation.
 
 - Audit date: 2026-09-13.
@@ -216,6 +218,30 @@ parity remains to be checked; none is marked complete by this audit.
 - [ ] Fit applicable documentation into the current Rust layout; do not restore the previously removed `docs` directory just to mirror main.
 - [ ] Update CLI examples and model/index documentation to describe the implemented Rust behavior.
 - [ ] Reconcile release/package metadata with the Rust release process; do not copy a historical version bump as a new release.
+
+## I. Markdown segmentation (intentional Rust-ahead divergence)
+
+Rust now segments Markdown through the shared `zg-markdown` crate (CommonMark,
+`pulldown-cmark=0.13.5`), replacing the line scanner ported from Node.js
+`src/engine/extraction/markdown/extractor.ts`. This is a deliberate divergence
+from main, not a missing behavior: CommonMark correctly detects indented ATX
+headings, multi-line setext headings, headings inside blockquotes and list
+items, and flattens inline code in heading text, all of which the Node.js
+scanner misses.
+
+- [ ] Node.js main still uses the naive line scanner, so Markdown chunk
+      boundaries, `EntityId` values and retrieval results differ between the two
+      implementations for documents containing those patterns.
+- [ ] The change is folded into the unreleased Rust index format version 2
+      (`CURRENT_INDEX_VERSION` unchanged, no bump). Local v2 indexes built before
+      it keep the old Markdown segmentation until `zg index --rebuild`.
+- [ ] Reconcile at the TS to Rust cutover: either port the same CommonMark
+      segmentation to Node.js main before retirement, or accept it as Rust-only
+      once Node.js is retired.
+
+Evidence: [P0 divergence audit](../knowledge/archive/pre-g4-validation/README.md#markdown-unification "包内：knowledge/reports/markdown-unification") (22
+frozen cases, defects D1-D4). Plan:
+[Markdown unification](../knowledge/MARKDOWN_UNIFICATION_PLAN.md).
 
 ## Completion
 

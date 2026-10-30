@@ -1,0 +1,436 @@
+{
+  "protocol": "zg-graph-eval-v1",
+  "stage": "G0 labels; no search quality results",
+  "questions": [
+    {
+      "id": "C01",
+      "domain": "code",
+      "question": "Rust run 中的 plus 调用指向哪个定义？",
+      "source": "rust/src/lib.rs",
+      "reference_text": "plus(1, 2)",
+      "target": "rust/src/calc.rs",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "rust/src/lib.rs",
+          "sha256": "663c0795068d6b3f1c9796aa8c1304c49fed108a1a84eb8641614a2591bfbc93",
+          "start": 86,
+          "end": 96,
+          "quote": "plus(1, 2)"
+        },
+        {
+          "path": "rust/src/calc.rs",
+          "sha256": "083a01c1621a52b8df9f782f965a1b557fec1d3b613a3fcfcd46bc62d96c5165",
+          "start": 0,
+          "end": 33,
+          "quote": "pub fn add(a: i32, b: i32) -> i32"
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "domain": "code",
+      "question": "Rust twice 的静态调用者有哪些？",
+      "source": "rust/src/lib.rs",
+      "reference_text": "twice(plus",
+      "target": "rust/src/calc.rs",
+      "expected_status": "resolved",
+      "direction": "incoming",
+      "required_evidence": [
+        {
+          "path": "rust/src/lib.rs",
+          "sha256": "663c0795068d6b3f1c9796aa8c1304c49fed108a1a84eb8641614a2591bfbc93",
+          "start": 80,
+          "end": 97,
+          "quote": "twice(plus(1, 2))"
+        },
+        {
+          "path": "rust/src/calc.rs",
+          "sha256": "083a01c1621a52b8df9f782f965a1b557fec1d3b613a3fcfcd46bc62d96c5165",
+          "start": 49,
+          "end": 80,
+          "quote": "pub fn twice(value: i32) -> i32"
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "domain": "code",
+      "question": "Rust twice 内部的 add 调用指向哪里？",
+      "source": "rust/src/calc.rs",
+      "reference_text": "add(value",
+      "target": "rust/src/calc.rs",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "rust/src/calc.rs",
+          "sha256": "083a01c1621a52b8df9f782f965a1b557fec1d3b613a3fcfcd46bc62d96c5165",
+          "start": 87,
+          "end": 104,
+          "quote": "add(value, value)"
+        },
+        {
+          "path": "rust/src/calc.rs",
+          "sha256": "083a01c1621a52b8df9f782f965a1b557fec1d3b613a3fcfcd46bc62d96c5165",
+          "start": 0,
+          "end": 33,
+          "quote": "pub fn add(a: i32, b: i32) -> i32"
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "domain": "code",
+      "question": "Rust shadow 参数 plus 能唯一归到 add 吗？",
+      "source": "rust/src/lib.rs",
+      "reference_text": "plus(2, 3)",
+      "target": null,
+      "expected_status": "unresolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "rust/src/lib.rs",
+          "sha256": "663c0795068d6b3f1c9796aa8c1304c49fed108a1a84eb8641614a2591bfbc93",
+          "start": 101,
+          "end": 148,
+          "quote": "pub fn shadow(plus: fn(i32, i32) -> i32) -> i32"
+        },
+        {
+          "path": "rust/src/lib.rs",
+          "sha256": "663c0795068d6b3f1c9796aa8c1304c49fed108a1a84eb8641614a2591bfbc93",
+          "start": 155,
+          "end": 165,
+          "quote": "plus(2, 3)"
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "domain": "code",
+      "question": "Python run 中 plus 的导入目标是什么？",
+      "source": "python/pkg/app.py",
+      "reference_text": "plus(1, 2)",
+      "target": "python/pkg/calc.py",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 0,
+          "end": 29,
+          "quote": "from .calc import add as plus"
+        },
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 89,
+          "end": 99,
+          "quote": "plus(1, 2)"
+        },
+        {
+          "path": "python/pkg/calc.py",
+          "sha256": "7a4e4c17c2f69624e9c679c04791481c8d39f2e8b52a197fe8879bba08cc93c4",
+          "start": 0,
+          "end": 14,
+          "quote": "def add(a, b):"
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "domain": "code",
+      "question": "Python twice 被哪个调用位置引用？",
+      "source": "python/pkg/app.py",
+      "reference_text": "calc.twice",
+      "target": "python/pkg/calc.py",
+      "expected_status": "resolved",
+      "direction": "incoming",
+      "required_evidence": [
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 78,
+          "end": 100,
+          "quote": "calc.twice(plus(1, 2))"
+        },
+        {
+          "path": "python/pkg/calc.py",
+          "sha256": "7a4e4c17c2f69624e9c679c04791481c8d39f2e8b52a197fe8879bba08cc93c4",
+          "start": 34,
+          "end": 51,
+          "quote": "def twice(value):"
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "domain": "code",
+      "question": "Python shadow 中 plus 是否被参数遮蔽？",
+      "source": "python/pkg/app.py",
+      "reference_text": "plus(2, 3)",
+      "target": null,
+      "expected_status": "unresolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 103,
+          "end": 120,
+          "quote": "def shadow(plus):"
+        },
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 132,
+          "end": 142,
+          "quote": "plus(2, 3)"
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "domain": "code",
+      "question": "Python obj.execute 能确定运行时目标吗？",
+      "source": "python/pkg/app.py",
+      "reference_text": "obj.execute",
+      "target": null,
+      "expected_status": "unresolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 145,
+          "end": 162,
+          "quote": "def dynamic(obj):"
+        },
+        {
+          "path": "python/pkg/app.py",
+          "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+          "start": 174,
+          "end": 187,
+          "quote": "obj.execute()"
+        }
+      ]
+    },
+    {
+      "id": "D01",
+      "domain": "document",
+      "question": "Start 章节引用了哪份构建说明？",
+      "source": "docs/start.md",
+      "reference_text": "[build]",
+      "target": "docs/build.md",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "docs/start.md",
+          "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+          "start": 14,
+          "end": 37,
+          "quote": "[build](build.md#build)"
+        },
+        {
+          "path": "docs/build.md",
+          "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+          "start": 0,
+          "end": 7,
+          "quote": "# Build"
+        }
+      ]
+    },
+    {
+      "id": "D02",
+      "domain": "document",
+      "question": "哪些位置显式引用了 Build 章节？",
+      "source": "docs/query.md",
+      "reference_text": "[build]",
+      "target": "docs/build.md",
+      "expected_status": "resolved",
+      "direction": "incoming",
+      "required_evidence": [
+        {
+          "path": "docs/start.md",
+          "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+          "start": 14,
+          "end": 37,
+          "quote": "[build](build.md#build)"
+        },
+        {
+          "path": "docs/query.md",
+          "sha256": "aa326f6d5bd430ae76f217798b4ffe71c2cfcfe2afe621eeb071a320e6ba9728",
+          "start": 47,
+          "end": 70,
+          "quote": "[build](build.md#build)"
+        },
+        {
+          "path": "docs/build.md",
+          "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+          "start": 0,
+          "end": 7,
+          "quote": "# Build"
+        }
+      ]
+    },
+    {
+      "id": "D03",
+      "domain": "document",
+      "question": "Update 章节指向哪个刷新说明？",
+      "source": "docs/start.md",
+      "reference_text": "[refresh]",
+      "target": "docs/build.md",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "docs/start.md",
+          "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+          "start": 102,
+          "end": 129,
+          "quote": "[refresh](build.md#refresh)"
+        },
+        {
+          "path": "docs/build.md",
+          "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+          "start": 80,
+          "end": 90,
+          "quote": "## Refresh"
+        }
+      ]
+    },
+    {
+      "id": "D04",
+      "domain": "document",
+      "question": "哪些章节显式引用 Search？",
+      "source": "docs/build.md",
+      "reference_text": "[search]",
+      "target": "docs/query.md",
+      "expected_status": "resolved",
+      "direction": "incoming",
+      "required_evidence": [
+        {
+          "path": "docs/start.md",
+          "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+          "start": 42,
+          "end": 66,
+          "quote": "[query](query.md#search)"
+        },
+        {
+          "path": "docs/build.md",
+          "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+          "start": 52,
+          "end": 77,
+          "quote": "[search](query.md#search)"
+        },
+        {
+          "path": "docs/query.md",
+          "sha256": "aa326f6d5bd430ae76f217798b4ffe71c2cfcfe2afe621eeb071a320e6ba9728",
+          "start": 0,
+          "end": 8,
+          "quote": "# Search"
+        }
+      ]
+    },
+    {
+      "id": "D05",
+      "domain": "document",
+      "question": "Refresh 是否链接回 Start？",
+      "source": "docs/build.md",
+      "reference_text": "[introduction]",
+      "target": "docs/start.md",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "docs/build.md",
+          "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+          "start": 148,
+          "end": 178,
+          "quote": "[introduction](start.md#start)"
+        },
+        {
+          "path": "docs/start.md",
+          "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+          "start": 0,
+          "end": 7,
+          "quote": "# Start"
+        }
+      ]
+    },
+    {
+      "id": "D06",
+      "domain": "document",
+      "question": "从 Start 经过 Build 能到达 Search 吗？",
+      "source": "docs/start.md",
+      "reference_text": "[build]",
+      "target": "docs/build.md",
+      "expected_status": "resolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "docs/start.md",
+          "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+          "start": 14,
+          "end": 37,
+          "quote": "[build](build.md#build)"
+        },
+        {
+          "path": "docs/build.md",
+          "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+          "start": 52,
+          "end": 77,
+          "quote": "[search](query.md#search)"
+        },
+        {
+          "path": "docs/query.md",
+          "sha256": "aa326f6d5bd430ae76f217798b4ffe71c2cfcfe2afe621eeb071a320e6ba9728",
+          "start": 0,
+          "end": 8,
+          "quote": "# Search"
+        }
+      ]
+    },
+    {
+      "id": "D07",
+      "domain": "document",
+      "question": "Diagnostics 中代码文件链接应算断链吗？",
+      "source": "docs/query.md",
+      "reference_text": "[Code example]",
+      "target": null,
+      "expected_status": "unsupported",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "docs/query.md",
+          "sha256": "aa326f6d5bd430ae76f217798b4ffe71c2cfcfe2afe621eeb071a320e6ba9728",
+          "start": 89,
+          "end": 124,
+          "quote": "[Code example](../rust/src/calc.rs)"
+        }
+      ]
+    },
+    {
+      "id": "D08",
+      "domain": "document",
+      "question": "Diagnostics 中 absent 锚点存在吗？",
+      "source": "docs/query.md",
+      "reference_text": "[Missing anchor]",
+      "target": null,
+      "expected_status": "unresolved",
+      "direction": "outgoing",
+      "required_evidence": [
+        {
+          "path": "docs/query.md",
+          "sha256": "aa326f6d5bd430ae76f217798b4ffe71c2cfcfe2afe621eeb071a320e6ba9728",
+          "start": 176,
+          "end": 209,
+          "quote": "[Missing anchor](build.md#absent)"
+        }
+      ]
+    }
+  ]
+}

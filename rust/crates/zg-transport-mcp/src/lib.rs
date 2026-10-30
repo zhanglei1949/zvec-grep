@@ -120,6 +120,16 @@ const MAX_PATH_FILTERS: usize = 128;
 const MAX_PATH_CHARS: usize = 1_024;
 const MAX_SEARCH_LIMIT: usize = 50;
 
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExploreInput {
+    #[schemars(length(min = 1, max = 1024))]
+    pub root: String,
+    pub request: zg_engine::api::explore::ExploreRequest,
+    pub execution: Option<zg_engine::api::explore::ExecutionOptions>,
+    pub lock_timeout_ms: Option<u64>,
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum McpToolset {
@@ -206,6 +216,14 @@ pub trait IndexOperationProvider: Send + Sync {
         options: InfoOptions,
     ) -> Result<InfoResult, EngineError> {
         engine.info(options).await
+    }
+
+    async fn explore(
+        &self,
+        engine: &ZvecGrep,
+        options: zg_engine::api::explore::ExploreOptions,
+    ) -> Result<zg_engine::api::explore::ExploreResult, EngineError> {
+        engine.explore(options).await
     }
 
     async fn search(
@@ -307,6 +325,9 @@ impl ZvecGrepMcpServer {
         index_operations: Arc<dyn IndexOperationProvider>,
     ) -> Self {
         let mut router = Self::tool_router();
+        if !ZvecGrep::supports_explore() {
+            router.disable_route("zvec_grep_explore");
+        }
         if toolset == McpToolset::Full {
             let search = router.map.get_mut(AGENT_TOOL_NAME).expect("search route");
             search.attr.description = search.attr.description.as_ref().map(|description| {
@@ -343,6 +364,58 @@ impl ZvecGrepMcpServer {
 
 #[tool_router]
 impl ZvecGrepMcpServer {
+    #[tool(
+        name = "zvec_grep_explore",
+        description = "Read published Rust/Python code relationships: locate, callers/callees via neighbors, expand, shortest_path and references. No refresh, indexing or model calls. Use returned view and evidence; an unavailable graph is an error.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<zg_engine::api::explore::ExploreResult>(),
+        annotations(
+            title = "Explore code relationships",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn zvec_grep_explore(
+        &self,
+        Parameters(input): Parameters<ExploreInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let root = PathBuf::from(&input.root);
+        if input.root.is_empty() || input.root.len() > 1024 || !root.is_absolute() {
+            return Err(ErrorData::invalid_params(
+                "explore root must be absolute",
+                None,
+            ));
+        }
+        let mut options = zg_engine::api::explore::ExploreOptions {
+            root: Some(root),
+            request: input.request,
+            execution: input.execution.unwrap_or_default(),
+            lock_timeout_ms: input.lock_timeout_ms,
+            signal: None,
+        };
+        options
+            .validate()
+            .map_err(|e| ErrorData::invalid_params(e.to_string(), None))?;
+        let result = request::run(&context, |_, signal| {
+            options.signal = Some(signal);
+            self.index_operations.explore(&self.engine, options)
+        })
+        .await;
+        Ok(match result {
+            Ok(reply) => {
+                let value = serde_json::to_value(&reply)
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                let mut result =
+                    CallToolResult::success(vec![ContentBlock::text(value.to_string())]);
+                result.structured_content = Some(value);
+                result
+            }
+            Err(error) => error_result(&error),
+        })
+    }
+
     #[tool(
         name = "zvec_grep_search",
         description = "Search an existing workspace index for semantic, relational, cross-file, or multi-hop evidence such as architecture, call chains, dependencies, lifecycle, data or control flow, design rationale, and comparisons. Use it when exact lookup alone cannot answer a workspace-grounded question. Results include bounded source snippets by default and query-group metadata; set preview: \"full\" to return all available content of each retrieved item without changing retrieval or ranking. Treat sufficient returned content as already-read evidence. Use native Grep or rg instead when exact lookup alone is sufficient. Read freshness and background_refresh from the response without a status preflight; when results are served_from_current_index, use them if sufficient.",
@@ -612,6 +685,10 @@ impl From<GlobRule> for GlobInput {
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SearchInput {
+    /// Optional code graph expansion or an exact scope applied before retrieval.
+    pub graph: Option<zg_engine::api::context::graph::GraphQueryMode>,
+    /// Request deadline and graph-stage limits; requires a graph query mode.
+    pub graph_execution: Option<zg_engine::api::explore::ExecutionOptions>,
     /// Absolute workspace root visible to the daemon.
     #[schemars(length(min = 1, max = 1024))]
     pub root: String,
@@ -676,6 +753,8 @@ pub struct SearchInput {
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IndexInput {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graph: Option<zg_engine::api::index::graph::GraphOptions>,
     /// Absolute workspace root visible to the daemon.
     #[schemars(length(min = 1, max = 1024))]
     pub root: String,
@@ -768,6 +847,8 @@ enum IndexActionOutput {
 
 #[derive(Clone, Debug, JsonSchema, Serialize)]
 struct IndexOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    graph: Option<zg_engine::api::index::graph::GraphIndexResult>,
     root: String,
     job_id: String,
     state: IndexJobState,
@@ -1161,6 +1242,14 @@ fn normalize_filter_names<T>(
 
 impl SearchInput {
     fn into_request(self) -> Result<ContextOptions, String> {
+        let graph = self.graph.unwrap_or_default();
+        graph.validate().map_err(|e| e.message().to_owned())?;
+        if let Some(execution) = self.graph_execution {
+            execution.validate().map_err(|e| e.message().to_owned())?;
+            if graph.is_off() {
+                return Err("graphExecution requires a graph query mode".into());
+            }
+        }
         let root = absolute_root(&self.root)?;
         if let Some(api_key) = &self.api_key {
             validate_text("apiKey", api_key, 1, 8_192)?;
@@ -1201,6 +1290,8 @@ impl SearchInput {
             self.auto_update || matches!(self.freshness, FreshnessInput::WaitForFresh);
 
         let request = ContextOptions {
+            graph,
+            graph_execution: self.graph_execution,
             query: None,
             root: Some(root.clone()),
             queries,
@@ -1335,6 +1426,7 @@ impl IndexInput {
             options: Box::new(IndexOptions {
                 root: Some(root),
                 name: self.name,
+                graph: self.graph,
                 rebuild: self.rebuild.unwrap_or(false),
                 reset_paths: self.reset_paths.unwrap_or(false),
                 scan,
@@ -1351,7 +1443,8 @@ impl IndexInput {
     }
 
     fn has_index_options(&self) -> bool {
-        self.name.is_some()
+        self.graph.is_some()
+            || self.name.is_some()
             || self.api_key.is_some()
             || self.device.is_some()
             || self.endpoint.is_some()
@@ -1680,6 +1773,7 @@ fn request_root(root: Option<&Path>) -> PathBuf {
 
 fn index_operation_to_result(reply: &IndexOperationResult, debug: bool) -> CallToolResult {
     structured_result(IndexOutput {
+        graph: reply.result.as_ref().and_then(|r| r.graph.clone()),
         root: reply.root.display().to_string(),
         job_id: reply.job_id.clone(),
         state: match reply.state {
@@ -1710,6 +1804,7 @@ fn index_operation_to_result(reply: &IndexOperationResult, debug: bool) -> CallT
 
 fn drop_result_to_index_result(root: &Path, removed: bool) -> CallToolResult {
     structured_result(IndexOutput {
+        graph: None,
         root: root.display().to_string(),
         job_id: "drop".to_owned(),
         state: IndexJobState::Succeeded,
@@ -2022,6 +2117,8 @@ mod tests {
 
     fn input() -> SearchInput {
         SearchInput {
+            graph: None,
+            graph_execution: None,
             root: test_root().display().to_string(),
             api_key: None,
             device: None,
@@ -2060,6 +2157,32 @@ mod tests {
             }))
             .expect("public search accepts the Node.js preview modes");
         }
+    }
+
+    #[test]
+    fn search_graph_input_preserves_shared_limits_and_explicit_empty_boundary() {
+        let value = serde_json::json!({
+            "root": test_root(), "fts": "caller", "autoUpdate": false,
+            "graph": {"mode":"augment", "seeds":2, "expansion":{"max_hops":1,"direction":"incoming","boundary":{"sources":[]}}},
+            "graphExecution":{"request_timeout_ms":1000,"budget":{"nodes":50}}
+        });
+        let request = serde_json::from_value::<SearchInput>(value.clone())
+            .expect("wire")
+            .into_request()
+            .expect("request");
+        assert_eq!(request.graph_execution.expect("limits").budget.nodes, 50);
+        assert_eq!(
+            serde_json::to_value(request.graph).expect("graph")["expansion"]["boundary"]["sources"],
+            serde_json::json!([])
+        );
+        let mut invalid = value;
+        invalid["graphExecution"]["budget"]["nodes"] = 0.into();
+        assert!(
+            serde_json::from_value::<SearchInput>(invalid)
+                .expect("shape")
+                .into_request()
+                .is_err()
+        );
     }
 
     #[test]
@@ -2309,11 +2432,18 @@ mod tests {
     }
 
     #[test]
-    fn agent_server_exposes_only_search() {
+    fn agent_server_exposes_search_and_compiled_explore() {
         let server = ZvecGrepMcpServer::agent_direct(Arc::new(ZvecGrep::new()));
         let tools = server.listed_tools();
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].name, AGENT_TOOL_NAME);
+        assert_eq!(
+            tools.len(),
+            if ZvecGrep::supports_explore() { 2 } else { 1 }
+        );
+        assert!(tools.iter().any(|t| t.name == AGENT_TOOL_NAME));
+        assert_eq!(
+            tools.iter().any(|t| t.name == "zvec_grep_explore"),
+            ZvecGrep::supports_explore()
+        );
         assert!(server.get_info().instructions.is_some());
     }
 
@@ -2326,7 +2456,15 @@ mod tests {
             .into_iter()
             .map(|tool| tool.name.into_owned())
             .collect::<Vec<_>>();
-        assert_eq!(names, FULL_TOOL_NAMES);
+        let mut expected = FULL_TOOL_NAMES
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>();
+        if ZvecGrep::supports_explore() {
+            expected.push("zvec_grep_explore".into());
+        }
+        expected.sort();
+        assert_eq!(names, expected);
         assert!(
             server
                 .get_info()
@@ -2611,6 +2749,7 @@ mod tests {
 
     fn index_input() -> IndexInput {
         IndexInput {
+            graph: None,
             root: test_root().display().to_string(),
             name: Some("search-engine".to_owned()),
             api_key: None,

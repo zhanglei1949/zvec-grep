@@ -1,0 +1,39 @@
+[package]
+name = "zg-knowledge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+# Off by default. Enabling it compiles the bundled graphdb native library,
+# which needs CMake 3.28+, a C++17 toolchain, and initialized
+# kuzu/nanoarrow/parallel-hashmap submodules under thirdparty/graphdb.
+graphdb = ["dep:graphdb"]
+
+[dependencies]
+graphdb = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio-util = { workspace = true, features = ["rt"] }
+zg-markdown = { path = "../zg-markdown" }
+zg-storage = { path = "../zg-storage" }
+
+[dev-dependencies]
+tempfile.workspace = true
+zvec-rust.workspace = true
+zg-storage = { path = "../zg-storage", features = ["zvec"] }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "fact_roundtrip"
+required-features = ["graphdb"]
+
+[[example]]
+name = "graph_build"
+required-features = ["graphdb"]

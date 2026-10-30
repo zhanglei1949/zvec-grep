@@ -38,7 +38,7 @@ from the explicit override, and removes managed guidance from the adjacent
 
 `ZvecGrep` is normally shared for the lifetime of a process. Workspace root is
 request state, so the same instance can serve multiple workspaces. It exposes
-typed `context`, `index`, `info`, and `drop_index` methods. It
+typed `context`, `index`, `explore`, `info`, and `drop_index` methods. It
 calls its private services directly; there is no public command dispatcher,
 operation envelope, adapter registry or Core layer between a method and its
 implementation.
@@ -243,6 +243,11 @@ operations already executing may finish their current non-interruptible step.
 - `zg-engine`: `ZvecGrep`, engine errors, and method-grouped types under `api`;
   lexical search, source extraction and embedding model implementations are
   private to this crate.
+- [`zg-storage`](crates/zg-storage/README.md): shared filesystem, hash and zvec
+  primitives used by engine and knowledge components.
+- [`zg-knowledge`](crates/zg-knowledge/README.md): binding-independent knowledge
+  components; persistent graph ingestion and publication await upstream binding
+  integration. This crate is not a dependency of the production binary.
 - `zg-cli`: CLI parsing and terminal rendering.
 - `zg`: production binary.
 - `zg-daemon`: process lifecycle, loopback HTTP server and stdio bootstrap.
@@ -345,3 +350,134 @@ the binary's directory.
 All native platform packages must be published and smoke-tested before the meta
 package. The release script intentionally does not run `npm publish` or move a
 dist-tag.
+
+## Native read-only fix
+
+The 0.7.2 prebuilt SDK can rewrite vector-index metadata when a read-only
+collection closes. Use the reviewed [native patch](patches/zvec-readonly-mapping.patch)
+for read-only graph work and package the resulting runtime library and dictionaries.
+The Rust SDK and FFI stay at the workspace version; no second zvec checkout is
+vendored in KG. The published prebuilt asset has not been replaced.
+
+Prepare a separate, recursively initialized zvec checkout at
+`1ab7975dfc2d2160054bafff614831b7099cd930`, then build it:
+
+```sh
+python3 scripts/build-zvec-readonly.py --source /path/to/zvec-sdk \
+  --build /path/to/zvec-native-build --jobs 14
+export ZVEC_LIB_DIR=/path/to/zvec-native-build/lib
+export ZVEC_INCLUDE_DIR=/path/to/zvec-sdk/src/include
+cargo test -p zg-storage --test readonly_collection
+```
+
+The builder checks the revision, submodules and patch hashes, modifies only the
+reviewed native source file, and writes `lib/zg-zvec-native.json` with artifact
+hashes. `--simde-source` can reuse an initialized SIMDe v0.8.2 checkout;
+`--oss-mirror` selects upstream's dependency mirror. These are build inputs,
+not runtime paths. Keep the exported SDK paths for subsequent Cargo builds and
+release packaging; selecting the old prebuilt again reintroduces the defect.
+Before packaging, compare the staged runtime's SHA-256 with
+`zg-zvec-native.json`; a shared Cargo target directory can contain a library
+from another build configuration. Rebuild with the SDK overrides if it differs.
+See [root cause and acceptance](../knowledge/ANN_READONLY_DIGEST_DRIFT.md).
+
+## Experimental graph facts
+
+`zg-knowledge` now owns relation facts, resolution, processing budgets/fingerprints and optional graphdb storage. The independent snapshot/parser/embedding/worker/projection pipeline has retired; the engine owns ingestion, models, text/vector indexes and scheduling. `zg-storage/zvec` is explicit and enabled by the engine; pure KG library checks need no zvec runtime. Native coexistence tests still use the real libraries. See [module consolidation and pending G2 repairs](../knowledge/MODULE_CONSOLIDATION_REPORT.md).
+
+The default-off `zg-engine/knowledge-graph` feature exposes G1 candidate-fact inspection for Rust/Python static references and Markdown document links. The additional `knowledge-graph-graphdb` feature enables experimental `IndexOptions.graph`: persistent policy, same-extraction EntityId binding, candidate commit and joint text/graph publication. A verified unchanged text index can build or reuse its graph before model acquisition, remote authorization or Embedding. Text and vectors remain in the existing host collections.
+
+`graph: None` inherits saved intent; explicit `GraphScope::Off` persists Off and revokes HEAD. Text writers honor STATE fences even without the native graph feature. Explicit enable without that feature is rejected before policy/model changes. Current enabled manifests require a storage generation; old layouts still require rebuild. The native read-only fix above is required.
+
+New candidates import facts in row/parameter-byte bounded transactions, with fact changes and cumulative progress committed together. Full readback installs fact-ready metadata before the separate root/receipt commit. The default batch budget is 256 fact rows / 256 KiB, plus a fixed progress update; this is not a native memory or execution-time guarantee.
+
+`ZvecGrep::recover_graph` provides explicit `Inspect`, `Reconcile`, `Select` and `Discard` actions without models. Mutating actions require the operation/attempt returned by inspection. Selection requires a committed matching candidate and an unchanged current text/policy/HEAD base. Incomplete imports cannot publish; graph recovery never repairs a dirty text STATE or publishes an unselected text generation. Discard verifies a reopenable candidate, drains the existing read leases, closes native owners and removes it only if no HEAD references it. See the [batch/recovery acceptance](../knowledge/G2_2_BATCH_RECOVERY_REPORT.md) and [executable example](crates/zg-engine/examples/graph_recovery.rs).
+
+With the executable `knowledge-graph-graphdb` feature enabled, `zg explore`
+reads published Rust/Python code graphs without indexing, refreshing or loading
+models. Default builds still parse the public types and CLI arguments, but
+return `unsupported` before opening a workspace. The code domain must be fully
+ready; partial extraction cannot silently become an empty result.
+
+```bash
+cargo build --locked -p zg --features knowledge-graph-graphdb
+# graph.json: {"scope":"code","module_roots":[{"root":"src","language":"rust",
+#   "namespace":"app","module_prefix":[],"layout":"flat"}]}
+./target/debug/zg index --graph-options graph.json
+./target/debug/zg explore callers --name target
+./target/debug/zg explore callees --name caller
+./target/debug/zg explore expand --name caller --max-hops 2
+./target/debug/zg explore path --name caller --to-name target
+./target/debug/zg explore references --source src/lib.rs
+./target/debug/zg explore --request request.json
+```
+
+`--request` accepts an `ExploreRequest` JSON file and excludes convenience
+subcommands. Operations are `locate`, `neighbors`, `expand`, `shortest_path` and
+`references`; `callers`/`callees` select incoming/outgoing CALLS. Names may be
+ambiguous; traversal needs a unique anchor. Boundaries constrain every traversed
+node, while result filters affect display. Node/reference IDs carry their view.
+Default limits are 30 seconds total, 5 seconds for the graph stage, 2,000 nodes,
+10,000 edges and 64 KiB of result JSON. Complete/partial status and evidence are
+returned with the selected view and separate qualification/query timings.
+
+Rust callers use `api::explore::{ExploreOptions, ExploreRequest}` and
+`ZvecGrep::explore`; options contain no model or refresh settings. MCP exposes
+`zvec_grep_explore` in both Agent and Full toolsets when compiled, with typed
+input/output schemas and structured results. MCP index accepts `graph` with the
+same shape as `--graph-options`. Daemon protocol 14 advertises `explore.code.v1`, `augment.code.v1` and
+`constrain.code.v1`;
+an incompatible daemon fails explicitly. No ordinary-search fallback is used.
+
+Schema/fact format v2 requires an explicit graph build for older candidates.
+Graph-only reuse checks actual stored body and fragment identity before reusing
+vectors. Query qualification retains the complete commit/binding checks in
+bounded pages; this work does not eliminate their full-scan cost. See the
+[G3.1 delivery record](../knowledge/G3_1_IMPLEMENTATION_REPORT.md).
+
+Indexed queries use `ContextOptions.graph` and optional `graph_execution`:
+
+```sh
+./target/debug/zg query --fts caller --graph-mode augment --preview full
+./target/debug/zg query --fts target --graph-request scope.json --preview full
+```
+
+A `scope.json` example selects callees of `caller`:
+
+```json
+{"mode":"constrain","scope":{"anchor":{"by":"name","name":"caller"},"traversal":{"max_hops":1}}}
+```
+
+Augment preserves ordinary items and ranking, then adds a separate Graph section.
+It may return safe ordinary text with an explicit degraded status. Constrain
+requires a compatible published code view and a complete, unique scope before
+query models or consent. It intersects scope with user filters and applies
+fragment IDs before FTS/vector TopK, including symbol routes, all query groups
+and adaptive recall. Empty scopes skip models, embeddings and query consent.
+A scope is exact membership; bounded or approximate recall remains a ranked sample.
+Unrepresentable crossing fragments, ambiguous anchors, missing mappings, budget
+exhaustion and unavailable graphs fail explicitly. No broader search is retried.
+Own-body scopes subtract direct children. The first release requires contiguous
+source coordinates for each displayed fragment; other display shapes return
+`scope_not_representable`. It removes out-of-scope outline/container text and
+signature/documentation metadata. Request cancellation, total deadlines and
+text mismatch fail in both graph modes. MCP search accepts the same `graph` and
+camelCase `graphExecution`; CLI uses `--graph-execution` for an execution JSON file.
+No graph mode exposes a Cypher endpoint or loads another embedding index.
+
+Each admitted graph worker owns a cancellation watcher that forwards the host signal and graph-operation deadline to graphdb QueryOptions. It survives an aborted async caller and stops when the worker finishes. Deadline-triggered native cancellation retains the native category and transaction outcome; unknown/committed effects keep their existing recovery rules. The binding does not accept cancellation options for open, begin/commit/rollback or checkpoint, so this is not a hard end-to-end timeout. See [native control acceptance](../knowledge/G2_2_NATIVE_CONTROL_REPORT.md).
+
+`ZvecGrep::recover_text_state` separately inspects a dirty text fence. Repair requires the inspected operation, attempt and revision, a fully indexed source set, and matching current raw bytes. It revokes HEAD, advances the text revision and confirms a stable fence without rewriting zvec. A subsequent index call rebuilds the graph; partial text writes still need normal indexing/rebuild. See the [executable recovery example](crates/zg-engine/examples/text_state_recovery.rs).
+
+Candidate admission now bounds all retained workspace graph builds, including old generations and pending trash. Current internal defaults are 8 candidates, 1 GiB total logical bytes, 256 MiB per candidate, a 256 MiB free-space floor plus a 64 MiB start margin, and 100,000 filesystem entries. Admission runs outside native write transactions and between batches; it is not a hard disk quota or atomic reservation. A confirmed prefix survives refusal and cannot publish a root until complete.
+
+Discard records live outside the deleted directory. Known unselected candidates move to trash before deletion, and the same inspected identity can resume partial removal or acknowledge a lost success response. Clearly pre-root failures can discard incomplete Schema by durable protocol evidence; unknown commit effects still require native proof. Read-only inspection never resumes cleanup. See [retention and cleanup evidence](../knowledge/G2_3_RETENTION_REPORT.md).
+
+Internal graph leases now share the existing ReadSessionCache and residency barrier. Each read uses a fresh connection/transaction and cancellation control while sharing a native Database owner and quarantine. HEAD/policy/state changes invalidate later reads; filesystem evidence validation belongs to the future query layer. Normal text search does not acquire these experimental graph leases. See [G2.3 acceptance](../knowledge/G2_3_RECOVERY_LEASES_REPORT.md).
+
+This consolidation adds no public relation queries or CLI/MCP graph flags. The existing experimental Resume code is retained with its known post-commit cancellation issue for the next G2 repair; this change does not certify complete host replay. See the [G2.2 host acceptance](../knowledge/G2_2_HOST_PUBLICATION_REPORT.md), [G2.1 snapshot](../knowledge/G2_1_ACCEPTANCE_REPORT.md), [scope and stages](../knowledge/QUERY_ENHANCEMENT.md) and [fixed 16-question corpus](../benchmarks/zg-graph/README.md).
+
+```bash
+cargo test --locked -p zg-engine --features knowledge-graph --test graph_facts -j 14
+cargo run --locked -p zg-engine --features knowledge-graph --example graph_facts -j 14
+```

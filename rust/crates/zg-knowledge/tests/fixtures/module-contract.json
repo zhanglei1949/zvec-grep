@@ -1,0 +1,354 @@
+{
+  "build_schema": "e3fcda25ae4453706e38a6209863e9d4dcf39a9c9fbf83cd55986f4f1365e8d8",
+  "relations": {
+    "canonical": "{\"a\":true,\"z\":[3,{\"a\":null,\"中文\":\"😀\\r\\n\\\"\"}]}",
+    "digest": "0faa74533108b1d6d058c72efdae00c245f750578e3a914798081b82cab49618",
+    "facts": [
+      {
+        "anchors": [
+          {
+            "name": "parent",
+            "node_id": "bf302050097f497785e82856e7a5b59c29d4281718865e6440a69992d739f26f"
+          },
+          {
+            "name": "子章节",
+            "node_id": "7e4440b559048e347eb0da3c31f86e90fa725daa3e6179f0807368c974fce818"
+          },
+          {
+            "name": "next",
+            "node_id": "f4b297f6468f4e4bcf010534b9159ee4fd5e237f0b403394e6a65154466b5045"
+          }
+        ],
+        "bindings": [],
+        "complete": true,
+        "diagnostics": [],
+        "language": "markdown",
+        "module": null,
+        "nodes": [
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "f9b2e6f910340d300e467e15f4314091565a0b0ed6bbe02326f1bb98b102053d",
+            "kind": "file",
+            "name": "",
+            "parent": null,
+            "path_addressable": false,
+            "qualified_name": [],
+            "span": {
+              "end": 155,
+              "start": 0
+            }
+          },
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "bf302050097f497785e82856e7a5b59c29d4281718865e6440a69992d739f26f",
+            "kind": "section",
+            "name": "Parent",
+            "parent": "f9b2e6f910340d300e467e15f4314091565a0b0ed6bbe02326f1bb98b102053d",
+            "path_addressable": false,
+            "qualified_name": [
+              "parent"
+            ],
+            "span": {
+              "end": 139,
+              "start": 11
+            }
+          },
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "7e4440b559048e347eb0da3c31f86e90fa725daa3e6179f0807368c974fce818",
+            "kind": "section",
+            "name": "子章节",
+            "parent": "bf302050097f497785e82856e7a5b59c29d4281718865e6440a69992d739f26f",
+            "path_addressable": false,
+            "qualified_name": [
+              "子章节"
+            ],
+            "span": {
+              "end": 139,
+              "start": 28
+            }
+          },
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "f4b297f6468f4e4bcf010534b9159ee4fd5e237f0b403394e6a65154466b5045",
+            "kind": "section",
+            "name": "Next",
+            "parent": "f9b2e6f910340d300e467e15f4314091565a0b0ed6bbe02326f1bb98b102053d",
+            "path_addressable": false,
+            "qualified_name": [
+              "next"
+            ],
+            "span": {
+              "end": 155,
+              "start": 139
+            }
+          }
+        ],
+        "references": [
+          {
+            "entity_indices": [],
+            "id": "1697cf54a32fa36d78898e26febc342ed82562d87e1db69952502a4144524d22",
+            "kind": "document_link",
+            "lookup": {
+              "destination": "b.md#hello-world",
+              "kind": "document"
+            },
+            "owner": "7e4440b559048e347eb0da3c31f86e90fa725daa3e6179f0807368c974fce818",
+            "scope": 0,
+            "span": {
+              "end": 63,
+              "start": 42
+            }
+          }
+        ],
+        "rules_fingerprint": "ad648e1227ab9d944d1aac6ee7f1f0e2e7671ccc854efc8c15854db8751687ca",
+        "scopes": [
+          {
+            "kind": "module",
+            "owner": "f9b2e6f910340d300e467e15f4314091565a0b0ed6bbe02326f1bb98b102053d",
+            "parent": null
+          }
+        ],
+        "version": {
+          "decoded_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8",
+          "generation": "contract-generation",
+          "path": "a.md",
+          "raw_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8"
+        }
+      },
+      {
+        "anchors": [
+          {
+            "name": "hello-world",
+            "node_id": "09c653159888d6e95c7e86b9800bd8711ed01ee21acdc0e86559e88bcaa0ac8e"
+          },
+          {
+            "name": "中文",
+            "node_id": "99fc94d14590f13c46680226e55b306c3d5b5c7ccd3425abecc819babdd04def"
+          },
+          {
+            "name": "中文",
+            "node_id": "81f5d46253d50370891da60ad66cc4c7efb08b08dcf4d428d202e62ff1d53bba"
+          }
+        ],
+        "bindings": [],
+        "complete": true,
+        "diagnostics": [
+          {
+            "code": "duplicate_heading_anchor",
+            "span": {
+              "end": 62,
+              "start": 53
+            }
+          }
+        ],
+        "language": "markdown",
+        "module": null,
+        "nodes": [
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "98b4751042123482eef4c89c39682fdb0d970a70cecb06cbbf44b65521eae763",
+            "kind": "file",
+            "name": "",
+            "parent": null,
+            "path_addressable": false,
+            "qualified_name": [],
+            "span": {
+              "end": 62,
+              "start": 0
+            }
+          },
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "09c653159888d6e95c7e86b9800bd8711ed01ee21acdc0e86559e88bcaa0ac8e",
+            "kind": "section",
+            "name": "Hello World",
+            "parent": "98b4751042123482eef4c89c39682fdb0d970a70cecb06cbbf44b65521eae763",
+            "path_addressable": false,
+            "qualified_name": [
+              "hello-world"
+            ],
+            "span": {
+              "end": 44,
+              "start": 0
+            }
+          },
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "99fc94d14590f13c46680226e55b306c3d5b5c7ccd3425abecc819babdd04def",
+            "kind": "section",
+            "name": "中文",
+            "parent": "98b4751042123482eef4c89c39682fdb0d970a70cecb06cbbf44b65521eae763",
+            "path_addressable": false,
+            "qualified_name": [
+              "中文"
+            ],
+            "span": {
+              "end": 53,
+              "start": 44
+            }
+          },
+          {
+            "callable": false,
+            "entity_indices": [],
+            "id": "81f5d46253d50370891da60ad66cc4c7efb08b08dcf4d428d202e62ff1d53bba",
+            "kind": "section",
+            "name": "中文",
+            "parent": "98b4751042123482eef4c89c39682fdb0d970a70cecb06cbbf44b65521eae763",
+            "path_addressable": false,
+            "qualified_name": [
+              "中文"
+            ],
+            "span": {
+              "end": 62,
+              "start": 53
+            }
+          }
+        ],
+        "references": [
+          {
+            "entity_indices": [],
+            "id": "202dace5068d1bb217e941a1d03a28c2b6bcda7dc3cc9cc07725bc318853f56b",
+            "kind": "document_link",
+            "lookup": {
+              "destination": "a.md#parent",
+              "kind": "document"
+            },
+            "owner": "09c653159888d6e95c7e86b9800bd8711ed01ee21acdc0e86559e88bcaa0ac8e",
+            "scope": 0,
+            "span": {
+              "end": 25,
+              "start": 16
+            }
+          }
+        ],
+        "rules_fingerprint": "ad648e1227ab9d944d1aac6ee7f1f0e2e7671ccc854efc8c15854db8751687ca",
+        "scopes": [
+          {
+            "kind": "module",
+            "owner": "98b4751042123482eef4c89c39682fdb0d970a70cecb06cbbf44b65521eae763",
+            "parent": null
+          }
+        ],
+        "version": {
+          "decoded_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a",
+          "generation": "contract-generation",
+          "path": "b.md",
+          "raw_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a"
+        }
+      }
+    ],
+    "resolutions": [
+      {
+        "candidates": [
+          {
+            "node_id": "09c653159888d6e95c7e86b9800bd8711ed01ee21acdc0e86559e88bcaa0ac8e",
+            "path": "b.md",
+            "version": {
+              "decoded_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a",
+              "generation": "contract-generation",
+              "path": "b.md",
+              "raw_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a"
+            }
+          }
+        ],
+        "dependencies": [
+          {
+            "decoded_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8",
+            "generation": "contract-generation",
+            "path": "a.md",
+            "raw_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8"
+          },
+          {
+            "decoded_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a",
+            "generation": "contract-generation",
+            "path": "b.md",
+            "raw_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a"
+          }
+        ],
+        "reason": "explicit_document_link",
+        "reference": {
+          "entity_indices": [],
+          "id": "1697cf54a32fa36d78898e26febc342ed82562d87e1db69952502a4144524d22",
+          "kind": "document_link",
+          "lookup": {
+            "destination": "b.md#hello-world",
+            "kind": "document"
+          },
+          "owner": "7e4440b559048e347eb0da3c31f86e90fa725daa3e6179f0807368c974fce818",
+          "scope": 0,
+          "span": {
+            "end": 63,
+            "start": 42
+          }
+        },
+        "source": {
+          "decoded_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8",
+          "generation": "contract-generation",
+          "path": "a.md",
+          "raw_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8"
+        },
+        "status": "resolved"
+      },
+      {
+        "candidates": [
+          {
+            "node_id": "bf302050097f497785e82856e7a5b59c29d4281718865e6440a69992d739f26f",
+            "path": "a.md",
+            "version": {
+              "decoded_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8",
+              "generation": "contract-generation",
+              "path": "a.md",
+              "raw_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8"
+            }
+          }
+        ],
+        "dependencies": [
+          {
+            "decoded_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8",
+            "generation": "contract-generation",
+            "path": "a.md",
+            "raw_digest": "824768cc301d8c0c54b137091000807ec9d85b60b12f16be755a8ecb360b29b8"
+          },
+          {
+            "decoded_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a",
+            "generation": "contract-generation",
+            "path": "b.md",
+            "raw_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a"
+          }
+        ],
+        "reason": "explicit_document_link",
+        "reference": {
+          "entity_indices": [],
+          "id": "202dace5068d1bb217e941a1d03a28c2b6bcda7dc3cc9cc07725bc318853f56b",
+          "kind": "document_link",
+          "lookup": {
+            "destination": "a.md#parent",
+            "kind": "document"
+          },
+          "owner": "09c653159888d6e95c7e86b9800bd8711ed01ee21acdc0e86559e88bcaa0ac8e",
+          "scope": 0,
+          "span": {
+            "end": 25,
+            "start": 16
+          }
+        },
+        "source": {
+          "decoded_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a",
+          "generation": "contract-generation",
+          "path": "b.md",
+          "raw_digest": "459183cc234f8dd74da60b5f2c2e415a271a42355abd1ba68de1c023ac30a49a"
+        },
+        "status": "resolved"
+      }
+    ]
+  },
+  "schema": "8d38dc6b59fd7d58824a1bbb6529cf309b4d47d3ab7b49b156b65a4cc9f3c8c3"
+}

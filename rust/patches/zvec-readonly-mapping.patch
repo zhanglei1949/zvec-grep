@@ -1,0 +1,22 @@
+--- a/src/core/interface/index.cc
++++ b/src/core/interface/index.cc
+@@ -508,14 +508,17 @@
+   // storage_params.set("proxima.mmap_file.storage.segment_meta_capacity",
+   // 1024);
+ 
++  // Streamer cleanup may update in-memory metadata even for readers. Keep
++  // reader mappings private and the file descriptor read-only so those writes
++  // cannot reach a published index file.
+   storage_params.set(core::MMAPFILE_STORAGE_COPY_ON_WRITE,
+-                     storage_options.copy_on_write);
++                     storage_options.read_only || storage_options.copy_on_write);
+   // force_flush must be enabled with copy_on_write so that
+   // IndexMapping::flush() actually persists data written via file_.write() to
+   // disk; without it, data would be lost. See IndexMapping::flush() in
+   // index_mapping.cc.
+   storage_params.set(core::MMAPFILE_STORAGE_FORCE_FLUSH,
+-                     storage_options.copy_on_write);
++                     !storage_options.read_only && storage_options.copy_on_write);
+ 
+   switch (storage_options.type) {
+     case StorageOptions::StorageType::kMMAP: {

@@ -60,7 +60,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     let runtime = Builder::new_multi_thread().enable_all().build()?;
 
-    runtime.block_on(async move { execute_plan(plan).await })
+    runtime.block_on(Box::pin(execute_plan(plan)))
 }
 
 #[cfg(target_os = "macos")]
@@ -91,12 +91,35 @@ fn install_darwin_metal_residency_mitigation() -> io::Result<()> {
 
 async fn execute_plan(plan: CliPlan) -> Result<(), Box<dyn Error>> {
     match plan {
+        CliPlan::Explore {
+            mode,
+            home,
+            request,
+        } => {
+            let result = if use_server(mode, home.as_deref()).await? {
+                let home = zg_daemon::resolve_home(home)?;
+                let reply = zg_daemon::execute_command(&home, DaemonCommand::Explore(*request))
+                    .await
+                    .map_err(query_daemon_error)?;
+                let DaemonReply::Explore(reply) = reply else {
+                    return Err(protocol_mismatch("explore"));
+                };
+                *reply
+            } else {
+                let engine = ZvecGrep::new();
+                let result = engine.explore(*request).await;
+                engine.close();
+                result?
+            };
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            Ok(())
+        }
         CliPlan::Query {
             mode,
             home,
             request,
             output,
-        } => execute_request(mode, home.as_deref(), *request, output).await,
+        } => Box::pin(execute_request(mode, home.as_deref(), *request, output)).await,
         CliPlan::Index {
             mode,
             home,
@@ -244,7 +267,16 @@ async fn execute_request(
     authorize_query(&mut request, server, home).await?;
     if server {
         let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
-        let reply = zg_daemon::execute_command(&home, DaemonCommand::Context(request)).await?;
+        let graph = !request.graph.is_off();
+        let reply = zg_daemon::execute_command(&home, DaemonCommand::Context(request))
+            .await
+            .map_err(|error| {
+                if graph {
+                    query_daemon_error(error)
+                } else {
+                    Box::new(error) as Box<dyn Error>
+                }
+            })?;
         let DaemonReply::Context(result) = reply else {
             return Err(protocol_mismatch("context"));
         };
@@ -363,7 +395,7 @@ async fn query_authorization_targets(
         };
         Ok(targets)
     } else {
-        Ok(zg_engine::authorization::query_authorizations(request)?)
+        Ok(zg_engine::authorization::query_authorizations_async(request).await?)
     }
 }
 
@@ -587,6 +619,42 @@ async fn use_server(mode: ClientMode, home: Option<&Path>) -> Result<bool, Box<d
         ClientMode::Auto => {
             let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
             Ok(zg_daemon::server_status(&home).await?.ready)
+        }
+    }
+}
+
+fn query_daemon_error(error: zg_daemon::DaemonError) -> Box<dyn Error> {
+    match error {
+        zg_daemon::DaemonError::Engine(error) => Box::new(error),
+        zg_daemon::DaemonError::Remote { report, .. } => {
+            Box::new(EngineError::from_report(*report))
+        }
+        error => Box::new(error),
+    }
+}
+
+#[cfg(test)]
+mod explore_error_tests {
+    use super::*;
+
+    #[test]
+    fn explore_cli_preserves_local_and_remote_engine_error_reports() {
+        let errors = [
+            zg_daemon::DaemonError::Engine(EngineError::cancelled("cancelled")),
+            zg_daemon::DaemonError::Remote {
+                report: Box::new(EngineError::deadline_exceeded("deadline").report()),
+                retryable: false,
+            },
+        ];
+        for (error, code) in errors
+            .into_iter()
+            .zip([EngineError::CANCELLED, EngineError::DEADLINE_EXCEEDED])
+        {
+            let error = query_daemon_error(error)
+                .downcast::<EngineError>()
+                .expect("engine report");
+            assert_eq!(error.code(), code);
+            assert!(error.report().to_string().contains(code));
         }
     }
 }

@@ -93,6 +93,7 @@ jobs:
           path: candidate
           fetch-depth: 1
           persist-credentials: false
+          submodules: true
       - name: Resolve the immutable Rust candidate commit
         id: source
         run: |

@@ -127,7 +127,7 @@ struct SchedulerInner {
 struct SchedulerState {
     jobs: HashMap<Uuid, Arc<ScheduledJob>>,
     active_by_root: HashMap<PathBuf, Arc<ScheduledJob>>,
-    followup_by_root: HashMap<PathBuf, Arc<ScheduledJob>>,
+    followup_by_root: HashMap<PathBuf, VecDeque<Arc<ScheduledJob>>>,
     latest_by_root: HashMap<PathBuf, Arc<ScheduledJob>>,
     finished_job_ids: VecDeque<Uuid>,
 }
@@ -186,6 +186,7 @@ impl IndexJobScheduler {
         // Naming is an explicit caller mutation, never a background refresh setting.
         if reason == JobReason::Watch {
             options.name = None;
+            options.graph = None;
         }
         // Changing the saved corpus can affect paths outside a narrow watcher batch.
         if has_selection_update(&options) {
@@ -206,8 +207,17 @@ impl IndexJobScheduler {
                 || active_snapshot.reason == JobReason::Watch
                 || options.rebuild
                 || options.name.is_some()
+                || options.graph.is_some()
                 || has_selection_update(&options);
-            if needs_followup && active_snapshot.state == JobState::Queued {
+            if needs_followup
+                && active_snapshot.state == JobState::Queued
+                && !(options.graph.is_some()
+                    && state
+                        .followup_by_root
+                        .get(&canonical_root)
+                        .is_some_and(|q| !q.is_empty()))
+                && graph_options_compatible(lock(&active.options).as_ref(), &options)
+            {
                 let queued_full_manual = active_snapshot.reason == JobReason::Manual
                     && reason == JobReason::Watch
                     && lock(&active.options)
@@ -225,7 +235,12 @@ impl IndexJobScheduler {
                 });
             }
             if needs_followup {
-                if let Some(followup) = state.followup_by_root.get(&canonical_root) {
+                if let Some(followup) = state
+                    .followup_by_root
+                    .get(&canonical_root)
+                    .and_then(|q| q.back())
+                    && graph_options_compatible(lock(&followup.options).as_ref(), &options)
+                {
                     followup.shared.store(true, Ordering::Release);
                     merge_options(&mut lock(&followup.options), options);
                     if reason == JobReason::Manual {
@@ -240,7 +255,11 @@ impl IndexJobScheduler {
                 let followup = create_job(canonical_root.clone(), options, reason);
                 let snapshot = lock(&followup.snapshot).clone();
                 state.jobs.insert(followup.id, Arc::clone(&followup));
-                state.followup_by_root.insert(canonical_root, followup);
+                state
+                    .followup_by_root
+                    .entry(canonical_root)
+                    .or_default()
+                    .push_back(followup);
                 return Ok(SubmitIndexJobResult {
                     job: snapshot,
                     reused: true,
@@ -320,9 +339,11 @@ impl IndexJobScheduler {
             let active = state.active_by_root.get(canonical_root).cloned();
             let followup = state.followup_by_root.remove(canonical_root);
             if let Some(ref followup) = followup {
-                followup.cancellation.cancel();
-                finish_cancelled(followup, "indexing was cancelled");
-                mark_finished(&self.inner, &mut state, followup);
+                for job in followup {
+                    job.cancellation.cancel();
+                    finish_cancelled(job, "indexing was cancelled");
+                    mark_finished(&self.inner, &mut state, job);
+                }
             }
             (active, followup)
         };
@@ -388,7 +409,7 @@ impl IndexJobScheduler {
                 let followups = state
                     .followup_by_root
                     .drain()
-                    .map(|(_, job)| job)
+                    .flat_map(|(_, jobs)| jobs)
                     .collect::<Vec<_>>();
                 for job in followups {
                     job.cancellation.cancel();
@@ -551,7 +572,17 @@ fn finish_job(inner: &Arc<SchedulerInner>, job: &Arc<ScheduledJob>) {
         {
             state.active_by_root.remove(&job.canonical_root);
         }
-        let followup = state.followup_by_root.remove(&job.canonical_root);
+        let followup = state
+            .followup_by_root
+            .get_mut(&job.canonical_root)
+            .and_then(VecDeque::pop_front);
+        if state
+            .followup_by_root
+            .get(&job.canonical_root)
+            .is_some_and(VecDeque::is_empty)
+        {
+            state.followup_by_root.remove(&job.canonical_root);
+        }
         if let Some(followup) = &followup {
             state
                 .active_by_root
@@ -578,10 +609,22 @@ fn has_selection_update(options: &IndexOptions) -> bool {
     options.reset_paths || options.scan != ScanRulesUpdate::default()
 }
 
+fn graph_options_compatible(current: Option<&IndexOptions>, incoming: &IndexOptions) -> bool {
+    match (
+        current.and_then(|o| o.graph.as_ref()),
+        incoming.graph.as_ref(),
+    ) {
+        (Some(a), Some(b)) => a == b,
+        _ => true,
+    }
+}
+
 fn merge_options(current: &mut Option<IndexOptions>, mut incoming: IndexOptions) {
     let Some(current) = current.as_mut() else {
         return;
     };
+    debug_assert!(graph_options_compatible(Some(current), &incoming));
+    merge_update(&mut current.graph, incoming.graph.take());
     let full_scan = current.changes.is_empty()
         || incoming.changes.is_empty()
         || has_selection_update(current)
@@ -961,6 +1004,106 @@ mod tests {
     }
 
     struct ImmediateExecutor;
+
+    #[tokio::test]
+    async fn graph_policies_queue_in_order_without_overwriting_explicit_requests() {
+        use zg_engine::api::index::graph::{GraphOptions, GraphScope};
+        let executor = Arc::new(RecordingExecutor {
+            calls: Mutex::new(Vec::new()),
+            started: Notify::new(),
+            releases: tokio::sync::Semaphore::new(0),
+        });
+        let scheduler = IndexJobScheduler::new(
+            executor.clone(),
+            SchedulerConfig {
+                concurrency: 1,
+                queue_capacity: 8,
+            },
+        );
+        let root = PathBuf::from("/graph-workspace");
+        let scopes = [
+            GraphScope::Code,
+            GraphScope::Documents,
+            GraphScope::Off,
+            GraphScope::Code,
+        ];
+        let mut jobs = Vec::new();
+        for scope in scopes {
+            jobs.push(
+                scheduler
+                    .submit(
+                        root.clone(),
+                        IndexOptions {
+                            graph: Some(GraphOptions {
+                                scope,
+                                ..GraphOptions::default()
+                            }),
+                            ..IndexOptions::default()
+                        },
+                        JobReason::Manual,
+                    )
+                    .expect("serial policy job")
+                    .job
+                    .id,
+            );
+        }
+        assert_eq!(
+            jobs.iter().collect::<std::collections::HashSet<_>>().len(),
+            4,
+            "later Code cannot merge ahead of queued Documents/Off"
+        );
+        executor.releases.add_permits(4);
+        for id in jobs {
+            assert_eq!(
+                tokio::time::timeout(std::time::Duration::from_secs(2), scheduler.wait(id))
+                    .await
+                    .expect("bounded completion")
+                    .expect("job")
+                    .job
+                    .state,
+                JobState::Succeeded
+            );
+        }
+        let actual = executor
+            .calls
+            .lock()
+            .expect("calls")
+            .iter()
+            .map(|o| o.graph.as_ref().expect("explicit policy").scope)
+            .collect::<Vec<_>>();
+        assert_eq!(actual, scopes);
+        scheduler.shutdown().await;
+    }
+
+    #[test]
+    fn graph_merge_preserves_omission_and_same_explicit_policy() {
+        use zg_engine::api::index::graph::{GraphOptions, GraphScope};
+        let graph = GraphOptions {
+            scope: GraphScope::Documents,
+            ..GraphOptions::default()
+        };
+        let mut queued = Some(IndexOptions {
+            graph: Some(graph.clone()),
+            ..IndexOptions::default()
+        });
+        super::merge_options(&mut queued, IndexOptions::default());
+        assert_eq!(queued.as_ref().expect("queued").graph, Some(graph.clone()));
+        super::merge_options(
+            &mut queued,
+            IndexOptions {
+                graph: Some(graph.clone()),
+                ..IndexOptions::default()
+            },
+        );
+        assert_eq!(queued.as_ref().expect("queued").graph, Some(graph));
+        assert!(!super::graph_options_compatible(
+            queued.as_ref(),
+            &IndexOptions {
+                graph: Some(GraphOptions::default()),
+                ..IndexOptions::default()
+            }
+        ));
+    }
 
     #[async_trait]
     impl IndexExecutor for ImmediateExecutor {

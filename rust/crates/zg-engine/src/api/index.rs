@@ -2,6 +2,7 @@
 
 pub use options::IndexOptions;
 pub use result::IndexResult;
+pub mod graph;
 
 /// Input types for [`crate::ZvecGrep::index`].
 pub mod options {
@@ -15,6 +16,9 @@ pub mod options {
     #[serde(deny_unknown_fields)]
     #[allow(clippy::struct_excessive_bools)]
     pub struct IndexOptions {
+        /// Omission inherits the saved workspace policy. Explicit Off revokes it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub graph: Option<super::graph::GraphOptions>,
         /// Unique workspace name. Defaults to the root directory name on creation;
         /// supplying a different name explicitly renames an existing workspace.
         #[serde(default)]
@@ -405,6 +409,8 @@ pub mod result {
 
     #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
     pub struct IndexResult {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub graph: Option<super::graph::GraphIndexResult>,
         pub files_scanned: usize,
         pub files_added: usize,
         pub files_modified: usize,

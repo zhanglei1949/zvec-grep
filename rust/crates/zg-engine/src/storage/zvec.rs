@@ -1,8 +1,6 @@
 //! Shared zvec initialization and collection operations.
 use std::{collections::HashMap, path::Path, sync::OnceLock};
-use zvec_rust::{
-    Collection, CollectionOptions, CollectionSchema, DataType, Doc, FieldSchema, IndexParams,
-};
+use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
 use crate::{EngineError, EngineResult};
 
@@ -30,14 +28,9 @@ pub(super) fn open_collection(
     read_only: bool,
 ) -> EngineResult<Collection> {
     let text = native_path(path)?;
-    let mut options = native(CollectionOptions::new(), "configure collection")?;
-    native(
-        options.set_read_only(read_only),
-        "set collection access mode",
-    )?;
     if path.exists() {
         native(
-            Collection::open(text, Some(&options)),
+            zg_storage::zvec::open_collection(text, read_only),
             &format!("open collection {}", path.display()),
         )
     } else if read_only {
@@ -47,7 +40,7 @@ pub(super) fn open_collection(
         )))
     } else {
         native(
-            Collection::create_and_open(text, schema, Some(&options)),
+            zg_storage::zvec::create_collection(text, schema),
             &format!("create collection {}", path.display()),
         )
     }
@@ -73,20 +66,15 @@ pub(super) fn scalar(
     nullable: bool,
     indexed: bool,
 ) -> EngineResult<()> {
-    let mut field = native(
-        FieldSchema::new(name, data_type, nullable, 0),
-        "define scalar field",
-    )?;
-    if indexed {
-        native(
-            field.set_index_params(&native(
-                IndexParams::invert(true, false),
-                "define scalar index",
-            )?),
-            "attach scalar index",
-        )?;
-    }
-    native(schema.add_field(&field), "add scalar field")
+    let index = if indexed {
+        zg_storage::zvec::ScalarIndex::Exact
+    } else {
+        zg_storage::zvec::ScalarIndex::None
+    };
+    native(
+        zg_storage::zvec::add_scalar(schema, name, data_type, nullable, index),
+        "add scalar field",
+    )
 }
 
 pub(super) fn wildcard_string(
@@ -94,18 +82,16 @@ pub(super) fn wildcard_string(
     name: &str,
     nullable: bool,
 ) -> EngineResult<()> {
-    let mut field = native(
-        FieldSchema::new(name, DataType::String, nullable, 0),
-        "define indexed path string",
-    )?;
     native(
-        field.set_index_params(&native(
-            IndexParams::invert(false, true),
-            "define path string index",
-        )?),
-        "attach path string index",
-    )?;
-    native(schema.add_field(&field), "add indexed path string")
+        zg_storage::zvec::add_scalar(
+            schema,
+            name,
+            DataType::String,
+            nullable,
+            zg_storage::zvec::ScalarIndex::Wildcard,
+        ),
+        "add indexed path string",
+    )
 }
 
 pub(super) fn fetch_map(
@@ -113,14 +99,11 @@ pub(super) fn fetch_map(
     keys: &[String],
 ) -> EngineResult<HashMap<String, Doc>> {
     let mut result = HashMap::with_capacity(keys.len());
-    for batch in keys.chunks(WRITE_BATCH) {
-        let refs = batch.iter().map(String::as_str).collect::<Vec<_>>();
-        for doc in native(
-            collection.fetch_with_options(&refs, None, false),
-            "fetch stored records",
-        )? {
-            result.insert(doc_key(&doc)?.to_owned(), doc);
-        }
+    for doc in native(
+        zg_storage::zvec::fetch_docs(collection, keys, WRITE_BATCH, false),
+        "fetch stored records",
+    )? {
+        result.insert(doc_key(&doc)?.to_owned(), doc);
     }
     Ok(result)
 }
@@ -133,10 +116,12 @@ pub(super) fn write_docs(
     for batch in docs.chunks(WRITE_BATCH) {
         let refs = batch.iter().collect::<Vec<_>>();
         let result = native(collection.upsert(&refs), operation)?;
-        if result.results.len() != batch.len()
-            || result.error_count != 0
-            || result.success_count != u64::try_from(batch.len()).unwrap_or(u64::MAX)
-            || result.results.iter().any(|status| !status.success)
+        if !zg_storage::zvec::write_counts_match(
+            batch.len(),
+            result.results.iter().map(|s| s.success),
+            result.success_count,
+            result.error_count,
+        ) || result.error_count != 0
         {
             let detail = result
                 .results

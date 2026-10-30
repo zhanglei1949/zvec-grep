@@ -66,6 +66,327 @@ fn file_at(storage: &IndexStore, path: &str) -> (FileRecord, FixtureEntity) {
 }
 
 #[test]
+fn fragment_allowlist_is_applied_before_native_fts_and_vector_top_k() {
+    use crate::storage::types::IndexedFragment;
+    let dir = tempfile::tempdir().expect("store");
+    let writer = open(dir.path(), false);
+    let body = "scopeword inside\nscopeword scopeword scopeword outside\n";
+    let split = body.find('\n').expect("split") + 1;
+    let (file, mut fixture) = fixture(Some(&writer), "scoped", body, vec![1.0, 0.0, 0.0]);
+    fixture.entity.fragments = [0..split, split..body.len()]
+        .into_iter()
+        .enumerate()
+        .map(|(i, r)| EntityFragment {
+            id: FragmentId::new(&fixture.entity.id, u32::try_from(i).expect("ordinal")),
+            range: Range::Byte(
+                crate::domain::ByteRange::new(r.start as u64, r.end as u64).expect("range"),
+            ),
+        })
+        .collect();
+    let entries = fixture
+        .entity
+        .fragments
+        .iter()
+        .enumerate()
+        .map(|(i, f)| IndexedFragment {
+            entity_id: fixture.entity.id.clone(),
+            fragment_id: f.id.clone(),
+            model: fixture.model.clone(),
+            vector: if i == 0 {
+                vec![0.0, 1.0, 0.0]
+            } else {
+                vec![1.0, 0.0, 0.0]
+            },
+            fts_text: if i == 0 {
+                body[..split].into()
+            } else {
+                body[split..].into()
+            },
+        })
+        .collect::<Vec<_>>();
+    writer
+        .replace_file(&file, std::slice::from_ref(&fixture.entity), &entries)
+        .expect("write");
+    writer.checkpoint().expect("flush");
+    writer.close().expect("close");
+    let reader = open(dir.path(), true);
+    assert_eq!(
+        reader
+            .search_vector(&fixture.model, &[1.0, 0.0, 0.0], 1, None)
+            .expect("ordinary vector")[0]
+            .document_id,
+        entries[1].fragment_id.as_str()
+    );
+    for ids in [
+        vec![entries[0].fragment_id.as_str().to_owned()],
+        vec![],
+        vec!["missing".into()],
+    ] {
+        let filter = StorageSearchFilter {
+            fragment_ids: Some(ids.clone()),
+            ..Default::default()
+        };
+        for hits in [
+            reader
+                .search_fts("scopeword", 1, Some(&filter))
+                .expect("FTS prefilter"),
+            reader
+                .search_vector(&fixture.model, &[1.0, 0.0, 0.0], 1, Some(&filter))
+                .expect("vector prefilter"),
+        ] {
+            if ids.first().is_some_and(|id| id != "missing") {
+                assert_eq!(hits.len(), 1);
+                assert_eq!(hits[0].document_id, ids[0]);
+            } else {
+                assert!(hits.is_empty());
+            }
+        }
+    }
+    reader.close().expect("close reader");
+}
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+#[test]
+fn graph_text_binding_checks_body_fragments_and_missing_maps_after_reopen() {
+    use crate::graph_facts::text_binding;
+    let dir = tempfile::tempdir().expect("storage");
+    let writer = open(dir.path(), false);
+    let body = "中😀\r\ntext";
+    let (file, mut entry) = fixture(Some(&writer), "source", body, vec![1.0, 0.0, 0.0]);
+    entry.entity.source_range = Range::Text(
+        crate::domain::TextRange::from_coordinates(0, body.len(), 1, 2, 0, 4)
+            .expect("source range"),
+    );
+    entry.entity.id =
+        EntityId::new(file.id, &entry.entity.content, entry.entity.source_range).expect("id");
+    entry.entity.fragments = vec![
+        EntityFragment {
+            id: FragmentId::new(&entry.entity.id, 0),
+            range: Range::Byte(crate::domain::ByteRange::new(0, 7).expect("first")),
+        },
+        EntityFragment {
+            id: FragmentId::new(&entry.entity.id, 1),
+            range: Range::Byte(
+                crate::domain::ByteRange::new(3, body.len() as u64).expect("overlap"),
+            ),
+        },
+    ];
+    let entities = vec![entry.entity.clone()];
+    let ids = vec![entry.entity.id.as_str().to_owned()];
+    let maps = text_binding::maps("source.txt", &entities).expect("maps");
+    maps[0]
+        .validate_text(body, body)
+        .expect("UTF-8, emoji, CRLF");
+    let digest = text_binding::digest(&entities).expect("digest");
+    writer
+        .replace_fixture_file(&file, std::slice::from_ref(&entry))
+        .expect("write");
+    writer.checkpoint().expect("checkpoint");
+    writer.close().expect("close");
+    let reader = open(dir.path(), true);
+    assert!(
+        text_binding::verify(&reader, &ids, "source.txt", &maps, Some(&digest)).expect("binding")
+    );
+    assert!(
+        !text_binding::verify(&reader, &ids, "source.txt", &[], Some(&digest))
+            .expect("missing map")
+    );
+    reader.close().expect("close reader");
+    let mut changed_body = entities;
+    changed_body[0].content = Content::Text("文😀\r\ntext".into());
+    assert_ne!(
+        text_binding::digest(&changed_body).expect("body digest"),
+        digest,
+        "same IDs cannot prove body identity"
+    );
+    entry.entity.fragments[0].range =
+        Range::Byte(crate::domain::ByteRange::new(0, 3).expect("changed fragment"));
+    let writer = open(dir.path(), false);
+    writer
+        .replace_fixture_file(&file, &[entry])
+        .expect("same entity, different fragments");
+    writer.checkpoint().expect("checkpoint");
+    assert!(
+        !text_binding::verify(&writer, &ids, "source.txt", &maps, Some(&digest))
+            .expect("changed fragment binding")
+    );
+    writer.close().expect("close");
+}
+
+#[test]
+fn graph_fence_native_writes_checkpoint_reopen_and_aba() {
+    use crate::storage::graph_state::{TextPhase, TextState, catalog_digest};
+    let dir = tempfile::tempdir().expect("storage");
+    let writer = open(dir.path(), false);
+    let baseline = TextState::baseline(
+        dir.path(),
+        catalog_digest(&writer.list_files().expect("files")),
+    )
+    .expect("baseline");
+    for (i, text) in ["A", "B", "A"].into_iter().enumerate() {
+        let (file, entity) = fixture(Some(&writer), "source", text, vec![1.0, 0.0, 0.0]);
+        writer
+            .replace_fixture_file(&file, &[entity])
+            .expect("write");
+        let mutating = TextState::read(dir.path()).expect("state").expect("fence");
+        assert_eq!(mutating.state, TextPhase::Mutating);
+        assert_eq!(mutating.text_revision, i as u64 + 1);
+        writer.checkpoint().expect("checkpoint");
+        let stable = TextState::read(dir.path()).expect("state").expect("stable");
+        assert_eq!(stable.state, TextPhase::Stable);
+        assert_eq!(
+            stable.catalog_digest,
+            catalog_digest(&writer.list_files().expect("actual files"))
+        );
+        assert_ne!(stable.operation_id, baseline.operation_id);
+    }
+    let latest = TextState::read(dir.path()).expect("state");
+    writer.checkpoint().expect("unchanged checkpoint");
+    writer.close().expect("close");
+    drop(writer);
+    let reader = open(dir.path(), true);
+    reader.list_files().expect("read actual inventory");
+    reader.close().expect("read close");
+    drop(reader);
+    assert_eq!(TextState::read(dir.path()).expect("unchanged"), latest);
+}
+
+#[test]
+fn graph_fence_rejects_unknown_format_before_native_write_and_keeps_failed_dirty() {
+    use crate::storage::graph_state::{TextPhase, TextState, catalog_digest};
+    let dir = tempfile::tempdir().expect("storage");
+    let writer = open(dir.path(), false);
+    TextState::baseline(dir.path(), catalog_digest(&[])).expect("baseline");
+    let state_path = dir.path().join("graph/STATE.json");
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&fs::read(&state_path).expect("read")).expect("json");
+    value["formatVersion"] = serde_json::json!(99);
+    let unknown = serde_json::to_vec(&value).expect("json");
+    fs::write(&state_path, &unknown).expect("write unknown format");
+    let (file, entity) = fixture(Some(&writer), "blocked", "A", vec![1.0, 0.0, 0.0]);
+    assert!(writer.replace_fixture_file(&file, &[entity]).is_err());
+    assert!(writer.list_files().expect("no write").is_empty());
+    assert_eq!(fs::read(&state_path).expect("preserved"), unknown);
+    fs::remove_file(&state_path).expect("explicit test fixture reset");
+    TextState::baseline(dir.path(), catalog_digest(&[])).expect("new baseline");
+    let (file, entity) = fixture(Some(&writer), "pending", "A", vec![1.0, 0.0, 0.0]);
+    writer
+        .replace_fixture_file(&file, &[entity])
+        .expect("write");
+    // Close flushes accepted bytes but cannot certify that a failed/cancelled
+    // indexing operation completed its checkpoint protocol.
+    writer.close().expect("close without explicit checkpoint");
+    drop(writer);
+    assert_eq!(
+        TextState::read(dir.path())
+            .expect("read")
+            .expect("fence")
+            .state,
+        TextPhase::Mutating
+    );
+    let reader = open(dir.path(), true);
+    reader.list_files().expect("read pending generation");
+    drop(reader);
+    assert_eq!(
+        TextState::read(dir.path())
+            .expect("no readonly repair")
+            .expect("fence")
+            .state,
+        TextPhase::Mutating
+    );
+}
+
+#[test]
+fn graph_fence_failed_source_and_delete_invalidate_prior_baseline() {
+    use crate::storage::graph_state::{TextPhase, TextState, catalog_digest};
+    let dir = tempfile::tempdir().expect("storage");
+    let writer = open(dir.path(), false);
+    let (file, entity) = fixture(Some(&writer), "source", "A", vec![1.0, 0.0, 0.0]);
+    writer
+        .replace_fixture_file(&file, &[entity])
+        .expect("initial write");
+    writer.checkpoint().expect("checkpoint");
+    assert!(
+        !dir.path().join("graph").exists(),
+        "ordinary indexing creates no graph sidecars"
+    );
+    let baseline = TextState::baseline(
+        dir.path(),
+        catalog_digest(&writer.list_files().expect("files")),
+    )
+    .expect("baseline");
+    writer
+        .mark_file_failed(&file, "synthetic failure")
+        .expect("record failure");
+    assert_eq!(
+        TextState::read(dir.path())
+            .expect("state")
+            .expect("fence")
+            .state,
+        TextPhase::Mutating
+    );
+    writer
+        .delete_file(file.id)
+        .expect("delete before checkpoint");
+    writer.checkpoint().expect("checkpoint");
+    let stable = TextState::read(dir.path()).expect("state").expect("stable");
+    assert_eq!(
+        stable.text_revision,
+        baseline.text_revision + 1,
+        "one revision for both writes in this operation"
+    );
+    assert_eq!(stable.catalog_digest, catalog_digest(&[]));
+}
+
+#[cfg(unix)]
+#[test]
+fn graph_fence_real_filesystem_failures_stop_writes_and_keep_checkpoint_dirty() {
+    use crate::storage::graph_state::{TextPhase, TextState, catalog_digest};
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().expect("storage");
+    let writer = open(dir.path(), false);
+    TextState::baseline(dir.path(), catalog_digest(&[])).expect("baseline");
+    let graph = dir.path().join("graph");
+    let state = fs::read(graph.join("STATE.json")).expect("state");
+    let (file, entity) = fixture(Some(&writer), "source", "A", vec![1.0, 0.0, 0.0]);
+    fs::set_permissions(&graph, fs::Permissions::from_mode(0o500)).expect("deny metadata writes");
+    let blocked = writer.replace_fixture_file(&file, std::slice::from_ref(&entity));
+    fs::set_permissions(&graph, fs::Permissions::from_mode(0o700)).expect("restore directory");
+    assert!(blocked.is_err());
+    assert!(writer.list_files().expect("no business write").is_empty());
+    assert_eq!(
+        fs::read(graph.join("STATE.json")).expect("unchanged state"),
+        state
+    );
+    writer
+        .replace_fixture_file(&file, &[entity])
+        .expect("accepted write");
+    fs::set_permissions(&graph, fs::Permissions::from_mode(0o500)).expect("deny stable marker");
+    let failed = writer.checkpoint();
+    fs::set_permissions(&graph, fs::Permissions::from_mode(0o700)).expect("restore");
+    assert!(failed.is_err());
+    writer.close().expect("close writer");
+    drop(writer);
+    assert_eq!(
+        TextState::read(dir.path())
+            .expect("read")
+            .expect("fence")
+            .state,
+        TextPhase::Mutating
+    );
+    let reader = open(dir.path(), true);
+    assert_eq!(reader.list_files().expect("accepted native file").len(), 1);
+    drop(reader);
+    assert_eq!(
+        TextState::read(dir.path())
+            .expect("no readonly repair")
+            .expect("fence")
+            .state,
+        TextPhase::Mutating
+    );
+}
+
+#[test]
 #[expect(
     clippy::too_many_lines,
     reason = "Compare FTS and ANN across the same complete metadata fixture"
@@ -553,6 +874,79 @@ fn open(path: &Path, read_only: bool) -> IndexStore {
     IndexStore::open(options).expect("open real zvec storage")
 }
 
+#[test]
+fn readonly_host_queries_close_and_drop_preserve_storage_files() {
+    fn snapshot(
+        root: &Path,
+    ) -> std::collections::BTreeMap<PathBuf, (String, std::time::SystemTime)> {
+        let mut out = std::collections::BTreeMap::new();
+        for entry in fs::read_dir(root).expect("directory") {
+            let entry = entry.expect("entry");
+            if entry.file_type().expect("file type").is_dir() {
+                out.extend(snapshot(&entry.path()));
+            } else {
+                out.insert(
+                    entry.path(),
+                    (
+                        crate::utils::sha256_hex(&fs::read(entry.path()).expect("bytes")),
+                        entry
+                            .metadata()
+                            .expect("metadata")
+                            .modified()
+                            .expect("mtime"),
+                    ),
+                );
+            }
+        }
+        out
+    }
+    let directory = tempfile::tempdir().expect("storage");
+    let writer = open(directory.path(), false);
+    let (file, entity) = file_at(&writer, "docs/readonly.txt");
+    writer
+        .replace_fixture_file(&file, &[entity])
+        .expect("write real index");
+    writer.checkpoint().expect("checkpoint");
+    writer.close().expect("close writer");
+    drop(writer);
+    let baseline = snapshot(directory.path());
+    for explicit_close in [true, false] {
+        let reader = open(directory.path(), true);
+        assert_eq!(snapshot(directory.path()), baseline, "open changed storage");
+        assert_eq!(
+            reader.search_fts("orchard", 10, None).expect("FTS").len(),
+            1
+        );
+        let hits = reader
+            .search_vector("fixture/fixture-model", &[1.0, 0.0, 0.0], 10, None)
+            .expect("ANN");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            reader
+                .load_search_hits(&hits)
+                .expect("canonical evidence")
+                .entities
+                .len(),
+            1
+        );
+        assert_eq!(
+            snapshot(directory.path()),
+            baseline,
+            "queries changed storage"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        if explicit_close {
+            reader.close().expect("close reader");
+        }
+        drop(reader);
+        assert_eq!(
+            snapshot(directory.path()),
+            baseline,
+            "reader teardown changed storage"
+        );
+    }
+}
+
 fn fixture(
     storage: Option<&IndexStore>,
     name: &str,
@@ -637,6 +1031,7 @@ fn persists_filters_and_replaces_complete_files() {
         path: None,
         file_ids: Some(vec![first.id]),
         entity_ids: Some(vec![entry.entity.id.clone()]),
+        fragment_ids: None,
         symbol_names: Some(vec!["quoted'\\name\0suffix".to_owned()]),
         symbol_types: Some(vec![SymbolType::Function]),
     };

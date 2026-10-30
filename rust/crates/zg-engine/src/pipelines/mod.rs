@@ -3,3 +3,6 @@
 pub(crate) mod direct_search;
 pub(crate) mod indexed_search;
 pub(crate) mod indexing;
+
+#[cfg(feature = "knowledge-graph-graphdb")]
+pub(crate) mod explore;

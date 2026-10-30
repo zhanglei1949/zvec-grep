@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+knowledge-graph-graphdb = ["zg-engine/knowledge-graph-graphdb"]
+
 [dependencies]
 serde_json.workspace = true
 clap.workspace = true

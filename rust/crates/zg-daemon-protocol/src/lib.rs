@@ -12,7 +12,7 @@ use zg_engine::api::{
     info::{InfoOptions, InfoResult},
 };
 
-pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 12;
+pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 14;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DaemonRequest {
@@ -75,6 +75,7 @@ pub struct ExecuteRequest {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "request")]
 pub enum DaemonCommand {
+    Explore(zg_engine::api::explore::ExploreOptions),
     Context(ContextOptions),
     Index(IndexOptions),
     IndexAuthorization(IndexOptions),
@@ -186,6 +187,7 @@ pub enum IndexStreamEvent {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "reply")]
 pub enum DaemonReply {
+    Explore(Box<zg_engine::api::explore::ExploreResult>),
     Context(Box<ContextResult>),
     Index(Box<IndexResult>),
     IndexAuthorization(Vec<zg_engine::authorization::IndexAuthorization>),
@@ -391,5 +393,76 @@ mod tests {
         let decoded: ExecutionResult =
             serde_json::from_value(value).expect("error reply should deserialize");
         assert_eq!(decoded, result);
+    }
+}
+
+#[cfg(test)]
+mod explore_tests {
+    use super::*;
+    use zg_engine::api::explore::*;
+    #[test]
+    fn augmentation_context_round_trip_keeps_limits_and_empty_boundary() {
+        let request = ContextOptions {
+            queries: vec!["caller".into()],
+            graph: zg_engine::api::context::graph::GraphQueryMode::Augment {
+                seeds: 2,
+                expansion: TraversalSpec {
+                    boundary: SourceFilter {
+                        sources: Some(vec![]),
+                    },
+                    ..Default::default()
+                },
+            },
+            graph_execution: Some(ExecutionOptions {
+                request_timeout_ms: 1234,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let command = DaemonCommand::Context(request);
+        let value = serde_json::to_value(&command).expect("encode");
+        assert_eq!(
+            value["request"]["graph_execution"]["request_timeout_ms"],
+            1234
+        );
+        assert_eq!(
+            value["request"]["graph"]["expansion"]["boundary"]["sources"],
+            serde_json::json!([])
+        );
+        assert_eq!(
+            serde_json::from_value::<DaemonCommand>(value).expect("decode"),
+            command
+        );
+    }
+    #[test]
+    fn explore_is_explicit_in_current_protocol_and_preserves_deadlines() {
+        assert_eq!(CURRENT_DAEMON_PROTOCOL_VERSION, 14);
+        let mut options = ExploreOptions::new(ExploreRequest {
+            domain: QueryDomain::Code,
+            operation: ExploreOperation::Locate {
+                target: Locator::Name {
+                    name: "target".into(),
+                    source_id: None,
+                    kind: None,
+                },
+            },
+            boundary: SourceFilter::default(),
+            result_filter: SourceFilter::default(),
+        });
+        options.execution.request_timeout_ms = 1234;
+        let command = DaemonCommand::Explore(options);
+        let encoded = serde_json::to_value(&command).expect("wire");
+        assert_eq!(encoded["kind"], "explore");
+        assert_eq!(encoded["request"]["execution"]["request_timeout_ms"], 1234);
+        assert_eq!(
+            serde_json::from_value::<DaemonCommand>(encoded).expect("decode"),
+            command
+        );
+        assert!(
+            serde_json::from_value::<DaemonCommand>(
+                serde_json::json!({"kind":"explore","request":{"refresh":"wait"}})
+            )
+            .is_err()
+        );
     }
 }

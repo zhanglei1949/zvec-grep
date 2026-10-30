@@ -46,7 +46,8 @@ pub(crate) async fn search(
     options: &mut ContextOptions,
     context: &RequestContext<RoleServer>,
 ) -> Result<(), EngineError> {
-    let targets = authorization::query_authorizations(options)?;
+    options.signal = Some(context.ct.child_token());
+    let targets = authorization::query_authorizations_async(options).await?;
     if targets.is_empty() {
         return Ok(());
     }
@@ -66,7 +67,7 @@ pub(crate) async fn search(
         }
         decisions.push(decision);
     }
-    if authorization::query_authorizations(options)? != targets {
+    if authorization::query_authorizations_async(options).await? != targets {
         return Err(EngineError::permission_denied(
             "Workspace authorization scope changed while awaiting consent; retry to review all destinations",
         ));

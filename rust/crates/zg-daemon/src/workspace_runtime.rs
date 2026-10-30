@@ -182,6 +182,251 @@ struct ZvecGrepIndexExecutor {
     engine: Arc<ZvecGrep>,
 }
 
+impl WorkspaceRuntimeManager {
+    async fn search_workspace(
+        &self,
+        engine: &ZvecGrep,
+        mut request: ContextOptions,
+    ) -> Result<ContextResult, EngineError> {
+        let started = std::time::Instant::now();
+        // In-process callers without a request token must still be interruptible at shutdown.
+        if request.signal.is_none() {
+            request.signal = Some(self.inner.shutdown.child_token());
+        }
+        if request.rg {
+            return engine.context(remaining_context(request, started)?).await;
+        }
+        let (updated, preflight) = scope_refresh_options(request, started).await?;
+        request = updated;
+        let _activity = self.existing_activity(request.root.as_deref())?;
+        let policy = request.refresh.unwrap_or(if request.auto_update {
+            RefreshPolicy::Background
+        } else {
+            RefreshPolicy::Off
+        });
+        request.auto_update = false;
+        request.refresh = Some(policy);
+        if policy == RefreshPolicy::Off {
+            let mut reply = engine.context(remaining_context(request, started)?).await?;
+            reply.freshness = Some("served_from_current_index".to_owned());
+            reply.background_refresh = Some("off".to_owned());
+            return account_scope_preflight(reply, preflight);
+        }
+        let options = IndexOptions {
+            root: request.root.clone(),
+            on_progress: request.on_progress.clone(),
+            signal: request.signal.clone(),
+            allow_remote: request.allow_remote,
+            authorized_remote: request.authorized_remote.clone(),
+            api_key: request.api_key.clone(),
+            endpoint: request.endpoint.clone(),
+            embedding_concurrency: request.embedding_concurrency,
+            lock_timeout_ms: request.lock_timeout_ms,
+            runtime_device: request.device,
+            model_cache: request.model_cache.clone(),
+            ..IndexOptions::default()
+        };
+        if policy == RefreshPolicy::Background {
+            let reply = self
+                .search_background(engine, request, options, started)
+                .await?;
+            return account_scope_preflight(reply, preflight);
+        }
+        let requested_root = canonical_root(request.root.as_deref())
+            .map_err(WorkspaceRuntimeError::into_engine_error)?;
+        let root = lock(&self.inner.runtimes)
+            .keys()
+            .filter(|root| requested_root.starts_with(root))
+            .max_by_key(|root| root.components().count())
+            .cloned()
+            .unwrap_or(requested_root);
+        let _refresh_activity = wait_for_search_refresh(&request, async {
+            let info = wait_for_search_admission(&request, async {
+                self.inner
+                    .scheduler
+                    .wait_for_root_idle_with_progress(&root, request.on_progress.clone())
+                    .await;
+                // Metadata admission also waits on writers outside this daemon.
+                engine
+                    .info(InfoOptions {
+                        root: request.root.clone(),
+                        include_status: false,
+                    })
+                    .await
+            })
+            .await?;
+            info.compatibility.ensure_compatible()?;
+            let activity = if info.indexed {
+                Some(self.runtime(info.root.clone(), &options)?)
+            } else {
+                None
+            };
+            if info.indexed {
+                let mut options = options;
+                options.root = Some(info.root);
+                self.refresh_index(options, true).await?;
+            }
+            // Preserve the engine's missing-index error without silently creating one.
+            Ok(activity)
+        })
+        .await?;
+        // Resident Wait reconciles delivered watcher events. OS notifications
+        // still in flight belong to a later refresh, not a second disk scan.
+        let mut reply = engine
+            .context_after_refresh(remaining_context(request, started)?)
+            .await?;
+        reply.freshness = Some("fresh".to_owned());
+        reply.background_refresh = Some("idle".to_owned());
+        account_scope_preflight(reply, preflight)
+    }
+    async fn search_background(
+        &self,
+        engine: &ZvecGrep,
+        request: ContextOptions,
+        options: IndexOptions,
+        started: std::time::Instant,
+    ) -> Result<ContextResult, EngineError> {
+        // Query first so our own refresh cannot lock out the current-index read.
+        // A successful query also proves that this operation is not creating an index.
+        let mut reply = engine.context(remaining_context(request, started)?).await?;
+        let mut options = options;
+        options.root = Some(reply.root.clone());
+        reply.freshness = Some("served_from_current_index".to_owned());
+        if reply
+            .graph
+            .as_ref()
+            .and_then(|g| g.scope.as_ref())
+            .is_some_and(|s| s.filtered_fragment_count == 0)
+        {
+            reply.background_refresh = Some("off".to_owned());
+            return Ok(reply);
+        }
+        reply.background_refresh = Some(match self.refresh_index(options, false).await {
+            Ok(true) => "scheduled".to_owned(),
+            Ok(false) => "idle".to_owned(),
+            Err(error) => {
+                warn!(%error, "search background refresh could not be scheduled");
+                "failed".to_owned()
+            }
+        });
+        Ok(reply)
+    }
+}
+
+async fn scope_refresh_options(
+    mut request: ContextOptions,
+    started: std::time::Instant,
+) -> Result<
+    (
+        ContextOptions,
+        Option<zg_engine::authorization::ConstrainPreflight>,
+    ),
+    EngineError,
+> {
+    let mut preflight = None;
+    if matches!(
+        request.graph,
+        zg_engine::api::context::graph::GraphQueryMode::Constrain { .. }
+    ) && request.refresh != Some(RefreshPolicy::Off)
+    {
+        let checked = zg_engine::authorization::inspect_constrain_scope(&remaining_context(
+            request.clone(),
+            started,
+        )?)
+        .await?;
+        if checked.empty {
+            request.auto_update = false;
+            request.refresh = Some(RefreshPolicy::Off);
+        }
+        let mut execution = request.graph_execution.unwrap_or_default();
+        let usage = checked.usage;
+        for (limit, used) in [
+            (&mut execution.budget.nodes, usage.nodes),
+            (&mut execution.budget.edges, usage.edges),
+            (&mut execution.budget.candidates, usage.candidates),
+            (&mut execution.budget.mapping_units, usage.mapping_units),
+            (&mut execution.budget.filter_bytes, usage.filter_bytes),
+            (&mut execution.budget.output_bytes, usage.output_bytes),
+        ] {
+            *limit = limit.checked_sub(used).filter(|n| *n > 0).ok_or_else(|| {
+                EngineError::resource_busy("scope preflight exhausted request budget")
+            })?;
+        }
+        execution.graph_timeout_ms = execution
+            .graph_timeout_ms
+            .checked_sub(checked.elapsed_micros.div_ceil(1000))
+            .filter(|n| *n > 0)
+            .ok_or_else(|| {
+                EngineError::deadline_exceeded("scope preflight exhausted graph deadline")
+            })?;
+        request.graph_execution = Some(execution);
+        preflight = Some(checked);
+    }
+    Ok((request, preflight))
+}
+
+fn account_scope_preflight(
+    mut reply: ContextResult,
+    preflight: Option<zg_engine::authorization::ConstrainPreflight>,
+) -> Result<ContextResult, EngineError> {
+    if let Some(preflight) = preflight {
+        if let Some(execution) = reply.graph.as_mut().and_then(|g| g.execution.as_mut()) {
+            let usage = preflight.usage;
+            for (total, used) in [
+                (&mut execution.usage.nodes, usage.nodes),
+                (&mut execution.usage.edges, usage.edges),
+                (&mut execution.usage.candidates, usage.candidates),
+                (&mut execution.usage.mapping_units, usage.mapping_units),
+                (&mut execution.usage.filter_bytes, usage.filter_bytes),
+                (&mut execution.usage.output_bytes, usage.output_bytes),
+            ] {
+                *total += used;
+            }
+            execution.qualification_micros += preflight.qualification_micros;
+            execution.query_micros += preflight.query_micros;
+        }
+        if let Some(graph) = &mut reply.graph {
+            loop {
+                let bytes = serde_json::to_vec(graph)
+                    .map_err(|_| EngineError::internal("scope result encoding"))?
+                    .len() as u64;
+                if bytes > preflight.output_limit {
+                    return Err(EngineError::resource_busy("scope output budget exhausted"));
+                }
+                if let Some(execution) = &mut graph.execution
+                    && bytes > execution.usage.output_bytes
+                {
+                    execution.usage.output_bytes = bytes;
+                    continue;
+                }
+                break;
+            }
+        }
+    }
+    Ok(reply)
+}
+
+fn remaining_context(
+    mut request: ContextOptions,
+    started: std::time::Instant,
+) -> Result<ContextOptions, EngineError> {
+    if !request.graph.is_off() {
+        let mut execution = request.graph_execution.unwrap_or_default();
+        let elapsed = started.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
+        execution.request_timeout_ms = execution
+            .request_timeout_ms
+            .checked_sub(elapsed)
+            .filter(|n| *n > 0)
+            .ok_or_else(|| {
+                EngineError::deadline_exceeded(
+                    "graph query deadline exceeded before engine execution",
+                )
+            })?;
+        request.graph_execution = Some(execution);
+    }
+    Ok(request)
+}
+
 #[async_trait::async_trait]
 impl IndexExecutor for ZvecGrepIndexExecutor {
     async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
@@ -897,107 +1142,50 @@ impl IndexOperationProvider for WorkspaceRuntimeManager {
         WorkspaceRuntimeManager::info(self, engine, options).await
     }
 
+    async fn explore(
+        &self,
+        engine: &ZvecGrep,
+        mut options: zg_engine::api::explore::ExploreOptions,
+    ) -> Result<zg_engine::api::explore::ExploreResult, EngineError> {
+        options.validate()?;
+        if !ZvecGrep::supports_explore() {
+            return engine.explore(options).await;
+        }
+        if options.signal.is_none() {
+            options.signal = Some(self.inner.shutdown.child_token());
+        }
+        let _activity = self.existing_activity(options.root.as_deref())?;
+        engine.explore(options).await
+    }
+
     async fn search(
         &self,
         engine: &ZvecGrep,
         mut request: ContextOptions,
     ) -> Result<ContextResult, EngineError> {
-        // In-process callers without a request token must still be interruptible at shutdown.
-        if request.signal.is_none() {
-            request.signal = Some(self.inner.shutdown.child_token());
-        }
-        if request.rg {
-            return engine.context(request).await;
-        }
-        let _activity = self.existing_activity(request.root.as_deref())?;
-        let policy = request.refresh.unwrap_or(if request.auto_update {
-            RefreshPolicy::Background
-        } else {
-            RefreshPolicy::Off
-        });
-        request.auto_update = false;
-        request.refresh = Some(policy);
-        if policy == RefreshPolicy::Off {
-            let mut reply = engine.context(request).await?;
-            reply.freshness = Some("served_from_current_index".to_owned());
-            reply.background_refresh = Some("off".to_owned());
-            return Ok(reply);
-        }
-        let options = IndexOptions {
-            root: request.root.clone(),
-            on_progress: request.on_progress.clone(),
-            signal: request.signal.clone(),
-            allow_remote: request.allow_remote,
-            authorized_remote: request.authorized_remote.clone(),
-            api_key: request.api_key.clone(),
-            endpoint: request.endpoint.clone(),
-            embedding_concurrency: request.embedding_concurrency,
-            lock_timeout_ms: request.lock_timeout_ms,
-            runtime_device: request.device,
-            model_cache: request.model_cache.clone(),
-            ..IndexOptions::default()
-        };
-        if policy == RefreshPolicy::Background {
-            // Query first so our own refresh cannot lock out the current-index read.
-            // A successful query also proves that this operation is not creating an index.
-            let mut reply = engine.context(request).await?;
-            let mut options = options;
-            options.root = Some(reply.root.clone());
-            reply.freshness = Some("served_from_current_index".to_owned());
-            reply.background_refresh = Some(match self.refresh_index(options, false).await {
-                Ok(true) => "scheduled".to_owned(),
-                Ok(false) => "idle".to_owned(),
-                Err(error) => {
-                    warn!(%error, "search background refresh could not be scheduled");
-                    "failed".to_owned()
-                }
-            });
-            return Ok(reply);
-        }
-        let requested_root = canonical_root(request.root.as_deref())
-            .map_err(WorkspaceRuntimeError::into_engine_error)?;
-        let root = lock(&self.inner.runtimes)
-            .keys()
-            .filter(|root| requested_root.starts_with(root))
-            .max_by_key(|root| root.components().count())
-            .cloned()
-            .unwrap_or(requested_root);
-        let _refresh_activity = wait_for_search_refresh(&request, async {
-            let info = wait_for_search_admission(&request, async {
-                self.inner
-                    .scheduler
-                    .wait_for_root_idle_with_progress(&root, request.on_progress.clone())
-                    .await;
-                // Metadata admission also waits on writers outside this daemon.
-                engine
-                    .info(InfoOptions {
-                        root: request.root.clone(),
-                        include_status: false,
-                    })
-                    .await
-            })
-            .await?;
-            info.compatibility.ensure_compatible()?;
-            let activity = if info.indexed {
-                Some(self.runtime(info.root.clone(), &options)?)
-            } else {
-                None
-            };
-            if info.indexed {
-                let mut options = options;
-                options.root = Some(info.root);
-                self.refresh_index(options, true).await?;
+        request.validate()?;
+        if request.graph.is_off() {
+            if request.graph_execution.is_some() {
+                return Err(EngineError::invalid_argument(
+                    "graph_execution requires a graph query mode",
+                ));
             }
-            // Preserve the engine's missing-index error without silently creating one.
-            Ok(activity)
-        })
-        .await?;
-        // Resident Wait reconciles delivered watcher events. OS notifications
-        // still in flight belong to a later refresh, not a second disk scan.
-        let mut reply = engine.context_after_refresh(request).await?;
-        reply.freshness = Some("fresh".to_owned());
-        reply.background_refresh = Some("idle".to_owned());
-        Ok(reply)
+            return self.search_workspace(engine, request).await;
+        }
+        let execution = request.graph_execution.unwrap_or_default();
+        execution.validate()?;
+        let signal = request
+            .signal
+            .clone()
+            .unwrap_or_else(|| self.inner.shutdown.child_token());
+        let work_signal = signal.child_token();
+        let _cancel = work_signal.clone().drop_guard();
+        request.signal = Some(work_signal);
+        tokio::select! {
+            biased;
+            () = signal.cancelled() => Err(EngineError::cancelled("graph query cancelled during workspace admission")),
+            result = tokio::time::timeout(std::time::Duration::from_millis(execution.request_timeout_ms), Box::pin(self.search_workspace(engine, request))) => result.map_err(|_| EngineError::deadline_exceeded("graph query deadline exceeded during workspace admission"))?,
+        }
     }
 
     async fn drop_index(&self, options: InfoOptions) -> Result<bool, EngineError> {
@@ -1200,6 +1388,7 @@ fn index_template(options: &IndexOptions) -> IndexOptions {
     // Saved workspace settings are authoritative for subsequent watch jobs.
     // Configuration patches and one-operation controls must never be replayed.
     template.name = None;
+    template.graph = None;
     template.signal = None;
     template.lock_timeout_ms = None;
     template.on_progress = None;
@@ -1300,9 +1489,87 @@ mod tests {
         WorkspaceWatchSessionPort, WorkspaceWatcherFactoryPort,
     };
 
+    #[test]
+    fn graph_watch_template_inherits_latest_saved_policy() {
+        use zg_engine::api::index::graph::{GraphOptions, GraphScope};
+        let options = IndexOptions {
+            graph: Some(GraphOptions {
+                scope: GraphScope::Documents,
+                ..GraphOptions::default()
+            }),
+            ..IndexOptions::default()
+        };
+        assert!(super::index_template(&options).graph.is_none());
+    }
+
     use crate::job_scheduler::{IndexExecutor, SchedulerConfig};
 
     use super::WorkspaceRuntimeManager;
+
+    #[tokio::test]
+    async fn explore_without_backend_rejects_before_runtime_root_access() {
+        use zg_engine::{ZvecGrep, api::explore::*};
+        use zg_transport_mcp::IndexOperationProvider;
+        let engine = Arc::new(ZvecGrep::new());
+        let manager = WorkspaceRuntimeManager::native(Arc::clone(&engine));
+        let mut options = ExploreOptions::new(ExploreRequest {
+            domain: QueryDomain::Code,
+            operation: ExploreOperation::Locate {
+                target: Locator::Name {
+                    name: "x".into(),
+                    source_id: None,
+                    kind: None,
+                },
+            },
+            boundary: SourceFilter::default(),
+            result_filter: SourceFilter::default(),
+        });
+        options.root = Some(PathBuf::from("/nonexistent/g31-review-workspace"));
+        let error = manager
+            .explore(&engine, options)
+            .await
+            .expect_err("no backend");
+        if !ZvecGrep::supports_explore() {
+            assert_eq!(error.code(), EngineError::UNSUPPORTED);
+        }
+        assert_eq!(manager.snapshot().active_runtimes, 0);
+        assert_eq!(engine.runtime_snapshot().loaded_models, 0);
+        engine.close();
+    }
+
+    #[tokio::test]
+    async fn unsupported_graph_queries_fail_before_runtime_or_model_creation() {
+        use zg_engine::{
+            ZvecGrep,
+            api::context::{
+                ContextOptions,
+                graph::{GraphQueryMode, RelationKind, TraversalSpec},
+            },
+        };
+        use zg_transport_mcp::IndexOperationProvider;
+        let engine = Arc::new(ZvecGrep::new());
+        let manager = WorkspaceRuntimeManager::native(Arc::clone(&engine));
+        let request = ContextOptions {
+            query: Some("caller".into()),
+            root: Some("/nonexistent/g32-query".into()),
+            graph: GraphQueryMode::Augment {
+                seeds: 1,
+                expansion: TraversalSpec {
+                    relations: vec![RelationKind::Links],
+                    ..Default::default()
+                },
+            },
+            ..Default::default()
+        };
+        let error = manager
+            .search(&engine, request)
+            .await
+            .expect_err("unsupported relation");
+        assert_eq!(error.code(), EngineError::UNSUPPORTED);
+        assert_eq!(manager.snapshot().active_runtimes, 0);
+        assert_eq!(engine.runtime_snapshot().loaded_models, 0);
+        engine.close();
+    }
 
     #[derive(Default)]
     struct RecordingExecutor {

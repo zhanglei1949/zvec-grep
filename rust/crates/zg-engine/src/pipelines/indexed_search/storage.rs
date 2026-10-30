@@ -12,6 +12,12 @@ use crate::{
 };
 
 pub(crate) trait SearchStorage: Send + Sync {
+    fn restrict_filter(
+        &self,
+        filter: Option<StorageSearchFilter>,
+    ) -> EngineResult<Option<StorageSearchFilter>> {
+        Ok(filter)
+    }
     fn list_file_paths(&self) -> EngineResult<Vec<(FileId, PathBuf)>>;
     fn list_file_attributes(&self) -> EngineResult<Vec<StoredFileAttributes>>;
     fn has_non_unicode_file_names(&self) -> EngineResult<bool>;

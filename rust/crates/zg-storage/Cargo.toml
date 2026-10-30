@@ -1,0 +1,36 @@
+[package]
+name = "zg-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+zvec = ["dep:zvec-rust", "dep:zvec-rust-build"]
+
+[dependencies]
+hex = "0.4.3"
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+zvec-rust = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.4", features = ["fs"] }
+
+[build-dependencies]
+zvec-rust-build = { workspace = true, optional = true }
+
+[[test]]
+name = "readonly_collection"
+required-features = ["zvec"]
+
+[[test]]
+name = "write_statuses"
+required-features = ["zvec"]
+
+[lints]
+workspace = true

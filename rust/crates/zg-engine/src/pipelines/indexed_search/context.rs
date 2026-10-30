@@ -129,7 +129,7 @@ pub(crate) fn normalize_context_request(
     })
 }
 
-pub(crate) async fn context_from_index(
+pub(super) async fn context_from_index(
     root: &Path,
     workspace: &Workspace,
     workspace_home: &Path,
@@ -137,7 +137,7 @@ pub(crate) async fn context_from_index(
     embedding_models: &[&dyn SearchEmbeddingRuntime],
     options: &ContextOptions,
     request: &NormalizedContextRequest,
-) -> Result<ContextResult, EngineError> {
+) -> Result<super::retained::RankedContext, EngineError> {
     let groups = if options.fuse {
         vec![NormalizedContextGroup {
             id: "Q1".to_owned(),
@@ -176,7 +176,17 @@ pub(crate) async fn context_from_index(
         );
     }
 
-    build_context_result(root, workspace, workspace_home, request, &groups, searches)
+    let hits = if options.graph.is_off() {
+        Vec::new()
+    } else {
+        super::retained::collect(
+            &searches,
+            &groups,
+            options.fuse.then_some(request.groups.as_slice()),
+        )?
+    };
+    let result = build_context_result(root, workspace, workspace_home, request, &groups, searches)?;
+    Ok(super::retained::RankedContext::new(result, hits))
 }
 
 fn build_context_result(
@@ -208,6 +218,7 @@ fn build_context_result(
     let hits_returned = items.len();
 
     Ok(ContextResult {
+        graph: None,
         freshness: None,
         background_refresh: None,
         query: request.display_query.clone(),
@@ -668,7 +679,7 @@ mod tests {
                 ByteRange, Content, Entity, EntityFragment, EntityId, FileId, FileIndexStatus,
                 FileRecord, FileSnapshot, FragmentId, Range, TextRange,
             },
-            pipelines::indexed_search::pipeline::{SearchEvidence, SearchHit, SearchPlanResult},
+            pipelines::indexed_search::pipeline::{SearchEvidence, SearchHit},
         };
         let file_id = FileId::new(1);
         let source = "A中😀\r\nβeta\n尾";
@@ -711,9 +722,11 @@ mod tests {
             evidence: vec![
                 SearchEvidence {
                     fragment: fragment.clone(),
+                    route_id: "fts".into(),
                 },
                 SearchEvidence {
                     fragment: full.clone(),
+                    route_id: "fts".into(),
                 },
             ],
             rank: 1,
@@ -727,11 +740,7 @@ mod tests {
         assert_eq!(target.excerpt_range, Some(fragment_source_range.into()));
         assert_eq!(target.content_range, fragment_source_range.into());
         assert_eq!(hit.entity.content, Content::Text(source.into()));
-        let search = SearchPlanResult {
-            routes: Vec::new(),
-            hits: vec![hit.clone()],
-            timings: Vec::new(),
-        };
+        let search = fragment_search(hit.clone());
         let request = normalize_context_request(&ContextOptions {
             query: Some("source".into()),
             ..ContextOptions::default()
@@ -747,6 +756,7 @@ mod tests {
         assert_eq!(items[0].excerpt_range, Some(fragment_source_range.into()));
         assert_eq!(items[0].content_range, fragment_source_range.into());
         assert_eq!(items[0].content, "中😀\r\nβ");
+        assert_retained_unchanged(search, &request);
         hit.evidence.reverse();
         let target = super::context_item_target(&hit).expect("full content");
         assert_eq!(target.content, source);
@@ -755,12 +765,76 @@ mod tests {
             target.excerpt_range, None,
             "full fragments do not create an excerpt range"
         );
+        assert_invalid_fragment(hit);
+    }
+
+    fn fragment_search(
+        hit: crate::pipelines::indexed_search::pipeline::SearchHit,
+    ) -> crate::pipelines::indexed_search::pipeline::SearchPlanResult {
+        use crate::pipelines::indexed_search::pipeline::SearchPlanResult;
+        SearchPlanResult {
+            routes: vec![
+                crate::pipelines::indexed_search::pipeline::ResolvedSearchRoute {
+                    id: "fts".into(),
+                    mode: ContextRouteMode::Fts,
+                    query: "source".into(),
+                },
+            ],
+            hits: vec![hit],
+            timings: Vec::new(),
+        }
+    }
+
+    fn assert_invalid_fragment(mut hit: crate::pipelines::indexed_search::pipeline::SearchHit) {
+        use crate::domain::{ByteRange, Range};
         hit.evidence[0].fragment.range =
             Range::Byte(ByteRange::new(0, 999).expect("ordered byte offsets"));
         let error = super::context_item_target(&hit)
             .err()
             .expect("invalid fragment must fail");
         assert_eq!(error.code(), crate::EngineError::STORAGE_FAILURE);
+    }
+
+    fn assert_retained_unchanged(
+        search: crate::pipelines::indexed_search::pipeline::SearchPlanResult,
+        request: &super::NormalizedContextRequest,
+    ) {
+        let workspace = crate::domain::Workspace {
+            name: "fixture".into(),
+            root: std::path::PathBuf::from("/missing-retained-fixture"),
+            scan: crate::domain::ScanRules::default(),
+            index: crate::domain::IndexState::Disabled,
+            created_epoch_ms: 0,
+            updated_epoch_ms: 0,
+        };
+        let baseline = super::build_context_result(
+            &workspace.root,
+            &workspace,
+            &workspace.root,
+            request,
+            &request.groups,
+            vec![search.clone()],
+        )
+        .expect("ordinary result");
+        let retained =
+            crate::pipelines::indexed_search::retained::collect(&[search], &request.groups, None)
+                .expect("retained identities");
+        let (result, retained) = crate::pipelines::indexed_search::retained::RankedContext::new(
+            baseline.clone(),
+            retained,
+        )
+        .into_parts();
+        assert_eq!(
+            serde_json::to_value(result).expect("retained result"),
+            serde_json::to_value(baseline).expect("ordinary result")
+        );
+        assert_eq!(
+            retained.len(),
+            2,
+            "retain every actual fragment, not just the displayed excerpt"
+        );
+        assert!(retained.iter().all(|hit| hit.priority == 1));
+        assert_eq!(retained[0].query_sources, ["Q1"]);
     }
 
     #[test]
@@ -812,7 +886,10 @@ mod tests {
                     },
                     index_status: FileIndexStatus::NotIndexed,
                 },
-                evidence: vec![SearchEvidence { fragment }],
+                evidence: vec![SearchEvidence {
+                    fragment,
+                    route_id: "fts".into(),
+                }],
                 rank: 1,
                 score: 1.0,
                 matched_by: MatchedBy::Fts,

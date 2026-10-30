@@ -26,13 +26,17 @@ pub(super) fn extract_for_indexing(
         .relative_path
         .extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("tsx"));
-    extract_code(source, options, jsx)
+    extract_code(source, options, jsx, None)
 }
+
+type TreeObserver<'capture> =
+    dyn for<'tree> FnMut(Node<'tree>) -> Result<(), EngineError> + 'capture;
 
 fn extract_code(
     source: &TextSource,
     options: ChunkOptions,
     jsx: bool,
+    mut on_tree: Option<&mut TreeObserver<'_>>,
 ) -> Result<Vec<ExtractedEntity>, EngineError> {
     if !super::service::is_code_source(&source.formats) {
         return Ok(Vec::new());
@@ -75,6 +79,9 @@ fn extract_code(
     let Some(tree) = parser.parse(&source.text, None) else {
         return Ok(fallback(source, max_chars, overlap_chars));
     };
+    if let Some(callback) = &mut on_tree {
+        callback(tree.root_node())?;
+    }
     let bytes = source.text.as_bytes();
     let mut entities = Vec::new();
     walk_code_node(tree.root_node(), adapter, bytes, &[], &mut entities);
@@ -88,6 +95,48 @@ fn extract_code(
     } else {
         Ok(output)
     }
+}
+
+/// The retrieval entities and graph facts use the very same parsed tree.
+#[cfg(feature = "knowledge-graph")]
+pub(crate) fn extract_with_graph(
+    source: &TextSource,
+    options: ChunkOptions,
+    facts: &mut zg_knowledge::relations::FileFacts,
+    context: &zg_knowledge::processing::ProcessingContext,
+) -> Result<Vec<ExtractedEntity>, EngineError> {
+    let (entities, outcome) = extract_with_graph_outcome(source, options, facts, context)?;
+    outcome?;
+    Ok(entities)
+}
+
+/// Preserve retrieval output if optional fact validation exhausts its budget.
+/// The observer never triggers another parse of the same code source.
+#[cfg(feature = "knowledge-graph")]
+pub(crate) fn extract_with_graph_outcome(
+    source: &TextSource,
+    options: ChunkOptions,
+    facts: &mut zg_knowledge::relations::FileFacts,
+    context: &zg_knowledge::processing::ProcessingContext,
+) -> Result<(Vec<ExtractedEntity>, Result<(), EngineError>), EngineError> {
+    let mut called = false;
+    let mut outcome = Ok(());
+    let mut callback = |root: Node<'_>| {
+        called = true;
+        outcome = crate::graph_facts::code::collect(root, &source.text, facts, context);
+        Ok(())
+    };
+    let entities = extract_code(source, options, false, Some(&mut callback))?;
+    if !called {
+        facts.complete = false;
+        facts
+            .diagnostics
+            .push(zg_knowledge::relations::FactDiagnostic {
+                code: "parser_unavailable".into(),
+                span: None,
+            });
+    }
+    Ok((entities, outcome))
 }
 
 fn grammar(format: FileFormat, jsx: bool) -> Option<Language> {
@@ -252,6 +301,7 @@ fn extract_script_blocks(
                 chunk_overlap_chars: Some(overlap_chars),
             },
             block.jsx,
+            None,
         )?;
         let remapped = remap_script_block_entities(
             source,
@@ -452,6 +502,66 @@ mod tests {
             }),
             "fragments cover all non-whitespace source, including delimiters"
         );
+    }
+
+    #[test]
+    #[cfg(feature = "knowledge-graph")]
+    fn graph_observer_preserves_retrieval_extraction() {
+        for (format, language, path, text) in [
+            (
+                FileFormat::Rust,
+                zg_knowledge::relations::Language::Rust,
+                "a.rs",
+                "fn helper() {} fn run(){helper();}",
+            ),
+            (
+                FileFormat::Python,
+                zg_knowledge::relations::Language::Python,
+                "a.py",
+                "def helper():pass\ndef run():helper()\n",
+            ),
+        ] {
+            let source = test_source(format, path, text);
+            let digest = crate::utils::sha256_hex(text.as_bytes());
+            let version = zg_knowledge::relations::SourceVersion {
+                generation: "candidate".into(),
+                path: path.into(),
+                raw_digest: digest.clone(),
+                decoded_digest: digest,
+            };
+            let facts = zg_knowledge::relations::FileFacts::new(
+                version,
+                language,
+                Some(zg_knowledge::relations::CodeModule {
+                    namespace: "test".into(),
+                    path: vec![],
+                    is_package: false,
+                }),
+                text,
+            )
+            .expect("facts");
+            let context = zg_knowledge::processing::ProcessingContext {
+                max_input_bytes: 65536,
+                max_output_items: 1000,
+                deadline: None,
+                cancellation: tokio_util::sync::CancellationToken::new(),
+            };
+            for options in [
+                ChunkOptions::default(),
+                ChunkOptions {
+                    max_chunk_chars: Some(16),
+                    chunk_overlap_chars: Some(4),
+                },
+            ] {
+                let mut facts = facts.clone();
+                let original =
+                    super::extract_for_indexing(&source, options).expect("original extraction");
+                let observed = super::extract_with_graph(&source, options, &mut facts, &context)
+                    .expect("with graph");
+                assert_eq!(original, observed);
+                assert!(!facts.references.is_empty());
+            }
+        }
     }
 
     #[test]

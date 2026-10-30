@@ -148,7 +148,9 @@ pub(crate) async fn run_server(
 }
 
 async fn health() -> Json<Value> {
-    Json(json!({ "status": "ok" }))
+    Json(
+        json!({ "status": "ok", "protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":if ZvecGrep::supports_explore(){vec!["explore.code.v1", "augment.code.v1", "constrain.code.v1"]}else{vec![]} }),
+    )
 }
 
 async fn request_shutdown(
@@ -231,10 +233,24 @@ async fn execute_command(
         );
     }
     let result = match command {
-        DaemonCommand::QueryAuthorization(request) => engine_execution(
-            zg_engine::authorization::query_authorizations(&request)
-                .map(DaemonReply::QueryAuthorization),
-        ),
+        DaemonCommand::QueryAuthorization(mut request) => {
+            if !request.graph.is_off()
+                && let Err(error) = check_graph_protocol(&headers)
+            {
+                return (
+                    StatusCode::OK,
+                    Json(engine_execution::<DaemonReply>(Err(error))),
+                );
+            }
+            let signal = state.shutdown.child_token();
+            let _guard = signal.clone().drop_guard();
+            request.signal = Some(signal);
+            engine_execution(
+                zg_engine::authorization::query_authorizations_async(&request)
+                    .await
+                    .map(DaemonReply::QueryAuthorization),
+            )
+        }
         DaemonCommand::IndexAuthorization(request) => engine_execution(
             zg_engine::authorization::index_authorizations(&request)
                 .map(DaemonReply::IndexAuthorization),
@@ -243,7 +259,16 @@ async fn execute_command(
             zg_engine::authorization::grant_index(&target)
                 .map(|()| DaemonReply::GrantIndexAuthorization),
         ),
+        DaemonCommand::Explore(request) => execute_explore(&state, &headers, request).await,
         DaemonCommand::Context(mut request) => {
+            if !request.graph.is_off()
+                && let Err(error) = check_graph_protocol(&headers)
+            {
+                return (
+                    StatusCode::OK,
+                    Json(engine_execution::<DaemonReply>(Err(error))),
+                );
+            }
             // HTTP bodies cannot carry in-process cancellation tokens. Tie this wait
             // to request disposal and daemon shutdown, as the MCP transport does.
             let signal = state.shutdown.child_token();
@@ -294,6 +319,40 @@ async fn execute_command(
         ),
     };
     (StatusCode::OK, Json(result))
+}
+
+async fn execute_explore(
+    state: &ControlState,
+    headers: &HeaderMap,
+    mut request: zg_engine::api::explore::ExploreOptions,
+) -> ExecutionResult {
+    if let Err(error) = check_graph_protocol(headers) {
+        return engine_execution::<DaemonReply>(Err(error));
+    }
+    let signal = state.shutdown.child_token();
+    let _guard = signal.clone().drop_guard();
+    request.signal = Some(signal);
+    engine_execution(
+        state
+            .runtimes
+            .explore(&state.engine, request)
+            .await
+            .map(|r| DaemonReply::Explore(Box::new(r))),
+    )
+}
+
+fn check_graph_protocol(headers: &HeaderMap) -> Result<(), zg_engine::EngineError> {
+    let version = zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION.to_string();
+    if headers
+        .get("X-Zvec-Grep-Protocol")
+        .and_then(|v| v.to_str().ok())
+        != Some(version.as_str())
+    {
+        return Err(zg_engine::EngineError::unsupported(
+            "code graph queries require daemon protocol 14",
+        ));
+    }
+    Ok(())
 }
 
 fn engine_execution<T>(result: Result<T, zg_engine::EngineError>) -> ExecutionResult

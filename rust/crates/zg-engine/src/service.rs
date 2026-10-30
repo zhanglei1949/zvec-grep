@@ -39,6 +39,37 @@ impl EngineService {
         }
     }
 
+    #[cfg_attr(
+        not(feature = "knowledge-graph-graphdb"),
+        expect(
+            clippy::unused_async,
+            clippy::unused_async_trait_impl,
+            reason = "Keep the async engine contract when the optional backend is unavailable"
+        )
+    )]
+    pub(crate) async fn explore(
+        &self,
+        options: crate::api::explore::ExploreOptions,
+    ) -> crate::EngineResult<crate::api::explore::ExploreResult> {
+        self.ensure_open()?;
+        options.validate()?;
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        {
+            let cache = self
+                .read_sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            crate::pipelines::explore::run(options, cache).await
+        }
+        #[cfg(not(feature = "knowledge-graph-graphdb"))]
+        {
+            Err(EngineError::unsupported(
+                "code explore requires knowledge-graph-graphdb",
+            ))
+        }
+    }
+
     /// Retrieves context from an index or, when `rg` is enabled, embedded ripgrep.
     ///
     /// # Errors
@@ -65,7 +96,7 @@ impl EngineService {
         refresh_completed: bool,
     ) -> Result<ContextResult, EngineError> {
         self.ensure_open()?;
-        options.validate_file_selection()?;
+        options.validate()?;
         if options.rg {
             self.direct_search.context(options).await
         } else {
@@ -93,6 +124,22 @@ impl EngineService {
     pub(crate) async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
         self.ensure_open()?;
         self.indexing.index(&self.models, options).await
+    }
+
+    pub(crate) async fn recover_graph(
+        &self,
+        options: crate::api::index::graph::GraphRecoveryOptions,
+    ) -> Result<crate::api::index::graph::GraphRecoveryResult, EngineError> {
+        self.ensure_open()?;
+        self.indexing.recover_graph(options).await
+    }
+
+    pub(crate) async fn recover_text_state(
+        &self,
+        options: crate::api::index::graph::TextStateRecoveryOptions,
+    ) -> crate::EngineResult<crate::api::index::graph::TextStateRecoveryResult> {
+        self.ensure_open()?;
+        self.indexing.recover_text_state(options).await
     }
 
     /// Returns workspace index metadata and status.

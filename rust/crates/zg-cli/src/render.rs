@@ -24,7 +24,7 @@ use zg_engine::api::{
 pub fn write_context_result(mut writer: impl Write, result: &ContextResult) -> io::Result<()> {
     if result.items.is_empty() {
         writeln!(writer, "No matches.")?;
-        return Ok(());
+        return write_graph(&mut writer, result);
     }
     let mut previous_path: Option<&Path> = None;
     for item in &result.items {
@@ -40,6 +40,17 @@ pub fn write_context_result(mut writer: impl Write, result: &ContextResult) -> i
         } else {
             writeln!(writer, "  {}", item.content.trim_end())?;
         }
+    }
+    write_graph(&mut writer, result)
+}
+
+fn write_graph(mut writer: impl Write, result: &ContextResult) -> io::Result<()> {
+    if let Some(graph) = &result.graph {
+        writeln!(
+            writer,
+            "\nGraph\n```json\n{}\n```",
+            serde_json::to_string_pretty(graph).map_err(io::Error::other)?
+        )?;
     }
     Ok(())
 }
@@ -89,7 +100,8 @@ pub fn write_context_with_options(
         return write_context_result(writer, result);
     }
     if result.items.is_empty() {
-        return writeln!(writer, "No matches.");
+        writeln!(writer, "No matches.")?;
+        return write_graph(&mut writer, result);
     }
     for (index, item) in result.items.iter().enumerate() {
         if index > 0 {
@@ -123,7 +135,7 @@ pub fn write_context_with_options(
             }
         }
     }
-    Ok(())
+    write_graph(&mut writer, result)
 }
 
 fn write_item_preview(
@@ -282,7 +294,29 @@ pub fn write_index_result(
     for file in &result.failed_files {
         writeln!(writer, "Failed: {}: {}", file.path.display(), file.reason)?;
     }
-    writeln!(writer, "Entities: {}", result.entities_created)
+    writeln!(writer, "Entities: {}", result.entities_created)?;
+    if let Some(graph) = &result.graph {
+        writeln!(
+            writer,
+            "Graph: selected={} committed={}",
+            graph.graph_selected, graph.graph_candidate_committed
+        )?;
+        for (domain, status) in &graph.domains {
+            writeln!(
+                writer,
+                "  {domain}: {:?}, sources={}/{}",
+                status.ready,
+                status.coverage,
+                status
+                    .expected_coverage
+                    .map_or_else(|| "unknown".into(), |n| n.to_string())
+            )?;
+        }
+        for diagnostic in &graph.diagnostics {
+            writeln!(writer, "  diagnostic: {diagnostic}")?;
+        }
+    }
+    Ok(())
 }
 
 /// Writes workspace index status.
@@ -377,6 +411,7 @@ pub struct HelpTopicError(String);
 pub fn help_text(topic: Option<&str>) -> Result<String, HelpTopicError> {
     let text = match topic {
         None => return Ok(main_help()),
+        Some("explore") => EXPLORE_HELP,
         Some("query") => QUERY_HELP,
         Some("index") => INDEX_HELP,
         Some("status") => STATUS_HELP,
@@ -416,6 +451,7 @@ const MAIN_HELP_BODY: &str = r#"Usage:
   zg <command> [options]
 
 Commands:
+  explore        Read published code relationships without refreshing or loading models
   query          Search indexed context or run managed ripgrep
   index          Build, rebuild, or drop the workspace index
   status         Show workspace and index status
@@ -449,6 +485,37 @@ Run zg help models or zg help file-types for supported indexing capabilities.
 Run zg help environment for all variables, scopes, aliases, and precedence.
 Run zg help <command> or zg <command> --help for command-specific help.
 Use zg -h/--help for this page and zg -v/--version for the version."#;
+
+const EXPLORE_HELP: &str = r"Usage:
+  zg explore <locate|callers|callees|neighbors|expand|path|references> [options]
+  zg explore --request <ExploreRequest.json> [options]
+
+Read compatible published Rust/Python graphs. Requires a graph-enabled binary
+and a ready code domain. No refresh, indexing, repair or model loading.
+
+Locators:
+  --name <NAME> [--source <PATH>] [--kind <KIND>]
+  --source <PATH> --byte-offset <N> [--kind <KIND>]
+  --node-id <ID> --graph-build-id <ID>
+
+Operations:
+  callers / callees                 Incoming / outgoing CALLS
+  neighbors / expand / path          --relations calls,contains,imports --direction outgoing|incoming|both
+  expand / path                      --min-hops <N> --max-hops <N> (defaults: 1, 2)
+  expand                             --include-start
+  path                               --to-name <NAME> [--to-source <PATH>]
+  references                         --owner <NAME> [--source <PATH>] or --source <PATH>
+
+Options:
+  --root <PATH>                      Workspace root (default: current directory)
+  --mode direct|server|auto          Execution mode
+  --home <PATH>                      Daemon state directory
+  --timeout-ms <N>                   Total request budget (default: 30000)
+  --graph-timeout-ms <N>             Graph stage budget (default: 5000)
+  --lock-timeout-ms <N>              Lock wait budget
+
+--request is exclusive with subcommands. JSON supports boundaries, result filters
+and view-bound reference IDs. Results include view, completion, evidence and usage.";
 
 const QUERY_HELP: &str = r#"Usage:
   zg query <query> [options]
@@ -494,6 +561,13 @@ File filters:
   --symbol-type <type>              alias, class, enum, function, interface, module, value
   --prefer-symbol                   Prefer exact indexed symbols
 
+Code graph (graph-enabled builds):
+  --graph-mode <off|augment>        Optional relationships after normal retrieval
+  --graph-request <JSON>            GraphQueryMode file; use constrain with scope.anchor
+  --graph-execution <JSON>          Shared request deadline and graph budgets
+Constrain resolves an exact scope before models and applies it before recall.
+An unavailable or unrepresentable scope fails; it never searches outside scope.
+
 Managed --rg uses the embedded Rust regex engine (--engine default).
 Matching: -F, -i/-s/-S, -w/-x, -v, -U, --multiline-dotall, --crlf, -a.
 Bounds: -A/-B/-C, -m/--max-count (per file), -j/--threads (0 = automatic).
@@ -519,6 +593,7 @@ const INDEX_HELP: &str = r"Usage:
 Index options:
   --name <NAME>                     Set or rename the unique workspace name
   --rebuild                         Rebuild the existing index
+  --graph-options <JSON>             GraphOptions file (scope and module_roots)
   --drop                            Permanently remove the workspace index
   --yes                             Confirm --drop without prompting
   --debug                           Print skipped-file diagnostics to stderr
@@ -1014,6 +1089,7 @@ mod output_tests {
     #[test]
     fn preview_modes_and_trace_preserve_indexed_result_information() {
         let mut result = ContextResult {
+            graph: None,
             query: "needle".into(),
             freshness: None,
             background_refresh: None,

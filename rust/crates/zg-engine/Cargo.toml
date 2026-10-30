@@ -9,6 +9,10 @@ publish.workspace = true
 
 [features]
 default = []
+# Binding-independent relation fact inspection; persistence awaits graphdb.
+knowledge-graph = ["dep:zg-knowledge"]
+# Candidate persistence/publication and read-only code exploration.
+knowledge-graph-graphdb = ["knowledge-graph", "zg-knowledge/graphdb"]
 # CUDA and Vulkan require their native toolchains at build time. Platform
 # release builds enable the matching feature, while unsupported requests keep
 # the same warning-and-CPU-fallback behavior as main.
@@ -16,6 +20,7 @@ cuda = ["llama-cpp-2/cuda", "ort/cuda"]
 vulkan = ["llama-cpp-2/vulkan", "ort/webgpu"]
 
 [dependencies]
+schemars.workspace = true
 async-trait.workspace = true
 base64 = "0.23.1"
 futures-util = "0.3.34"
@@ -52,10 +57,10 @@ tree-sitter-typescript.workspace = true
 uuid.workspace = true
 zg-engine-macros = { path = "macros" }
 zg-host-native = { path = "../zg-host-native" }
+zg-markdown = { path = "../zg-markdown" }
+zg-storage = { path = "../zg-storage", features = ["zvec"] }
+zg-knowledge = { path = "../zg-knowledge", optional = true }
 zvec-rust.workspace = true
-
-[target.'cfg(unix)'.dependencies]
-rustix = { version = "1.1.4", features = ["fs"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["coreml"] }
@@ -69,3 +74,23 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "graph_facts"
+required-features = ["knowledge-graph"]
+
+[[example]]
+name = "graph_fact_capture"
+required-features = ["knowledge-graph"]
+
+[[example]]
+name = "graph_build"
+required-features = ["knowledge-graph-graphdb"]
+
+[[example]]
+name = "graph_coverage"
+required-features = ["knowledge-graph"]
+
+[[example]]
+name = "graph_audit"
+required-features = ["knowledge-graph-graphdb"]

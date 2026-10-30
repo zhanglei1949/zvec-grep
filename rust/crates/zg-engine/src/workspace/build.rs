@@ -190,6 +190,7 @@ fn cleanup_generations(
                 if keep.is_some_and(|generation| entry.file_name() == generation) {
                     continue;
                 }
+                crate::storage::graph_state::ensure_cleanup_safe(&entry.path())?;
                 delete_storage(&entry.path())?;
                 fs::remove_dir_all(entry.path()).map_err(build_io)?;
             }
@@ -309,6 +310,7 @@ fn remove_generation(
     delete_storage: &impl Fn(&Path) -> Result<(), EngineError>,
 ) -> Result<(), EngineError> {
     let storage = home.join("generations").join(generation);
+    crate::storage::graph_state::ensure_cleanup_safe(&storage)?;
     delete_storage(&storage)?;
     match fs::remove_dir_all(&storage) {
         Ok(()) => sync_directory(&home.join("generations")),
@@ -407,6 +409,33 @@ mod tests {
             Some(active.clone())
         );
         assert!(active.storage_home().join("storage/old").exists());
+    }
+
+    #[test]
+    fn graph_pending_commit_or_selection_prevents_candidate_generation_deletion() {
+        let directory = tempdir().expect("workspace");
+        let active = manifest(directory.path());
+        write_active(&active);
+        let build = prepare_build(active.clone()).expect("stage");
+        let graph = build
+            .target
+            .storage_home()
+            .join("graph/builds")
+            .join(Uuid::new_v4().to_string());
+        crate::storage::graph_state::write_record(&graph.join("attempt.json"),&serde_json::json!({"formatVersion":1,"stage":"select_pending","commitEffect":"committed","selectionEffect":"unknown"})).expect("pending marker");
+        let marker = build.target.storage_home().join("checkpoint");
+        fs::write(&marker, "preserve").expect("data");
+        assert!(discard_build(&build).is_err());
+        assert!(recover_build(&active.path).is_err());
+        assert!(marker.exists());
+        assert!(has_build(&active.path));
+        assert_eq!(
+            read_workspace_manifest(&active.path)
+                .expect("active")
+                .expect("manifest")
+                .storage_generation,
+            active.storage_generation
+        );
     }
 
     #[test]

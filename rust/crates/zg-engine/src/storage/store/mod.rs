@@ -41,6 +41,7 @@ struct SharedStore {
 }
 
 struct StoreState {
+    fence: super::graph_state::TextFence,
     files: Files,
     directories: Directories,
     entities: Entities,
@@ -163,6 +164,7 @@ impl IndexStore {
         }
         let shared = Arc::new(SharedStore {
             state: Mutex::new(StoreState {
+                fence: super::graph_state::TextFence::new(home),
                 files,
                 directories,
                 entities,
@@ -248,6 +250,34 @@ impl IndexStore {
         self.read(|state| state.files.list())
     }
 
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn file_entity_ids(&self, file: &FileRecord) -> EngineResult<Vec<String>> {
+        self.read(|state| {
+            state
+                .entities
+                .file_ids(file.id, file.index_status.entity_count())
+        })
+    }
+
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn graph_entities(&self, ids: &[String]) -> EngineResult<Vec<Entity>> {
+        self.read(|state| {
+            let keys = ids
+                .iter()
+                .cloned()
+                .map(crate::domain::EntityId::from_string)
+                .collect::<Vec<_>>();
+            let mut found = state.entities.fetch(&keys)?;
+            keys.into_iter()
+                .map(|key| {
+                    found
+                        .remove(&key)
+                        .ok_or_else(|| EngineError::storage_failure("graph binding entity missing"))
+                })
+                .collect()
+        })
+    }
+
     pub(crate) fn list_file_paths(&self) -> EngineResult<Vec<(FileId, PathBuf)>> {
         self.read(|state| state.files.list_paths())
     }
@@ -286,6 +316,19 @@ impl IndexStore {
         })
     }
 
+    #[cfg(feature = "knowledge-graph-graphdb")]
+    pub(crate) fn search_filter_bytes(
+        &self,
+        filter: Option<&StorageSearchFilter>,
+    ) -> EngineResult<usize> {
+        self.read(|state| {
+            Ok(
+                fragments::build_filter(filter, &|path| state.directories.get(path))?
+                    .map_or(0, |f| f.len()),
+            )
+        })
+    }
+
     pub(crate) fn search_vector(
         &self,
         model: &str,
@@ -321,7 +364,10 @@ impl IndexStore {
                 .map_err(|_| EngineError::invalid_argument("entity count exceeds u64"))?,
         };
         file.validate()?;
-        self.write(|state| replace_file(state, &file, entities, entries))
+        self.write(|state| {
+            state.fence.before_write(|| state.files.list())?;
+            replace_file(state, &file, entities, entries)
+        })
     }
 
     pub(crate) fn mark_file_failed(&self, file: &FileRecord, error: &str) -> EngineResult<()> {
@@ -331,11 +377,15 @@ impl IndexStore {
             error: error.to_owned(),
         };
         file.validate()?;
-        self.write(|state| replace_file(state, &file, &[], &[]))
+        self.write(|state| {
+            state.fence.before_write(|| state.files.list())?;
+            replace_file(state, &file, &[], &[])
+        })
     }
 
     pub(crate) fn delete_file(&self, file_id: FileId) -> EngineResult<()> {
         self.write(|state| {
+            state.fence.before_write(|| state.files.list())?;
             state.files.mark_deleting(file_id)?;
             state.fragments.delete_file(file_id)?;
             state.entities.delete_file(file_id)?;
@@ -348,7 +398,10 @@ impl IndexStore {
         if self.read_only {
             return Ok(());
         }
-        self.write(|state| flush(state))
+        self.write(|state| {
+            flush(state)?;
+            state.fence.checkpoint(|| state.files.list())
+        })
     }
 
     pub(crate) fn close(&self) -> EngineResult<()> {

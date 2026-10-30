@@ -22,6 +22,10 @@ __pycache__/
 .turbo/
 .vite/
 .opencode/
+/.qoder/
+/graphify-out/
+/.kg-staging/
+/.archify/
 
 # Benchmark artifacts
 /benchmarks/browse-comp-plus/artifacts/

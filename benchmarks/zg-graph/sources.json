@@ -1,0 +1,81 @@
+{
+  "contract": "zg-graph-eval-v1",
+  "generation": "fixture-v1",
+  "sources": [
+    {
+      "path": "docs/build.md",
+      "sha256": "5d846d9ace54a93ced3a159ebf58c63298d62d0ae7acfa3a85802e342635a1cb",
+      "language": "markdown"
+    },
+    {
+      "path": "docs/query.md",
+      "sha256": "aa326f6d5bd430ae76f217798b4ffe71c2cfcfe2afe621eeb071a320e6ba9728",
+      "language": "markdown"
+    },
+    {
+      "path": "docs/start.md",
+      "sha256": "b5f552bf04dc0a48c0e263cdcf165c03e5fa07f1c285153feccb7432c766f229",
+      "language": "markdown"
+    },
+    {
+      "path": "python/pkg/__init__.py",
+      "sha256": "95ca50f05a74ca10d8d1e965da7e6cae3eb829a9c9dcf3e57439f67f2fa07d80",
+      "language": "python",
+      "module": {
+        "namespace": "fixture-python",
+        "path": [
+          "pkg"
+        ],
+        "is_package": true
+      }
+    },
+    {
+      "path": "python/pkg/app.py",
+      "sha256": "e2075314e637aba1f3af336d57927e7dfa6ec27c84efb12df1f98ff71d3f9fa5",
+      "language": "python",
+      "module": {
+        "namespace": "fixture-python",
+        "path": [
+          "pkg",
+          "app"
+        ],
+        "is_package": false
+      }
+    },
+    {
+      "path": "python/pkg/calc.py",
+      "sha256": "7a4e4c17c2f69624e9c679c04791481c8d39f2e8b52a197fe8879bba08cc93c4",
+      "language": "python",
+      "module": {
+        "namespace": "fixture-python",
+        "path": [
+          "pkg",
+          "calc"
+        ],
+        "is_package": false
+      }
+    },
+    {
+      "path": "rust/src/calc.rs",
+      "sha256": "083a01c1621a52b8df9f782f965a1b557fec1d3b613a3fcfcd46bc62d96c5165",
+      "language": "rust",
+      "module": {
+        "namespace": "fixture-rust",
+        "path": [
+          "calc"
+        ],
+        "is_package": false
+      }
+    },
+    {
+      "path": "rust/src/lib.rs",
+      "sha256": "663c0795068d6b3f1c9796aa8c1304c49fed108a1a84eb8641614a2591bfbc93",
+      "language": "rust",
+      "module": {
+        "namespace": "fixture-rust",
+        "path": [],
+        "is_package": true
+      }
+    }
+  ]
+}

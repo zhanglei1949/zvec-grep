@@ -11,6 +11,8 @@ mod domain;
 mod error;
 mod extraction;
 mod file_selection;
+#[cfg(feature = "knowledge-graph")]
+pub mod graph_facts;
 mod lexical;
 mod models;
 mod pipelines;
@@ -43,10 +45,25 @@ pub struct ZvecGrep {
 #[allow(clippy::missing_errors_doc)]
 impl ZvecGrep {
     #[must_use]
+    pub const fn supports_explore() -> bool {
+        cfg!(feature = "knowledge-graph-graphdb")
+    }
+
+    #[must_use]
     pub fn new() -> Self {
         Self {
             service: service::EngineService::new(),
         }
+    }
+
+    pub async fn explore(
+        &self,
+        options: api::explore::ExploreOptions,
+    ) -> EngineResult<api::explore::ExploreResult> {
+        self.service
+            .explore(options)
+            .await
+            .map_err(|e| e.report_here())
     }
 
     pub async fn context(&self, options: ContextOptions) -> EngineResult<ContextResult> {
@@ -76,6 +93,29 @@ impl ZvecGrep {
             .index(options)
             .await
             .map_err(|error| error.report_here())
+    }
+
+    /// Inspect or explicitly reconcile a graph candidate after interruption.
+    /// This does not expose graph querying or implicitly recover during open.
+    pub async fn recover_graph(
+        &self,
+        options: api::index::graph::GraphRecoveryOptions,
+    ) -> EngineResult<api::index::graph::GraphRecoveryResult> {
+        self.service
+            .recover_graph(options)
+            .await
+            .map_err(|error| error.report_here())
+    }
+
+    /// Explicitly inspect or repair a dirty text baseline without loading models.
+    pub async fn recover_text_state(
+        &self,
+        options: api::index::graph::TextStateRecoveryOptions,
+    ) -> EngineResult<api::index::graph::TextStateRecoveryResult> {
+        self.service
+            .recover_text_state(options)
+            .await
+            .map_err(|e| e.report_here())
     }
 
     pub async fn info(&self, options: InfoOptions) -> EngineResult<InfoResult> {
