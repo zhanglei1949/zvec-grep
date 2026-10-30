@@ -1,0 +1,41 @@
+{
+  "scope": "Phase 2 minimum source-write gate",
+  "passed": true,
+  "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.3",
+  "base_compat": {
+    "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+    "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+  },
+  "checks": [
+    {
+      "name": "stable_id_and_same_connection_read_visibility",
+      "kind": "real_base",
+      "passed": true
+    },
+    {
+      "name": "atomic_data_transaction_rollback",
+      "kind": "real_base_with_body_failure",
+      "passed": true
+    },
+    {
+      "name": "receipt_reconciliation_after_reopen",
+      "kind": "injected_response_loss_real_commit_and_reopen",
+      "passed": true
+    },
+    {
+      "name": "readonly_reopen",
+      "kind": "real_base",
+      "passed": true
+    }
+  ],
+  "not_verified": [
+    "real CommitOutcomeUnknown fault window",
+    "process-kill or power-loss recovery",
+    "independent concurrent reader visibility",
+    "scale/RSS ceiling",
+    "cross-process admission",
+    "zvec/effective-view performance"
+  ],
+  "stage_a_go": false
+}

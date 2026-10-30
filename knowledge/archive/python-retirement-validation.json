@@ -1,0 +1,145 @@
+{
+  "date": "2026-10-22T06:53:55.832000+00:00",
+  "scope": "Python baseline retirement; not Rust persistence/Phase 1-3 behavior equivalence",
+  "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+  "jobs": 14,
+  "archive": {
+    "path": "knowledge/archive/python-baseline.zip",
+    "sha256": "14973e013285f0ee5836a74e1d907f92e238eba086c94fc0c539693aeb16dc84",
+    "bytes": 233457,
+    "original_files": 84,
+    "per_file_manifest": "archive-manifest.json inside archive",
+    "restoration_scope": "Temporary extracted source tested with pre-existing frozen interpreter/environment; no fresh environment or offline-machine rebuild"
+  },
+  "retired_environment_logical_bytes": 123415809,
+  "native_wheels_and_receipts": "retained separately under ignored knowledge/.artifacts/spike-0; original hashes in archive",
+  "removed_gitlinks": "100644 3bbb7f8d2860055cd11c69e8e0dcc3955656dcee 0\t.gitmodules\n160000 9d6e966ef0ae214cff8d5018efe1dafb37bc2a99 0\tknowledge/thirdparty/graphdb\n160000 e2a5b21449c30c6a4fb49a55567a4699c3271f10 0\tknowledge/thirdparty/py-tree-sitter\n160000 71fd833d9666141edcd1d3c109a80e228303d8d7 0\tknowledge/thirdparty/simde\n160000 f41e1a044c8a84ea9fa8577fdd2eab92ec96de02 0\tknowledge/thirdparty/tree-sitter-cpp\n160000 293fdc02038ee2bf0e2e206711b69c90ac0d413f 0\tknowledge/thirdparty/tree-sitter-python\n160000 a4347e31f1b8e216cffba59285427a3b78551229 0\tknowledge/thirdparty/zvec\n",
+  "protected_files_unchanged": 240,
+  "protected_digest": "a605acc54ef7c3b628dbfe9a41bf50c82a3523ab5949aa72deee7d55bc87d860",
+  "rust_runtime_changes": false,
+  "runtime_native_library": {
+    "path": "rust/target/release/libzvec_c_api.dylib",
+    "sha256": "06f183bf51ebd8b460fd0415f6b39c2556bdd6ef63a270efa35bdf76154512e2",
+    "cpp_commit": "not inferred from wrapper version"
+  },
+  "test_runs": {
+    "python": {
+      "command": "restored source: frozen Python interpreter -m unittest discover -s tests -t . -v",
+      "exit_code": 0,
+      "log": "knowledge/.artifacts/retirement/zg-retire-python.log",
+      "sha256": "735fd12ac64db0e09d29411f2825f12823496a8306bcd389597d47d4e7007068",
+      "passed": 138,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 38.075
+    },
+    "workspace_cache_attempt": {
+      "command": "bash rust/scripts/check.sh; initial cache environment",
+      "exit_code": 101,
+      "log": "knowledge/.artifacts/retirement/zg-retire-workspace-cache-failure.log",
+      "sha256": "3677a4a4caf1afa243ee2c40eace416f2eb54b810e10bca87423770adc2ef4d7"
+    },
+    "workspace_ort_attempt": {
+      "command": "bash rust/scripts/check.sh; temporary ccache, offline ORT not configured",
+      "exit_code": 101,
+      "log": "knowledge/.artifacts/retirement/zg-retire-workspace-ort-link-failure.log",
+      "sha256": "487aba58bfbf22618f80717449dda390c82e9bd9b3f0db7c2e125e936f41b56d"
+    },
+    "workspace_sandbox_attempt": {
+      "command": "bash rust/scripts/check.sh; temporary ccache + cached ORT; sandbox socket restrictions",
+      "exit_code": 101,
+      "log": "knowledge/.artifacts/retirement/zg-retire-workspace.log",
+      "sha256": "91ce820e1f66c2459fde40dc3dc10914b78ae3acb2c954d568a5e233f5af96f0",
+      "passed": 3,
+      "failed": 3,
+      "ignored": 0
+    },
+    "workspace_tests": {
+      "command": "cargo test --manifest-path rust/Cargo.toml --locked --workspace --no-fail-fast; outside sandbox",
+      "exit_code": 0,
+      "log": "knowledge/.artifacts/retirement/zg-retire-workspace-tests.log",
+      "sha256": "1df4cc8bfee168e624edcbe0a80f985ae835d2c83cd4617c747761716edf8ce7",
+      "passed": 728,
+      "failed": 0,
+      "ignored": 10
+    },
+    "focused_native_sandbox": {
+      "command": "cargo test --manifest-path rust/Cargo.toml --locked -p zg-knowledge -p zg-storage; isolated target, sandbox",
+      "exit_code": 101,
+      "log": "knowledge/.artifacts/retirement/zg-retire-native.log",
+      "sha256": "99b941229622047df4887de1f42ba5e85980071fc8228bc77d4fd863413b32ef",
+      "passed": 27,
+      "failed": 1,
+      "ignored": 0
+    },
+    "shared_storage": {
+      "command": "cargo test --manifest-path rust/Cargo.toml --locked -p zg-storage; isolated target",
+      "exit_code": 0,
+      "log": "knowledge/.artifacts/retirement/zg-retire-storage.log",
+      "sha256": "fc68834b444d5549e957ddfb8363e2d86cf07bf548c21b2b6d393e3cf5d76753",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    "readonly_sandbox_recheck": {
+      "command": "cargo test --locked -p zg-knowledge --test native_projection vector_projection_missing_item_repair_and_same_dimension_space_rejection -- --exact --nocapture; sandbox",
+      "exit_code": 101,
+      "log": "knowledge/.artifacts/retirement/zg-retire-readonly-recheck.log",
+      "sha256": "ad7d1ec7b8a8a407c5ee22b48d52bbb400d53ddcd1b33d55e13c239b6f263f13",
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0
+    },
+    "readonly_unrestricted_recheck": {
+      "command": "same target/native lib/test arguments as sandbox recheck; outside sandbox",
+      "exit_code": 0,
+      "log": "knowledge/.artifacts/retirement/zg-retire-readonly-unrestricted.log",
+      "sha256": "73d3e3f6dfcc11633ceb2479eaeda5b3bf1ed50eb47a048b37e697e26ba0ffb0",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "node": {
+      "command": "node --test rust/scripts/npm-local.test.mjs rust/npm/meta/install.test.cjs",
+      "exit_code": 0,
+      "log": "knowledge/.artifacts/retirement/zg-retire-node.log",
+      "sha256": "4b132df7dfc95103cb98f2afd6865bd8bd4332cda942fb63a463fcbe6a2d72b0",
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "existing_workspace_ignores": [
+    "test models::backends::llama_cpp::model::tests::cached_embeddinggemma_runs_real_llama_cpp_inference ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with the embeddinggemma GGUF",
+    "test models::backends::llama_cpp::model::tests::cached_embeddinggemma_uses_metal_and_supports_concurrency ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with the embeddinggemma GGUF",
+    "test models::backends::llama_cpp::model::tests::cached_qwen3_runs_real_llama_cpp_inference ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with the Qwen3 embedding GGUF",
+    "test models::backends::transformers::model::tests::cached_minilm_routes_metal_to_cpu_with_warning ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with a pinned ONNX model",
+    "test models::backends::transformers::model::tests::cached_minilm_runs_real_onnx_inference ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with a pinned ONNX model",
+    "test models::tests::catalog_main_oracle::print_current_catalog_fixture ... ignored, manual fixture refresh helper",
+    "test models::tests::model2vec_main_oracle::model2vec_matches_the_main_typescript_vector_bit_for_bit ... ignored, downloads the pinned public Model2Vec assets when the cache is empty",
+    "test models::tests::model_layer_bench::model_layer_throughput ... ignored, manual model-layer throughput and RSS benchmark",
+    "test storage::files::tests::deleting_preserves_file_projections_until_record_removal ... ignored, zvec macOS native missing array_take kernel; corrupts fetch→upsert path",
+    "test storage::read_session::tests::benchmark_warm_queries ... ignored, manual comparison of uncached and resident query latency"
+  ],
+  "checks": {
+    "workspace_rustfmt": "passed",
+    "ten_package_all_targets_checks": "passed",
+    "workspace_clippy_D_warnings": "passed",
+    "workspace_metadata": "passed; 11 packages including zg-storage and zg-knowledge",
+    "eslint_config_syntax": "passed",
+    "git_diff_check": "passed",
+    "archives_crc_and_sha256": "passed",
+    "old_repository_status_unchanged": true
+  },
+  "environment": {
+    "CARGO_NET_OFFLINE": "true",
+    "CARGO_BUILD_JOBS": "14",
+    "CCACHE_DIR": "/tmp/zg-retire-ccache",
+    "ORT_LIB_PATH": "existing macOS arm64 CoreML static runtime cache selected explicitly",
+    "ZVEC_LIB_DIR": "rust/target/release (absolute during invocation)"
+  },
+  "unresolved": [
+    "Readonly vector test changes original file in sandbox; identical isolated test passes outside sandbox; precise cause not established",
+    "Rust graphdb persistence, ingestion/publication/recovery integration still pending"
+  ]
+}

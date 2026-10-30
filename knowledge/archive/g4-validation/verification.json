@@ -1,0 +1,133 @@
+{
+  "status": "execution_complete_with_retained_failures_and_annotation_limits",
+  "all_validation_passed": false,
+  "head": "b5ea18d8f031d7ccae992221b10d5cab242e4e17",
+  "scope": "L0-L2, Rust/Python, ripgrep + requests; G3.0-G3.3 local candidate",
+  "product_source_unchanged": true,
+  "native_source_unchanged": true,
+  "ready_and_budgets_unchanged": true,
+  "public_api_protocol_schema_unchanged": true,
+  "yuque_modified": false,
+  "formal_calls": 458,
+  "auxiliary_public_identity_lookups": 1,
+  "dogfood_calls": 42,
+  "formal_explore": {
+    "passed": 38,
+    "total": 48,
+    "budget_limited": 5,
+    "annotation_issues": 5
+  },
+  "dogfood": {
+    "passed": 33,
+    "total": 42,
+    "storage_unchanged": true
+  },
+  "source_audit": {
+    "baseline": 1049,
+    "preserved": 1043,
+    "intended_changed": 6,
+    "native_preserved": 1529
+  },
+  "checks": {
+    "framework": {
+      "passed": 163,
+      "failed": 0,
+      "log": "framework-tests-final.log"
+    },
+    "l0_facts": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "-p",
+        "zg-engine",
+        "--features",
+        "knowledge-graph-graphdb",
+        "--test",
+        "graph_facts",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 20.523,
+      "log": "l0-code-facts.log",
+      "native_directory": "/Users/zhanglei/code/github/zvec-grep/rust/target/debug/build/graphdb-sys-0a5f6e34678735a5/out/native/build"
+    },
+    "entry_parity": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "-p",
+        "zg",
+        "--features",
+        "knowledge-graph-graphdb",
+        "--test",
+        "server_lifecycle",
+        "code_explore_matches_rust_cli_daemon_and_mcp_without_model_calls",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 40.645,
+      "log": "entry-parity.log",
+      "native_directory": "/Users/zhanglei/code/github/zvec-grep/rust/target/debug/build/graphdb-sys-0a5f6e34678735a5/out/native/build"
+    },
+    "format": "format-check-final.log",
+    "syntax": "node --check, Python ast.parse",
+    "diff": "diff-check.log",
+    "offline_replay": {
+      "deterministic": true,
+      "exit_code": 1,
+      "expected": "retained budget error"
+    }
+  },
+  "report": "run-5/report.json",
+  "report_sha256": "fc2b029255b00663b6ef9c1937a9a06ef5351772e20060d49f6d07207d4e4b83",
+  "frozen_inputs_sha256": "c4723452cfd313e4200ff6b90f91ba45f2e3d8b28f557e4cfe4245e1941c39c5",
+  "frozen_protocol_identity": {
+    "protocol": "4bb5d80d47ecb4e36c04717ca750b1764ce37d321b23929e6934999d06a72bc4",
+    "inputs": "83dc03e940c2ad8c862537e50918636d7b871855669d26e0c4ed8079f0acd627",
+    "legacy_task": "91f96cc597c94ccc76214b65c770fc4d395484052df8c224f89bc3a3c9bec402",
+    "legacy_gold": "d82b5a0d411bbb3aedaae6bf095c45444e17d861327768eeda2be4c97ec0782d"
+  },
+  "environment": {
+    "python": "3.13.3 (main, Apr  8 2025, 13:54:08) [Clang 17.0.0 (clang-1700.0.13.3)]",
+    "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+    "node": "v24.16.0",
+    "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "native": {
+      "directory": "/Users/zhanglei/code/github/zvec-grep/rust/target/debug/build/graphdb-sys-0a5f6e34678735a5/out/native/build",
+      "manifest": "abi=65540\nconfig=Release\nsource=3bf0d532ce928c02782c76d42cc289b1e49e8df4-dirty\ntarget=Darwin-arm64\ncypher=1\nipc=1\nmemory-ap=1\nmemory-tp=1\nfile-storage=1\ntp-persistence=1\nimplicit-libraries=c++\nimplicit-directories=/usr/local/lib;/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib;/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/swift\n",
+      "c_library": "/Users/zhanglei/code/github/zvec-grep/rust/target/debug/build/graphdb-sys-0a5f6e34678735a5/out/native/build/bindings/c/libgraphdb_c.a",
+      "c_library_sha256": "6cf71c144be6bd1f6d13522d6a6742c513dbf00516ef3c9d3cec3284385c7d85",
+      "zvec_library": "/private/tmp/zg-ann-fix/native-baseline/lib/libzvec_c_api.dylib",
+      "zvec_sha256": "50e243d8a941419c30bf11b4e5b4e8852275584109d647d86b3fa4129d805912"
+    },
+    "model_files": {
+      "model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/model.safetensors": "75cf7a6c2171b230ad19b1e7d8e0b1aee86da5a02af8e7cacedd9921d227623c",
+      "model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/tokenizer/tokenizer.json": "107bbdcbad4bff1d299b7a4c3a2fb17c52890688b7dd0e4c9deab79d3c4f3d45",
+      "model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/tokenizer/tokenizer_config.json": "81336c4a13050c6487eee83879338202a16638fbf49b5b0231a9deee1231b0c1"
+    }
+  },
+  "limitations": [
+    "Five frozen contract annotation issues retained separately, not relabelled as passes.",
+    "Structured budget errors/partial lists retained; no budget increase.",
+    "Package-installed Mach-O startup still SIGKILL on this host; original-build-path executable/runtime SHA-256 equals packed payload.",
+    "Partial source oracle without independent human review; two public development corpora, no global precision/agent/language-generalization claims.",
+    "G3/P3 Debug full-corpus timeout and design-alignment work remain deferred."
+  ],
+  "retained_runs": [
+    "run-1",
+    "run-2",
+    "run-3",
+    "run-4",
+    "run-5"
+  ]
+}

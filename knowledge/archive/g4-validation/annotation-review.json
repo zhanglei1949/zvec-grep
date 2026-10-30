@@ -1,0 +1,33 @@
+{
+  "unchanged_inputs_sha256": "c4723452cfd313e4200ff6b90f91ba45f2e3d8b28f557e4cfe4245e1941c39c5",
+  "policy": "No labels or frozen requests changed after querying; issues are reported separately, not relabelled to count as passes.",
+  "issues": [
+    {
+      "tasks": [
+        "ripgrep:G4-05",
+        "ripgrep:G4-19",
+        "ripgrep:G4-20",
+        "ripgrep:G4-23"
+      ],
+      "classification": "contract_annotation_issue",
+      "detail": "Locator.Name without kind matches both function escape and file qualified_name escape. Ambiguous response follows the existing API; unique was an incorrect annotation assumption.",
+      "next_version": "Use explicit function kind before freezing a new dataset version."
+    },
+    {
+      "tasks": [
+        "requests:G4-24"
+      ],
+      "classification": "annotation_site_role_error",
+      "detail": "must_not_resolve points to parameter dict_class in the declaration, not the invocation. No reference at that span is correct; this cannot establish a product resolution bug.",
+      "next_version": "Use independent AST Call.func span and validate reference-site roles before freeze."
+    }
+  ],
+  "budget_limited_tasks": [
+    "ripgrep:G4-03",
+    "ripgrep:G4-16",
+    "requests:G4-13",
+    "requests:G4-15",
+    "requests:G4-16"
+  ],
+  "unscored_public_reference_identity_lookups": 1
+}

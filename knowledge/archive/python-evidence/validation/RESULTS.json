@@ -1,0 +1,1017 @@
+{
+  "profile_id": "local-dev-1000-v2",
+  "environment": {
+    "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.3",
+    "bases": {
+      "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+      "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+    },
+    "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+    "native_provenance": {
+      "graphdb": {
+        "name": "graphdb",
+        "ok": true,
+        "source_variant": "libcxx-csv-fallback",
+        "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+      },
+      "zvec": {
+        "name": "zvec",
+        "ok": true,
+        "source_variant": "unmodified",
+        "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+      }
+    },
+    "experiment_source_sha256": {
+      "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+      "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+      "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+      "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+      "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+      "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+      "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+      "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+    }
+  },
+  "results": [
+    {
+      "passed": true,
+      "independent_cursor_read_visibility_ms": 0.8910829928936437,
+      "atomic_control_model": [
+        "root selection",
+        "associated invalidation",
+        "view version",
+        "operation receipt"
+      ],
+      "checks": [
+        "explicit_readonly_transaction_rejects_write",
+        "read_set_conflict",
+        "new_support_read_set_conflict",
+        "cancel_before_commit",
+        "body_failure_rollback",
+        "receipt_history",
+        "logical_view_retains_immutable_old_facts_without_native_read_pin",
+        "two_concurrent_readers_atomic_visibility"
+      ],
+      "concurrent_reader_observations": [
+        [
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          5,
+          5,
+          6,
+          6,
+          6,
+          7,
+          7,
+          7,
+          8,
+          8,
+          8,
+          9,
+          9,
+          9,
+          10,
+          10,
+          11,
+          11,
+          11,
+          12,
+          12,
+          13,
+          13
+        ],
+        [
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          5,
+          5,
+          6,
+          6,
+          6,
+          7,
+          7,
+          7,
+          8,
+          8,
+          8,
+          9,
+          9,
+          10,
+          10,
+          10,
+          11,
+          11,
+          11,
+          12,
+          12,
+          13,
+          13
+        ]
+      ],
+      "same_process_mixed_mode": {
+        "opened": false,
+        "error_type": "ConnectionException",
+        "error": "cannot connect to the same database with a different configuration"
+      },
+      "writer_plus_writer_process": {
+        "opened": false,
+        "error_type": "DatabaseError",
+        "error": "database is locked by another instance"
+      },
+      "writer_plus_readonly_process": {
+        "opened": false,
+        "error_type": "DatabaseError",
+        "error": "database is locked by another instance"
+      },
+      "readonly_holders": [
+        {
+          "opened": true
+        },
+        {
+          "opened": true
+        }
+      ],
+      "readonly_plus_writer_process": {
+        "opened": false,
+        "error_type": "DatabaseError",
+        "error": "database is locked by another instance"
+      },
+      "readonly_tree_unchanged": true,
+      "peak_rss_bytes": 33898496,
+      "case": "graph-contracts",
+      "wall_seconds": 0.7627540829998907
+    },
+    {
+      "passed": true,
+      "contract": "explicit READ ONLY retains old view while independent Update publishes a new view",
+      "writer_complete_by_first_sample": true,
+      "writer_finished_before_read_release": true,
+      "elapsed_seconds": 0.05253866700513754,
+      "required_sdk_rule": "explicit READ ONLY for readers; bound snapshot retention; begin()/transaction() on writable connections are Update",
+      "peak_rss_bytes": 33538048,
+      "case": "graph-held-reader",
+      "wall_seconds": 0.2779673330078367
+    },
+    {
+      "passed": true,
+      "stage": "before_commit",
+      "kind": "real_SIGKILL_at_python_boundary",
+      "readonly_open": {
+        "opened": true
+      },
+      "readonly_tree_unchanged": true,
+      "recovered": {
+        "root": [
+          0,
+          "v0",
+          "none"
+        ],
+        "receipts": []
+      },
+      "not_covered": "mid-WAL syscall, hardware power loss",
+      "peak_rss_bytes": 32735232,
+      "case": "graph-crash-before_commit",
+      "wall_seconds": 0.346628375002183
+    },
+    {
+      "passed": true,
+      "stage": "after_commit",
+      "kind": "real_SIGKILL_at_python_boundary",
+      "readonly_open": {
+        "opened": true
+      },
+      "readonly_tree_unchanged": true,
+      "recovered": {
+        "root": [
+          1,
+          "v1",
+          "old-description"
+        ],
+        "receipts": [
+          [
+            "crash-op",
+            1,
+            "v1"
+          ]
+        ]
+      },
+      "not_covered": "mid-WAL syscall, hardware power loss",
+      "peak_rss_bytes": 32702464,
+      "case": "graph-crash-after_commit",
+      "wall_seconds": 0.392176291992655
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 1000,
+        "initial_current_and_retained_nodes": 84100,
+        "candidate_nodes": 41000,
+        "total_nodes": 125100,
+        "total_edges": 220100,
+        "retained_native_readers": 2,
+        "candidate_started_while_readers_alive": true,
+        "candidate_still_running_at_sample": true,
+        "old_read_counts_stable": true,
+        "rss_peak_before_candidate": 139329536,
+        "rss_peak_before_reader_release": 223739904,
+        "peak_rss_bytes": 569032704,
+        "build_seconds": 1.5353527499974007,
+        "readonly_reopen_seconds": 4.626233458999195,
+        "disk_bytes": 86688673
+      },
+      "threshold_failures": [],
+      "boundary": "candidate bulk construction and selection Update overlap with explicit old READ ONLY snapshots",
+      "peak_rss_bytes": 569032704,
+      "case": "graph-candidate-readers-1000",
+      "wall_seconds": 6.556934791005915
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 10,
+        "nodes": 1251,
+        "edges": 2201,
+        "kind_counts": {
+          "assertion": 240,
+          "chunk": 240,
+          "correction": 1,
+          "entity": 10,
+          "evidence": 240,
+          "revision": 30,
+          "source": 10,
+          "support": 480
+        },
+        "logical_input_bytes": 245760,
+        "fixture_csv_bytes": 364766,
+        "native_disk_bytes": 871968,
+        "peak_rss_bytes": 41467904,
+        "build_seconds": 0.08328616600192618,
+        "readonly_reopen_seconds": 0.0448551250010496,
+        "bounded_graph_query": {
+          "samples": 100,
+          "p50_ms": 0.26324999635107815,
+          "p95_ms": 0.2799580106511712,
+          "max_ms": 0.4185410070931539
+        },
+        "two_reader_graph_query": {
+          "workers": 2,
+          "samples": 200,
+          "p50_ms": 0.27874999796040356,
+          "p95_ms": 0.33895799424499273,
+          "max_ms": 0.6066659989301115
+        },
+        "storage_metrics": {
+          "version": 4,
+          "vertices": 1251,
+          "edges": 2201,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "held_native_readers_during_build": 0
+      },
+      "threshold_failures": [],
+      "boundary": "synthetic quiescent graph; reader pin tested separately; no capacity extrapolation",
+      "peak_rss_bytes": 41467904,
+      "case": "graph-scale-10",
+      "wall_seconds": 0.3933043330034707
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 100,
+        "nodes": 12510,
+        "edges": 22010,
+        "kind_counts": {
+          "assertion": 2400,
+          "chunk": 2400,
+          "correction": 10,
+          "entity": 100,
+          "evidence": 2400,
+          "revision": 300,
+          "source": 100,
+          "support": 4800
+        },
+        "logical_input_bytes": 2457600,
+        "fixture_csv_bytes": 3709346,
+        "native_disk_bytes": 8652909,
+        "peak_rss_bytes": 95027200,
+        "build_seconds": 0.21051058400189504,
+        "readonly_reopen_seconds": 0.46745400001236703,
+        "bounded_graph_query": {
+          "samples": 100,
+          "p50_ms": 0.25941600324586034,
+          "p95_ms": 0.28487498639151454,
+          "max_ms": 0.4447499959496781
+        },
+        "two_reader_graph_query": {
+          "workers": 2,
+          "samples": 200,
+          "p50_ms": 0.2733750006882474,
+          "p95_ms": 0.30741700902581215,
+          "max_ms": 0.46712499170098454
+        },
+        "storage_metrics": {
+          "version": 4,
+          "vertices": 12510,
+          "edges": 22010,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "held_native_readers_during_build": 0
+      },
+      "threshold_failures": [],
+      "boundary": "synthetic quiescent graph; reader pin tested separately; no capacity extrapolation",
+      "peak_rss_bytes": 95027200,
+      "case": "graph-scale-100",
+      "wall_seconds": 0.9362671249982668
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 1000,
+        "nodes": 125100,
+        "edges": 220100,
+        "kind_counts": {
+          "assertion": 24000,
+          "chunk": 24000,
+          "correction": 100,
+          "entity": 1000,
+          "evidence": 24000,
+          "revision": 3000,
+          "source": 1000,
+          "support": 48000
+        },
+        "logical_input_bytes": 24576000,
+        "fixture_csv_bytes": 37776506,
+        "native_disk_bytes": 86687499,
+        "peak_rss_bytes": 563953664,
+        "build_seconds": 1.5449187920021359,
+        "readonly_reopen_seconds": 4.6897543749946635,
+        "bounded_graph_query": {
+          "samples": 100,
+          "p50_ms": 0.2655419957591221,
+          "p95_ms": 0.3028750070370734,
+          "max_ms": 0.38875000609550625
+        },
+        "two_reader_graph_query": {
+          "workers": 2,
+          "samples": 200,
+          "p50_ms": 0.28304099396336824,
+          "p95_ms": 0.3082920011365786,
+          "max_ms": 0.4169160092715174
+        },
+        "storage_metrics": {
+          "version": 4,
+          "vertices": 125100,
+          "edges": 220100,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "held_native_readers_during_build": 0
+      },
+      "threshold_failures": [],
+      "boundary": "synthetic quiescent graph; reader pin tested separately; no capacity extrapolation",
+      "peak_rss_bytes": 563953664,
+      "case": "graph-scale-1000",
+      "wall_seconds": 6.637483124999562
+    },
+    {
+      "passed": true,
+      "partial_insert_statuses": [
+        true,
+        false,
+        true
+      ],
+      "retry": "upsert only failed stable projection ID",
+      "doc_count_after_retry": 3,
+      "old_candidate_refill": [
+        {
+          "top_k": 10,
+          "returned": 10,
+          "accepted": 0,
+          "query_and_validation_ms": 0.6008329946780577,
+          "graph_validation_ms": 0.3960839967476204
+        },
+        {
+          "top_k": 20,
+          "returned": 20,
+          "accepted": 0,
+          "query_and_validation_ms": 0.5379579961299896,
+          "graph_validation_ms": 0.317458005156368
+        },
+        {
+          "top_k": 40,
+          "returned": 28,
+          "accepted": 1,
+          "query_and_validation_ms": 0.5634590052068233,
+          "graph_validation_ms": 0.2793750027194619
+        }
+      ],
+      "scalar_filter_pushdown": [
+        "business_id",
+        "revision",
+        "build",
+        "space"
+      ],
+      "same_dimension_space_guard": "experimental adapter check; zvec alone does not identify model spaces",
+      "readonly_reopen": true,
+      "authority": "real graphdb selection; stale native-filter hits rejected after graph revision changes",
+      "ann_quality": "not measured",
+      "disk_bytes": 5380820,
+      "peak_rss_bytes": 217300992,
+      "case": "search-contracts",
+      "wall_seconds": 0.6641996670077788
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 10,
+        "documents": 240,
+        "dimensions": 384,
+        "logical_input_bytes": 245760,
+        "build_seconds": 0.2585135830013314,
+        "readonly_reopen_seconds": 0.008581999994930811,
+        "peak_rss_bytes": 179290112,
+        "disk_bytes": 5693143,
+        "filtered_vector_query": {
+          "samples": 100,
+          "p50_ms": 0.22412500402424484,
+          "p95_ms": 0.2849580050678924,
+          "max_ms": 0.35945800482295454
+        },
+        "filtered_fts_query": {
+          "samples": 100,
+          "p50_ms": 0.265124996076338,
+          "p95_ms": 0.29570799961220473,
+          "max_ms": 0.3014590038219467
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "synthetic vectors; fixed filter; approximate recall quality not measured",
+      "peak_rss_bytes": 179290112,
+      "case": "search-scale-10",
+      "wall_seconds": 0.5658255419984926
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 100,
+        "documents": 2400,
+        "dimensions": 384,
+        "logical_input_bytes": 2457600,
+        "build_seconds": 0.3432360000006156,
+        "readonly_reopen_seconds": 0.007810416995198466,
+        "peak_rss_bytes": 225492992,
+        "disk_bytes": 8546102,
+        "filtered_vector_query": {
+          "samples": 100,
+          "p50_ms": 0.22979200002737343,
+          "p95_ms": 0.27995900018140674,
+          "max_ms": 0.32208299671765417
+        },
+        "filtered_fts_query": {
+          "samples": 100,
+          "p50_ms": 0.9951249958248809,
+          "p95_ms": 1.0967919952236116,
+          "max_ms": 1.1563340085558593
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "synthetic vectors; fixed filter; approximate recall quality not measured",
+      "peak_rss_bytes": 225492992,
+      "case": "search-scale-100",
+      "wall_seconds": 0.715423917004955
+    },
+    {
+      "passed": true,
+      "measurements": {
+        "sources": 1000,
+        "documents": 24000,
+        "dimensions": 384,
+        "logical_input_bytes": 24576000,
+        "build_seconds": 1.8687393340078415,
+        "readonly_reopen_seconds": 0.011152040999149904,
+        "peak_rss_bytes": 335462400,
+        "disk_bytes": 70291810,
+        "filtered_vector_query": {
+          "samples": 100,
+          "p50_ms": 0.7472500001313165,
+          "p95_ms": 0.8495840011164546,
+          "max_ms": 0.9762090048752725
+        },
+        "filtered_fts_query": {
+          "samples": 100,
+          "p50_ms": 9.553250012686476,
+          "p95_ms": 9.798667000723071,
+          "max_ms": 10.013457998866215
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "synthetic vectors; fixed filter; approximate recall quality not measured",
+      "peak_rss_bytes": 335462400,
+      "case": "search-scale-1000",
+      "wall_seconds": 3.1777649169962388
+    },
+    {
+      "passed": true,
+      "semantic_oracle_cases": [
+        "baseline",
+        "delete_A",
+        "delete_B",
+        "delete_both",
+        "correct",
+        "manual_survives_source_deletion",
+        "revoke",
+        "scope_does_not_resolve_global_dispute",
+        "scope_filters_supports_and_description",
+        "manual_metadata_follows_target"
+      ],
+      "measurements": {
+        "entities": 10,
+        "strategy": "live",
+        "raw_nodes": 160,
+        "extra_materialized_nodes": 0,
+        "build_seconds": 0.016607708006631583,
+        "update_seconds": 0.02633849999983795,
+        "logical_update_record_writes": 40,
+        "peak_rss_bytes": 33472512,
+        "disk_bytes": 79009,
+        "readonly_reopen_seconds": 0.005410458004917018,
+        "query": {
+          "samples": 100,
+          "p50_ms": 0.18937498680315912,
+          "p95_ms": 0.22116699256002903,
+          "max_ms": 0.3384999872650951
+        },
+        "storage_metrics_before_updates": {
+          "version": 12,
+          "vertices": 160,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "storage_metrics_after_updates": {
+          "version": 16,
+          "vertices": 160,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "experimental single-entity domain; serial query/update; no general inference or concurrent throughput claim",
+      "peak_rss_bytes": 33488896,
+      "case": "view-live-10",
+      "wall_seconds": 0.3428921669983538
+    },
+    {
+      "passed": true,
+      "semantic_oracle_cases": [
+        "baseline",
+        "delete_A",
+        "delete_B",
+        "delete_both",
+        "correct",
+        "manual_survives_source_deletion",
+        "revoke",
+        "scope_does_not_resolve_global_dispute",
+        "scope_filters_supports_and_description",
+        "manual_metadata_follows_target"
+      ],
+      "measurements": {
+        "entities": 10,
+        "strategy": "materialized",
+        "raw_nodes": 160,
+        "extra_materialized_nodes": 10,
+        "build_seconds": 0.023628583003301173,
+        "update_seconds": 0.04444024999975227,
+        "logical_update_record_writes": 80,
+        "peak_rss_bytes": 33210368,
+        "disk_bytes": 120057,
+        "readonly_reopen_seconds": 0.006026415998348966,
+        "query": {
+          "samples": 100,
+          "p50_ms": 0.1461670035496354,
+          "p95_ms": 0.15725000412203372,
+          "max_ms": 0.1644999865675345
+        },
+        "storage_metrics_before_updates": {
+          "version": 13,
+          "vertices": 170,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "storage_metrics_after_updates": {
+          "version": 17,
+          "vertices": 170,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "experimental single-entity domain; serial query/update; no general inference or concurrent throughput claim",
+      "peak_rss_bytes": 33226752,
+      "case": "view-materialized-10",
+      "wall_seconds": 0.34274712500337046
+    },
+    {
+      "passed": true,
+      "semantic_oracle_cases": [
+        "baseline",
+        "delete_A",
+        "delete_B",
+        "delete_both",
+        "correct",
+        "manual_survives_source_deletion",
+        "revoke",
+        "scope_does_not_resolve_global_dispute",
+        "scope_filters_supports_and_description",
+        "manual_metadata_follows_target"
+      ],
+      "measurements": {
+        "entities": 100,
+        "strategy": "live",
+        "raw_nodes": 1600,
+        "extra_materialized_nodes": 0,
+        "build_seconds": 0.028742790993419476,
+        "update_seconds": 0.10413137500290759,
+        "logical_update_record_writes": 400,
+        "peak_rss_bytes": 36552704,
+        "disk_bytes": 651139,
+        "readonly_reopen_seconds": 0.03629362498759292,
+        "query": {
+          "samples": 100,
+          "p50_ms": 0.20541698904708028,
+          "p95_ms": 0.2188749931519851,
+          "max_ms": 0.22558400814887136
+        },
+        "storage_metrics_before_updates": {
+          "version": 12,
+          "vertices": 1600,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "storage_metrics_after_updates": {
+          "version": 16,
+          "vertices": 1600,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "experimental single-entity domain; serial query/update; no general inference or concurrent throughput claim",
+      "peak_rss_bytes": 36569088,
+      "case": "view-live-100",
+      "wall_seconds": 0.44840045800083317
+    },
+    {
+      "passed": true,
+      "semantic_oracle_cases": [
+        "baseline",
+        "delete_A",
+        "delete_B",
+        "delete_both",
+        "correct",
+        "manual_survives_source_deletion",
+        "revoke",
+        "scope_does_not_resolve_global_dispute",
+        "scope_filters_supports_and_description",
+        "manual_metadata_follows_target"
+      ],
+      "measurements": {
+        "entities": 100,
+        "strategy": "materialized",
+        "raw_nodes": 1600,
+        "extra_materialized_nodes": 100,
+        "build_seconds": 0.03563029199722223,
+        "update_seconds": 0.37178412500361446,
+        "logical_update_record_writes": 800,
+        "peak_rss_bytes": 38715392,
+        "disk_bytes": 999537,
+        "readonly_reopen_seconds": 0.04367324999475386,
+        "query": {
+          "samples": 100,
+          "p50_ms": 0.14387498958967626,
+          "p95_ms": 0.1475000026402995,
+          "max_ms": 0.15412499487865716
+        },
+        "storage_metrics_before_updates": {
+          "version": 13,
+          "vertices": 1700,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "storage_metrics_after_updates": {
+          "version": 17,
+          "vertices": 1700,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "experimental single-entity domain; serial query/update; no general inference or concurrent throughput claim",
+      "peak_rss_bytes": 38715392,
+      "case": "view-materialized-100",
+      "wall_seconds": 0.7288377919903724
+    },
+    {
+      "passed": true,
+      "semantic_oracle_cases": [
+        "baseline",
+        "delete_A",
+        "delete_B",
+        "delete_both",
+        "correct",
+        "manual_survives_source_deletion",
+        "revoke",
+        "scope_does_not_resolve_global_dispute",
+        "scope_filters_supports_and_description",
+        "manual_metadata_follows_target"
+      ],
+      "measurements": {
+        "entities": 1000,
+        "strategy": "live",
+        "raw_nodes": 16000,
+        "extra_materialized_nodes": 0,
+        "build_seconds": 0.12756629200885072,
+        "update_seconds": 1.0539816249947762,
+        "logical_update_record_writes": 4000,
+        "peak_rss_bytes": 78446592,
+        "disk_bytes": 6417943,
+        "readonly_reopen_seconds": 0.3727895830088528,
+        "query": {
+          "samples": 100,
+          "p50_ms": 0.3329169994685799,
+          "p95_ms": 0.35383400972932577,
+          "max_ms": 0.37983299989718944
+        },
+        "storage_metrics_before_updates": {
+          "version": 12,
+          "vertices": 16000,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "storage_metrics_after_updates": {
+          "version": 52,
+          "vertices": 16000,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "experimental single-entity domain; serial query/update; no general inference or concurrent throughput claim",
+      "peak_rss_bytes": 78446592,
+      "case": "view-live-1000",
+      "wall_seconds": 1.8712342920043739
+    },
+    {
+      "passed": true,
+      "semantic_oracle_cases": [
+        "baseline",
+        "delete_A",
+        "delete_B",
+        "delete_both",
+        "correct",
+        "manual_survives_source_deletion",
+        "revoke",
+        "scope_does_not_resolve_global_dispute",
+        "scope_filters_supports_and_description",
+        "manual_metadata_follows_target"
+      ],
+      "measurements": {
+        "entities": 1000,
+        "strategy": "materialized",
+        "raw_nodes": 16000,
+        "extra_materialized_nodes": 1000,
+        "build_seconds": 0.15438933299446944,
+        "update_seconds": 15.78906687500421,
+        "logical_update_record_writes": 8000,
+        "peak_rss_bytes": 109543424,
+        "disk_bytes": 9848121,
+        "readonly_reopen_seconds": 0.4547998329944676,
+        "query": {
+          "samples": 100,
+          "p50_ms": 0.12004200834780931,
+          "p95_ms": 0.12945799971930683,
+          "max_ms": 0.13529199350159615
+        },
+        "storage_metrics_before_updates": {
+          "version": 13,
+          "vertices": 17000,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        },
+        "storage_metrics_after_updates": {
+          "version": 53,
+          "vertices": 17000,
+          "edges": 0,
+          "index_page_reads": 0,
+          "ipc_reads": 0,
+          "bytes_read": 0,
+          "peak_segment_bytes": 0,
+          "pending_records": 0,
+          "import_phase_ns": {},
+          "import_counts": {},
+          "in_transaction": false
+        }
+      },
+      "threshold_failures": [],
+      "boundary": "experimental single-entity domain; serial query/update; no general inference or concurrent throughput claim",
+      "peak_rss_bytes": 109543424,
+      "case": "view-materialized-1000",
+      "wall_seconds": 16.707639040992945
+    }
+  ],
+  "native_fault_suites": {
+    "passed": true,
+    "environment": {
+      "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+      "python": "3.13.3",
+      "bases": {
+        "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+        "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+      },
+      "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+      "native_provenance": {
+        "graphdb": {
+          "name": "graphdb",
+          "ok": true,
+          "source_variant": "libcxx-csv-fallback",
+          "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+        },
+        "zvec": {
+          "name": "zvec",
+          "ok": true,
+          "source_variant": "unmodified",
+          "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+        }
+      },
+      "experiment_source_sha256": {
+        "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+        "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+        "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+        "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+        "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+        "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+        "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+        "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+      }
+    },
+    "source_variant": "libcxx-csv-fallback",
+    "commands": [
+      [
+        "/Users/zhanglei/code/github/z-knowledge-graph/.artifacts/spike-0/source-variants/graphdb-libcxx-20261020T091942815459Z/build/temp.macosx-15.0-arm64-cpython-313/graphdb/tests/graphdb_durable_memory_tests"
+      ],
+      [
+        "/Users/zhanglei/code/github/z-knowledge-graph/.artifacts/spike-0/source-variants/graphdb-libcxx-20261020T091942815459Z/build/temp.macosx-15.0-arm64-cpython-313/graphdb/tests/graphdb_tp_wal_tests"
+      ]
+    ],
+    "test_source_sha256": {
+      "tests/storage/durable_memory_test.cc": "f61b954e7aac0b98bc68295263ed8dce28ec849ec924f1f189d958ea330f02c1",
+      "tests/storage/tp_wal_test.cc": "8c08aeafed47602bd39ab5cc38249a48e3f87203a2dcef6e8119677f276c5d10"
+    },
+    "results": [
+      {
+        "target": "graphdb_durable_memory_tests",
+        "returncode": 0,
+        "passed": true,
+        "wall_seconds": 3.886492707999423,
+        "stdout": "durable memory recovery tests passed\n",
+        "stderr": ""
+      },
+      {
+        "target": "graphdb_tp_wal_tests",
+        "returncode": 0,
+        "passed": true,
+        "wall_seconds": 0.3878240000049118,
+        "stdout": "TP WAL tests passed\n",
+        "stderr": ""
+      }
+    ],
+    "evidence_kind": "native deterministic fault injection and crash/reopen at internal boundaries",
+    "not_claimed": [
+      "hardware power failure",
+      "unmodified graphdb build variant"
+    ]
+  },
+  "stage_a_go": true,
+  "scope": "tested local profile only; not Phase 3 implementation or production readiness",
+  "required_contracts": [
+    "single writer process; independent cursors share writable instance",
+    "explicit READ ONLY transactions; bound retained snapshots or pin logical immutable views",
+    "graph-authority validation after index recall; refill within budgets",
+    "retain operation receipts; reopen writable after unknown outcomes"
+  ],
+  "not_claimed": [
+    "hardware power-loss recovery",
+    "unmeasured graph capacity ceiling",
+    "real model/ANN recall quality",
+    "cross-process live reader+writer",
+    "arbitrary domain inference",
+    "SDK production publish implementation"
+  ]
+}

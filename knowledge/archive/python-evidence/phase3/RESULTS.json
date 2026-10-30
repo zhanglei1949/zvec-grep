@@ -1,0 +1,969 @@
+{
+  "contract": "phase3-acceptance-v1",
+  "date": "2026-10-21",
+  "phase3_scope_passed": true,
+  "scope": "captured revision -> parse/segment -> text/vector candidates -> atomic graph publication -> fresh Read confirmation -> explicit reconciliation; no public search API or real model",
+  "sdk_sha256": {
+    "zknowledge/__init__.py": "f216cdb2b4318a6f2e615410bff492fa3b357e1a8ae272b3d2cb2439d5bc028d",
+    "zknowledge/_persistence.py": "5c430c268cb202a543ff5f094876f28aa086dacebe27bbbe2a64f4b15082f059",
+    "zknowledge/adapters/__init__.py": "519c5d33e6368479a03c6b3ebd51c18dec5889342ebb6bfcda07c684758969a8",
+    "zknowledge/adapters/graph_store.py": "02339d2c36e030f3d32241ead731e84999226a7262c5e5b527f1001289b55cfb",
+    "zknowledge/adapters/search_index.py": "371b2cb61e7b1b13df39a0dca8bc5cd2e8581fba923af61b4ce71eea49e0cd17",
+    "zknowledge/adapters/snapshot_store.py": "5a506f593bab5eeb296e6cd8319cc041332962f91bebdf667112db6e984ee8a6",
+    "zknowledge/build_models.py": "1770793706ee05c0e7fe4a712ccf94a880fb3810e95fca5791d5b340237d5246",
+    "zknowledge/builds.py": "7d25123a1ee94114ce166d36b3f9ddcb782c280445f2a5d8a70dbaf347decad4",
+    "zknowledge/config.py": "eb751698c729034472d8e8012df556f8e58b5a855d495077aa54476a4f5cb868",
+    "zknowledge/document_processing.py": "908843a16198d644c179979305c4f32f616d87b770d1f9e492e8ac4138fc5571",
+    "zknowledge/documents.py": "406ee9c432a8972cc8159618e86939180b95b2902d12d619d5a36c61e3467a8b",
+    "zknowledge/embedding.py": "5f0784c76e6d7efcbee2e863cc8677ac9b8987d0dbf7490f2de49c6c400320ff",
+    "zknowledge/errors.py": "eb67f391ad20f7a5abebb6aede6ce1b1dfe9ac07cce4d49be099c1c278a6df81",
+    "zknowledge/execution.py": "34861934c9bef5f5aa69d7287ab3901c1e55857d4b8254a570d222f9fe38713f",
+    "zknowledge/index_catalog.py": "94ac976d2ff27d9726e6fa8e7827cd40c199ca1f958e6da2b41a7c13f5d0f831",
+    "zknowledge/kb.py": "ea984374880e4c11bb4e7e4d53a5d6290dd4bcd4041842d23c268281eaeb853b",
+    "zknowledge/manifest.py": "d7cb7d3ca30f6a988d26afd0fa3aec667211203e423baaf2313038ea5f2ec90a",
+    "zknowledge/models.py": "d8140eb1d2adcf7ceb53303f7c7e4657474ef7f24215552e50038bf17ec1b4ef",
+    "zknowledge/preflight.py": "e3fe849b3b0feedfd7c169410074a286473c57bc5935ba625887d614ff66732a",
+    "zknowledge/publication_store.py": "669467077ecdd7939b061d95ff391fc30da71b054b9aeaae523b15138e3eb177",
+    "zknowledge/source_store.py": "106391631cf9c51f67c6e432b1cc9830efdce1ef4cd6206cf88f77b98bb1a12f",
+    "zknowledge/sources.py": "d055a80678da0d5e703706b803cb6bf41b5fd3444233d98ba9e9d4a7311cd814"
+  },
+  "acceptance": {
+    "regression": {
+      "passed": true,
+      "tests": 134,
+      "skipped": 0,
+      "new_since_82_test_baseline": 52,
+      "seconds": 33.281,
+      "log_sha256": "dbd72a231e63f029db8003cba37c95d64bb97027ab2d6cb9affaf5d7fda8c488",
+      "command": ".venv/bin/python -m unittest discover -s tests -t . -v"
+    },
+    "gate": {
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "checks": {
+        "secondary_index_ddl": "unsupported; do not assume typed filters are indexed",
+        "read_txn_readonly_False": true,
+        "read_txn_readonly_True": true,
+        "text_collection_write_filter_reopen": true,
+        "native_compaction_all_projection_ids_retained": true,
+        "vector_collection_write_filter_reopen": true,
+        "raw_utf8_bom_crlf_mapping": true
+      },
+      "dependencies": {
+        "markdown-it-py": {
+          "version": "4.0.0",
+          "license": "License :: OSI Approved :: MIT License",
+          "license_files_sha256": {
+            "markdown_it_py-4.0.0.dist-info/licenses/LICENSE": "4a2260d6e2cd0f5a151a1e86dbfe7d3ed552b1e2beabf9941c1ba5c49cbce484",
+            "markdown_it_py-4.0.0.dist-info/licenses/LICENSE.markdown-it": "792c48c5a849a15fdf9e37e8bcf9e6d1dd13b32b46c642a748a0a46a9919d473"
+          },
+          "pure_python_files": true,
+          "requires": [
+            "mdurl~=0.1",
+            "psutil ; extra == \"benchmarking\"",
+            "pytest ; extra == \"benchmarking\"",
+            "pytest-benchmark ; extra == \"benchmarking\"",
+            "commonmark~=0.9 ; extra == \"compare\"",
+            "markdown~=3.4 ; extra == \"compare\"",
+            "mistletoe~=1.0 ; extra == \"compare\"",
+            "mistune~=3.0 ; extra == \"compare\"",
+            "panflute~=2.3 ; extra == \"compare\"",
+            "markdown-it-pyrs ; extra == \"compare\"",
+            "linkify-it-py>=1,<3 ; extra == \"linkify\"",
+            "mdit-py-plugins>=0.5.0 ; extra == \"plugins\"",
+            "gprof2dot ; extra == \"profiling\"",
+            "mdit-py-plugins>=0.5.0 ; extra == \"rtd\"",
+            "myst-parser ; extra == \"rtd\"",
+            "pyyaml ; extra == \"rtd\"",
+            "sphinx ; extra == \"rtd\"",
+            "sphinx-copybutton ; extra == \"rtd\"",
+            "sphinx-design ; extra == \"rtd\"",
+            "sphinx-book-theme~=1.0 ; extra == \"rtd\"",
+            "jupyter_sphinx ; extra == \"rtd\"",
+            "ipykernel ; extra == \"rtd\"",
+            "coverage ; extra == \"testing\"",
+            "pytest ; extra == \"testing\"",
+            "pytest-cov ; extra == \"testing\"",
+            "pytest-regressions ; extra == \"testing\"",
+            "requests ; extra == \"testing\""
+          ]
+        },
+        "mdurl": {
+          "version": "0.1.2",
+          "license": "License :: OSI Approved :: MIT License",
+          "license_files_sha256": {
+            "mdurl-0.1.2.dist-info/LICENSE": "7c605df6e28667a9603118e98274f64a49ce3eed0d26fccce9534a345e0ef955"
+          },
+          "pure_python_files": true,
+          "requires": null
+        }
+      },
+      "access_plans": {
+        "primary_key": "PhysicalPlan v3 (typed slots, bag results)\n0 VertexScan inputs=[] outputs=[0:n ] pattern_scope=0\n1 Filter inputs=[0 ] outputs=[0:n ] pattern_scope=0\n2 Projection inputs=[1 ] outputs=[1:n.owner ] result\nBinding: topology=memory-mvcc properties=memory-mvcc snapshot=9bfeaf73a9ce23deb32af7e505250909:1:3 storage-capabilities=memory-mvcc-csr-rows\n  0 => UniquePropertyLookup(id) [implementation=generic]\n    access-estimate: rows=128 scan-cost=6.4 unique-lookup-cost=0.05 (provider heuristic units)\n  1 => BooleanExpressionFilter [implementation=generic]\n  2 => Projection [implementation=generic]\n  runtime=columnar-context / resumable-chunk-operators / bounded-ports\n  access-preparation=per-execution; index-edge-budget=1000000\n",
+        "typed_filter": "PhysicalPlan v3 (typed slots, bag results)\n0 VertexScan inputs=[] outputs=[0:n ] pattern_scope=0\n1 Filter inputs=[0 ] outputs=[0:n ] pattern_scope=0\n2 Projection inputs=[1 ] outputs=[1:n.id ] result\nBinding: topology=memory-mvcc properties=memory-mvcc snapshot=9bfeaf73a9ce23deb32af7e505250909:1:3 storage-capabilities=memory-mvcc-csr-rows\n  0 => LabelScan [implementation=generic]\n    access-estimate: rows=128 scan-cost=6.4 unique-lookup-cost=0.05 (provider heuristic units)\n  1 => BooleanExpressionFilter [implementation=generic]\n  2 => Projection [implementation=generic]\n  runtime=columnar-context / resumable-chunk-operators / bounded-ports\n  access-preparation=per-execution; index-edge-budget=1000000\n",
+        "relation": "PhysicalPlan v3 (typed slots, bag results)\n0 VertexScan inputs=[] outputs=[0:a ] pattern_scope=0\n1 Expand inputs=[0 ] outputs=[0:a 1:b ] pattern_scope=0\n2 Filter inputs=[1 ] outputs=[0:a 1:b ] pattern_scope=0\n3 Projection inputs=[2 ] outputs=[2:b.id ] result\nBinding: topology=memory-mvcc properties=memory-mvcc snapshot=9bfeaf73a9ce23deb32af7e505250909:1:3 storage-capabilities=memory-mvcc-csr-rows\n  0 => UniquePropertyLookup(id) [implementation=generic]\n    access-estimate: rows=128 scan-cost=6.4 unique-lookup-cost=0.05 (provider heuristic units)\n  1 => NativeCsrExpand [implementation=memory-csr-expand]\n  2 => BooleanExpressionFilter [implementation=generic]\n  3 => Projection [implementation=generic]\n  runtime=columnar-context / resumable-chunk-operators / bounded-ports\n  access-preparation=per-execution; index-edge-budget=1000000\n"
+      },
+      "compaction_bytes": {
+        "before": 85263318,
+        "after": 4866701
+      },
+      "passed": true,
+      "sdk_sha256": {
+        "zknowledge/__init__.py": "f216cdb2b4318a6f2e615410bff492fa3b357e1a8ae272b3d2cb2439d5bc028d",
+        "zknowledge/_persistence.py": "5c430c268cb202a543ff5f094876f28aa086dacebe27bbbe2a64f4b15082f059",
+        "zknowledge/adapters/__init__.py": "519c5d33e6368479a03c6b3ebd51c18dec5889342ebb6bfcda07c684758969a8",
+        "zknowledge/adapters/graph_store.py": "02339d2c36e030f3d32241ead731e84999226a7262c5e5b527f1001289b55cfb",
+        "zknowledge/adapters/search_index.py": "371b2cb61e7b1b13df39a0dca8bc5cd2e8581fba923af61b4ce71eea49e0cd17",
+        "zknowledge/adapters/snapshot_store.py": "5a506f593bab5eeb296e6cd8319cc041332962f91bebdf667112db6e984ee8a6",
+        "zknowledge/build_models.py": "1770793706ee05c0e7fe4a712ccf94a880fb3810e95fca5791d5b340237d5246",
+        "zknowledge/builds.py": "7d25123a1ee94114ce166d36b3f9ddcb782c280445f2a5d8a70dbaf347decad4",
+        "zknowledge/config.py": "eb751698c729034472d8e8012df556f8e58b5a855d495077aa54476a4f5cb868",
+        "zknowledge/document_processing.py": "908843a16198d644c179979305c4f32f616d87b770d1f9e492e8ac4138fc5571",
+        "zknowledge/documents.py": "406ee9c432a8972cc8159618e86939180b95b2902d12d619d5a36c61e3467a8b",
+        "zknowledge/embedding.py": "5f0784c76e6d7efcbee2e863cc8677ac9b8987d0dbf7490f2de49c6c400320ff",
+        "zknowledge/errors.py": "eb67f391ad20f7a5abebb6aede6ce1b1dfe9ac07cce4d49be099c1c278a6df81",
+        "zknowledge/execution.py": "34861934c9bef5f5aa69d7287ab3901c1e55857d4b8254a570d222f9fe38713f",
+        "zknowledge/index_catalog.py": "94ac976d2ff27d9726e6fa8e7827cd40c199ca1f958e6da2b41a7c13f5d0f831",
+        "zknowledge/kb.py": "ea984374880e4c11bb4e7e4d53a5d6290dd4bcd4041842d23c268281eaeb853b",
+        "zknowledge/manifest.py": "d7cb7d3ca30f6a988d26afd0fa3aec667211203e423baaf2313038ea5f2ec90a",
+        "zknowledge/models.py": "d8140eb1d2adcf7ceb53303f7c7e4657474ef7f24215552e50038bf17ec1b4ef",
+        "zknowledge/preflight.py": "e3fe849b3b0feedfd7c169410074a286473c57bc5935ba625887d614ff66732a",
+        "zknowledge/publication_store.py": "669467077ecdd7939b061d95ff391fc30da71b054b9aeaae523b15138e3eb177",
+        "zknowledge/source_store.py": "106391631cf9c51f67c6e432b1cc9830efdce1ef4cd6206cf88f77b98bb1a12f",
+        "zknowledge/sources.py": "d055a80678da0d5e703706b803cb6bf41b5fd3444233d98ba9e9d4a7311cd814"
+      },
+      "runner_sha256": "ab73d092ff0a4c5af0bdffe631d29c4989940746ef52e10e62658b82fffd75ff"
+    },
+    "sdk_scale": {
+      "profile": {
+        "id": "phase3-sdk-10-100-v2-bounded-reads",
+        "source_counts": [
+          10,
+          100
+        ],
+        "sections": 8,
+        "section_bytes": 1024,
+        "retained_revisions": 3,
+        "dimensions": 384,
+        "retained_readers": 2,
+        "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+        "failure_attempts": 2,
+        "peak_rss_limit_bytes": 2147483648,
+        "capture_and_build_limit_seconds": 120,
+        "readonly_reopen_limit_seconds": 120,
+        "validation_p95_limit_ms": 200,
+        "query_samples": 100,
+        "notes": [
+          "Actual SDK schema and combined graph/text/vector process; synthetic embeddings only.",
+          "Internal publication-validation read latency is not Phase 4 public search latency.",
+          "Thresholds frozen before measurement, inherited conservatively from local development limits.",
+          "1,000-source actual SDK evaluation remains M5 per the current implementation plan.",
+          "v1 held native readers across an entire multi-source batch and exhausted the fixed 64-version retirement budget; v2 uses bounded reader lifetime, tests exhaustion separately, and keeps all numeric thresholds unchanged.",
+          "Native HNSW blocks are compacted at 16 blocks, preserving every projection ID. This is native physical maintenance, not application GC."
+        ]
+      },
+      "profile_sha256": "a7ff6609da3f7a65260a75c6b10007f5e63776c59d125a347b96e9b96c697d74",
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "sdk_sha256": {
+        "zknowledge/__init__.py": "f216cdb2b4318a6f2e615410bff492fa3b357e1a8ae272b3d2cb2439d5bc028d",
+        "zknowledge/_persistence.py": "5c430c268cb202a543ff5f094876f28aa086dacebe27bbbe2a64f4b15082f059",
+        "zknowledge/adapters/__init__.py": "519c5d33e6368479a03c6b3ebd51c18dec5889342ebb6bfcda07c684758969a8",
+        "zknowledge/adapters/graph_store.py": "02339d2c36e030f3d32241ead731e84999226a7262c5e5b527f1001289b55cfb",
+        "zknowledge/adapters/search_index.py": "371b2cb61e7b1b13df39a0dca8bc5cd2e8581fba923af61b4ce71eea49e0cd17",
+        "zknowledge/adapters/snapshot_store.py": "5a506f593bab5eeb296e6cd8319cc041332962f91bebdf667112db6e984ee8a6",
+        "zknowledge/build_models.py": "1770793706ee05c0e7fe4a712ccf94a880fb3810e95fca5791d5b340237d5246",
+        "zknowledge/builds.py": "7d25123a1ee94114ce166d36b3f9ddcb782c280445f2a5d8a70dbaf347decad4",
+        "zknowledge/config.py": "eb751698c729034472d8e8012df556f8e58b5a855d495077aa54476a4f5cb868",
+        "zknowledge/document_processing.py": "908843a16198d644c179979305c4f32f616d87b770d1f9e492e8ac4138fc5571",
+        "zknowledge/documents.py": "406ee9c432a8972cc8159618e86939180b95b2902d12d619d5a36c61e3467a8b",
+        "zknowledge/embedding.py": "5f0784c76e6d7efcbee2e863cc8677ac9b8987d0dbf7490f2de49c6c400320ff",
+        "zknowledge/errors.py": "eb67f391ad20f7a5abebb6aede6ce1b1dfe9ac07cce4d49be099c1c278a6df81",
+        "zknowledge/execution.py": "34861934c9bef5f5aa69d7287ab3901c1e55857d4b8254a570d222f9fe38713f",
+        "zknowledge/index_catalog.py": "94ac976d2ff27d9726e6fa8e7827cd40c199ca1f958e6da2b41a7c13f5d0f831",
+        "zknowledge/kb.py": "ea984374880e4c11bb4e7e4d53a5d6290dd4bcd4041842d23c268281eaeb853b",
+        "zknowledge/manifest.py": "d7cb7d3ca30f6a988d26afd0fa3aec667211203e423baaf2313038ea5f2ec90a",
+        "zknowledge/models.py": "d8140eb1d2adcf7ceb53303f7c7e4657474ef7f24215552e50038bf17ec1b4ef",
+        "zknowledge/preflight.py": "e3fe849b3b0feedfd7c169410074a286473c57bc5935ba625887d614ff66732a",
+        "zknowledge/publication_store.py": "669467077ecdd7939b061d95ff391fc30da71b054b9aeaae523b15138e3eb177",
+        "zknowledge/source_store.py": "106391631cf9c51f67c6e432b1cc9830efdce1ef4cd6206cf88f77b98bb1a12f",
+        "zknowledge/sources.py": "d055a80678da0d5e703706b803cb6bf41b5fd3444233d98ba9e9d4a7311cd814"
+      },
+      "runner_sha256": "17567b1e8c02fc53953fa97a4596165ba92b24a0ecdc51a52c752dff4f1df300",
+      "cases": [
+        {
+          "passed": true,
+          "measurements": {
+            "sources": 10,
+            "main_revisions": 3,
+            "failure_attempts": 2,
+            "physical_counts": {
+              "KGSource": 10,
+              "KGRevision": 32,
+              "KGContentUnit": 272,
+              "KGSegment": 256,
+              "KGProjection": 512,
+              "KGPublication": 30,
+              "KGBuild": 32
+            },
+            "input_bytes_including_failure_fixtures": 262144,
+            "retained_readers": 2,
+            "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+            "capture_and_build_seconds": 10.584612166989245,
+            "readonly_reopen_seconds": 0.14626749999297317,
+            "readonly_copy_bytes": 12130287,
+            "peak_rss_bytes": 426000384,
+            "disk_bytes": 19908566,
+            "validation_p50_ms": 6.0720420005964115,
+            "validation_p95_ms": 6.635500001721084,
+            "logical_vector_dimensions": 384
+          },
+          "threshold_failures": []
+        },
+        {
+          "passed": true,
+          "measurements": {
+            "sources": 100,
+            "main_revisions": 3,
+            "failure_attempts": 2,
+            "physical_counts": {
+              "KGSource": 100,
+              "KGRevision": 302,
+              "KGContentUnit": 2702,
+              "KGSegment": 2416,
+              "KGProjection": 4832,
+              "KGPublication": 300,
+              "KGBuild": 302
+            },
+            "input_bytes_including_failure_fixtures": 2473984,
+            "retained_readers": 2,
+            "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+            "capture_and_build_seconds": 117.63701066600333,
+            "readonly_reopen_seconds": 1.1337069589935709,
+            "readonly_copy_bytes": 25479445,
+            "peak_rss_bytes": 605044736,
+            "disk_bytes": 99070911,
+            "validation_p50_ms": 11.217000006581657,
+            "validation_p95_ms": 12.693458003923297,
+            "logical_vector_dimensions": 384
+          },
+          "threshold_failures": []
+        }
+      ],
+      "unchanged": true,
+      "passed": true
+    },
+    "sdk_sigkill": {
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "cases": [
+        {
+          "stage": "before_commit",
+          "passed": true,
+          "termination": "real_SIGKILL_at_SDK_boundary",
+          "readonly_files_unchanged": true,
+          "reconciliation": "not_committed",
+          "not_covered": [
+            "hardware power loss",
+            "mid-native-WAL syscall with SDK publication receipt"
+          ]
+        },
+        {
+          "stage": "after_commit",
+          "passed": true,
+          "termination": "real_SIGKILL_at_SDK_boundary",
+          "readonly_files_unchanged": true,
+          "reconciliation": "committed",
+          "not_covered": [
+            "hardware power loss",
+            "mid-native-WAL syscall with SDK publication receipt"
+          ]
+        },
+        {
+          "stage": "provider",
+          "passed": true,
+          "termination": "real_SIGKILL_at_SDK_boundary",
+          "readonly_files_unchanged": true,
+          "reconciliation": "provider_unknown",
+          "not_covered": [
+            "hardware power loss",
+            "mid-native-WAL syscall with SDK publication receipt"
+          ]
+        },
+        {
+          "stage": "creation",
+          "passed": true,
+          "termination": "real_SIGKILL_at_SDK_boundary",
+          "readonly_files_unchanged": true,
+          "reconciliation": "not_committed",
+          "not_covered": [
+            "hardware power loss",
+            "mid-native-WAL syscall with SDK publication receipt"
+          ]
+        },
+        {
+          "stage": "optimize",
+          "passed": true,
+          "termination": "real_SIGKILL_at_SDK_boundary",
+          "readonly_files_unchanged": true,
+          "reconciliation": "not_committed",
+          "not_covered": [
+            "hardware power loss",
+            "mid-native-WAL syscall with SDK publication receipt"
+          ]
+        }
+      ],
+      "passed": true,
+      "sdk_sha256": {
+        "zknowledge/__init__.py": "f216cdb2b4318a6f2e615410bff492fa3b357e1a8ae272b3d2cb2439d5bc028d",
+        "zknowledge/_persistence.py": "5c430c268cb202a543ff5f094876f28aa086dacebe27bbbe2a64f4b15082f059",
+        "zknowledge/adapters/__init__.py": "519c5d33e6368479a03c6b3ebd51c18dec5889342ebb6bfcda07c684758969a8",
+        "zknowledge/adapters/graph_store.py": "02339d2c36e030f3d32241ead731e84999226a7262c5e5b527f1001289b55cfb",
+        "zknowledge/adapters/search_index.py": "371b2cb61e7b1b13df39a0dca8bc5cd2e8581fba923af61b4ce71eea49e0cd17",
+        "zknowledge/adapters/snapshot_store.py": "5a506f593bab5eeb296e6cd8319cc041332962f91bebdf667112db6e984ee8a6",
+        "zknowledge/build_models.py": "1770793706ee05c0e7fe4a712ccf94a880fb3810e95fca5791d5b340237d5246",
+        "zknowledge/builds.py": "7d25123a1ee94114ce166d36b3f9ddcb782c280445f2a5d8a70dbaf347decad4",
+        "zknowledge/config.py": "eb751698c729034472d8e8012df556f8e58b5a855d495077aa54476a4f5cb868",
+        "zknowledge/document_processing.py": "908843a16198d644c179979305c4f32f616d87b770d1f9e492e8ac4138fc5571",
+        "zknowledge/documents.py": "406ee9c432a8972cc8159618e86939180b95b2902d12d619d5a36c61e3467a8b",
+        "zknowledge/embedding.py": "5f0784c76e6d7efcbee2e863cc8677ac9b8987d0dbf7490f2de49c6c400320ff",
+        "zknowledge/errors.py": "eb67f391ad20f7a5abebb6aede6ce1b1dfe9ac07cce4d49be099c1c278a6df81",
+        "zknowledge/execution.py": "34861934c9bef5f5aa69d7287ab3901c1e55857d4b8254a570d222f9fe38713f",
+        "zknowledge/index_catalog.py": "94ac976d2ff27d9726e6fa8e7827cd40c199ca1f958e6da2b41a7c13f5d0f831",
+        "zknowledge/kb.py": "ea984374880e4c11bb4e7e4d53a5d6290dd4bcd4041842d23c268281eaeb853b",
+        "zknowledge/manifest.py": "d7cb7d3ca30f6a988d26afd0fa3aec667211203e423baaf2313038ea5f2ec90a",
+        "zknowledge/models.py": "d8140eb1d2adcf7ceb53303f7c7e4657474ef7f24215552e50038bf17ec1b4ef",
+        "zknowledge/preflight.py": "e3fe849b3b0feedfd7c169410074a286473c57bc5935ba625887d614ff66732a",
+        "zknowledge/publication_store.py": "669467077ecdd7939b061d95ff391fc30da71b054b9aeaae523b15138e3eb177",
+        "zknowledge/source_store.py": "106391631cf9c51f67c6e432b1cc9830efdce1ef4cd6206cf88f77b98bb1a12f",
+        "zknowledge/sources.py": "d055a80678da0d5e703706b803cb6bf41b5fd3444233d98ba9e9d4a7311cd814"
+      },
+      "runner_sha256": "bc72bb34ba2933ab0e85c668cbdd6ea5394f3773cdceb6d8fd0a73ba55275bd4"
+    },
+    "native_faults": {
+      "passed": true,
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "source_variant": "libcxx-csv-fallback",
+      "commands": [
+        [
+          "/Users/zhanglei/code/github/z-knowledge-graph/.artifacts/spike-0/source-variants/graphdb-libcxx-20261020T091942815459Z/build/temp.macosx-15.0-arm64-cpython-313/graphdb/tests/graphdb_durable_memory_tests"
+        ],
+        [
+          "/Users/zhanglei/code/github/z-knowledge-graph/.artifacts/spike-0/source-variants/graphdb-libcxx-20261020T091942815459Z/build/temp.macosx-15.0-arm64-cpython-313/graphdb/tests/graphdb_tp_wal_tests"
+        ]
+      ],
+      "test_source_sha256": {
+        "tests/storage/durable_memory_test.cc": "f61b954e7aac0b98bc68295263ed8dce28ec849ec924f1f189d958ea330f02c1",
+        "tests/storage/tp_wal_test.cc": "8c08aeafed47602bd39ab5cc38249a48e3f87203a2dcef6e8119677f276c5d10"
+      },
+      "results": [
+        {
+          "target": "graphdb_durable_memory_tests",
+          "returncode": 0,
+          "passed": true,
+          "wall_seconds": 5.885962790998747,
+          "stdout": "durable memory recovery tests passed\n",
+          "stderr": ""
+        },
+        {
+          "target": "graphdb_tp_wal_tests",
+          "returncode": 0,
+          "passed": true,
+          "wall_seconds": 0.5316904580104165,
+          "stdout": "TP WAL tests passed\n",
+          "stderr": ""
+        }
+      ],
+      "evidence_kind": "native deterministic fault injection and crash/reopen at internal boundaries",
+      "not_claimed": [
+        "hardware power failure",
+        "unmodified graphdb build variant"
+      ]
+    },
+    "inventory": {
+      "10": {
+        "root": ".artifacts/phase3/sdk-scale-isolated/10/kb",
+        "node_counts": {
+          "KGSource": 10,
+          "KGRevision": 32,
+          "KGContentUnit": 272,
+          "KGIngestOperation": 32,
+          "KGIngestAttempt": 32,
+          "KGIngestReceipt": 32,
+          "KGMetadata": 1,
+          "KGBuild": 32,
+          "KGBuildAttempt": 32,
+          "KGStageArtifact": 160,
+          "KGProjection": 512,
+          "KGSegment": 256,
+          "KGPublication": 30,
+          "KGPublicationReceipt": 30,
+          "KGSourceSelection": 10,
+          "KGPublicationView": 1
+        },
+        "relation_counts": {
+          "KG_HAS_REVISION": 32,
+          "KG_HAS_UNIT": 272
+        },
+        "collection_counts": {
+          "3395d7270897f1b129a8983d38d044b2bf5f2ad002e8b2ad1a1c8a6d1f934da3": {
+            "channel": "text",
+            "doc_count": 256
+          },
+          "6d2d1e8ef92c8fed31cd48e07897cc060998c0abff43d8bf177a10be9d105c0a": {
+            "channel": "vector",
+            "doc_count": 256
+          }
+        },
+        "retained_file_bytes": {
+          "graph": 4045008,
+          "index": 12130287,
+          "snapshots": 265984,
+          "artifacts": 3464480,
+          "stores": 2061
+        },
+        "readonly_files_unchanged": true,
+        "runner_sha256": "b2bd1fcec3bf15f9241c073045f47e91cb56115dcc199a78d3bec48ccbc1db78"
+      },
+      "100": {
+        "root": ".artifacts/phase3/sdk-scale-isolated/100/kb",
+        "node_counts": {
+          "KGSource": 100,
+          "KGRevision": 302,
+          "KGContentUnit": 2702,
+          "KGIngestOperation": 302,
+          "KGIngestAttempt": 302,
+          "KGIngestReceipt": 302,
+          "KGMetadata": 1,
+          "KGBuild": 302,
+          "KGBuildAttempt": 302,
+          "KGStageArtifact": 1510,
+          "KGProjection": 4832,
+          "KGSegment": 2416,
+          "KGPublication": 300,
+          "KGPublicationReceipt": 300,
+          "KGSourceSelection": 100,
+          "KGPublicationView": 1
+        },
+        "relation_counts": {
+          "KG_HAS_REVISION": 302,
+          "KG_HAS_UNIT": 2702
+        },
+        "collection_counts": {
+          "31f99e3f55d0beb45466d50903366c33795a606dc58b67502a333e46a7f8614b": {
+            "channel": "text",
+            "doc_count": 2416
+          },
+          "6bef755b95bcb085b3e523f8244f595f3d962a6233f7985a6e0bd8ed8e9633c2": {
+            "channel": "vector",
+            "doc_count": 2416
+          }
+        },
+        "retained_file_bytes": {
+          "graph": 38382405,
+          "index": 25479445,
+          "snapshots": 2510224,
+          "artifacts": 32696030,
+          "stores": 2061
+        },
+        "readonly_files_unchanged": true,
+        "runner_sha256": "b2bd1fcec3bf15f9241c073045f47e91cb56115dcc199a78d3bec48ccbc1db78"
+      }
+    },
+    "example": {
+      "passed": true,
+      "output": {
+        "root": "/var/folders/3k/hpnm2gsj0597v_8r_04134xc0000gp/T/zkg-phase3-example-mge8m45r/kb",
+        "capture_search_ready": false,
+        "v1_publication": "4168689f0a50db12588fe3a60f49bc16b2dcf8c4d882fc83240a40af2281ed09",
+        "repeat_outcome": "unchanged",
+        "failed_v2_kept_v1": true,
+        "v2_publication": "1f65773db87c36539ba6be1a4499c73624f139ecd2ced8597876072b663b0b27",
+        "text_ready": true,
+        "vector_ready": true,
+        "unit_count": 2,
+        "search_api_available": false,
+        "vectors": "synthetic fixtures; no semantic quality claim"
+      },
+      "source_sha256": "a8b6b8ab7b272c1832955f14448117e24cdeea45c9696cb30edf193fec46cc39"
+    },
+    "ruff_check": {
+      "passed": true,
+      "command": ".venv/bin/ruff check zknowledge tests spikes examples"
+    },
+    "ruff_format": {
+      "passed": true,
+      "files": 61,
+      "command": ".venv/bin/ruff format --check zknowledge tests spikes examples"
+    },
+    "git_diff_check": {
+      "passed": true,
+      "command": "git diff --check",
+      "scope_note": "Repository has no initial commit; separate full local-file whitespace and link checks are also required."
+    },
+    "documentation": {
+      "passed": true,
+      "local_links": 96,
+      "python_files": 48,
+      "doc_sha256": {
+        "README.md": "d1c130e547d1489b357bb154a3fc30f6ff78ceaa35962cc40d7dbf10096c1f27",
+        "knowledge-system-design.md": "4c90e40d34645e65560f12ad52c7d93d55f33d93264643518582a713afd9d252",
+        "knowledge-delivery-plan.md": "72942cb8799d495ca96b0e8c36069449790960c2665d0663e8785ab824eab42b",
+        "knowledge-phase3-plan.md": "3639afebe06f32b7578dab8110aa4b195e42c728b1d6879f5af42d1f4571b5ea",
+        "spikes/phase3/CONTRACTS.md": "5dd2751af7c18ec80449291c96f81233190c42e2528fa9c139608293d606009d",
+        "spikes/phase3/PHASE3_REPORT.md": "23139d89690b3f09ef1d77312927c24b851cc51ec65cbfbba561b8d78963d085"
+      }
+    }
+  },
+  "unsupported_native_path_controls": {
+    "existing_id_upsert_then_optimize": {
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "kind": "unsupported_native_path_negative_control",
+      "expected_unsupported_case_reproduced": true,
+      "reported_doc_count_after": 16,
+      "expected_ids": 16,
+      "missing_after_compaction": [
+        "next-14"
+      ],
+      "sdk_policy": "fetch and reuse identical existing IDs; reject differing content; native upsert only missing IDs"
+    },
+    "raw_readonly_open": {
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "kind": "unsupported_native_readonly_negative_control",
+      "native_mutation_reproduced": true,
+      "changed_files": {
+        "3/embedding.index.1.proxima": {
+          "before": "abad644ed894073236d8519c619d61b30f0481b86d056b11f51ee5c04214ca87",
+          "after": "755fa149754dd553710f5ceac620db3265e2614efe55950066cf600cfd9a2a2c"
+        }
+      },
+      "native_doc_count": 3,
+      "sdk_original_files_unchanged": true,
+      "sdk_readonly_copy_bytes": 4921372
+    }
+  },
+  "retained_failures": {
+    "v2_formal_scale_before_accounting_optimization": {
+      "profile": {
+        "id": "phase3-sdk-10-100-v2-bounded-reads",
+        "source_counts": [
+          10,
+          100
+        ],
+        "sections": 8,
+        "section_bytes": 1024,
+        "retained_revisions": 3,
+        "dimensions": 384,
+        "retained_readers": 2,
+        "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+        "failure_attempts": 2,
+        "peak_rss_limit_bytes": 2147483648,
+        "capture_and_build_limit_seconds": 120,
+        "readonly_reopen_limit_seconds": 120,
+        "validation_p95_limit_ms": 200,
+        "query_samples": 100,
+        "notes": [
+          "Actual SDK schema and combined graph/text/vector process; synthetic embeddings only.",
+          "Internal publication-validation read latency is not Phase 4 public search latency.",
+          "Thresholds frozen before measurement, inherited conservatively from local development limits.",
+          "1,000-source actual SDK evaluation remains M5 per the current implementation plan.",
+          "v1 held native readers across an entire multi-source batch and exhausted the fixed 64-version retirement budget; v2 uses bounded reader lifetime, tests exhaustion separately, and keeps all numeric thresholds unchanged.",
+          "Native HNSW blocks are compacted at 16 blocks, preserving every projection ID. This is native physical maintenance, not application GC."
+        ]
+      },
+      "profile_sha256": "a7ff6609da3f7a65260a75c6b10007f5e63776c59d125a347b96e9b96c697d74",
+      "environment": {
+        "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.3",
+        "bases": {
+          "graphdb_commit": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+          "zvec_commit": "a4347e31f1b8e216cffba59285427a3b78551229"
+        },
+        "profile_sha256": "d02b864fd13503dff7f1806a376b14c7444a115a24dcf98eed8158f65a1aa05c",
+        "native_provenance": {
+          "graphdb": {
+            "name": "graphdb",
+            "ok": true,
+            "source_variant": "libcxx-csv-fallback",
+            "wheel_sha256": "99df9b06f3bcbe3d26a1dc80d2dcaa4cb3c1283f11c1c712819b559e1879c9bf"
+          },
+          "zvec": {
+            "name": "zvec",
+            "ok": true,
+            "source_variant": "unmodified",
+            "wheel_sha256": "2db949e43ddbcdafcf655ff2ef5995fcffc45f6e0d0750ae461024d9e37b62f8"
+          }
+        },
+        "experiment_source_sha256": {
+          "spikes/validation/common.py": "c87fda968be3b2995274b9a63f302e8e81c283e5bbc1de52e7730e660fb17944",
+          "spikes/validation/native.py": "a24cda925900af5e2805858557d269252d854bfde8cbf9f1c6403969a83160ff",
+          "spikes/validation/run.py": "279abac15c5be86dd504c059aab7e34c01136402cdf78b89fbae9c5d1cf2ff7c",
+          "spikes/spike_1/contracts.py": "38fdc284003f682132f32473a77ed57fdbcdbda35fbb7379cd663dcb001f869a",
+          "spikes/spike_1/scale.py": "9e902dbc939cbf961941760fc4c81b612efef3667f3d819522c20f8ceb9d4e00",
+          "spikes/spike_1/source_probe.py": "20acdf3f125d1bdb28f977ce3a5ce4c4cc32f605d13e855f69993e2db51bad10",
+          "spikes/spike_2/effective_view.py": "6f4f1c2facaab8b289041a5b6941fe6cbff9a2475704f97632c6cbf450e890e5",
+          "spikes/spike_2/index_probe.py": "2e7f2e651f08e6e1649d2ed2a421b8460e0dbbdd4a1fa993070755133b020c69"
+        }
+      },
+      "sdk_sha256": {
+        "zknowledge/__init__.py": "f216cdb2b4318a6f2e615410bff492fa3b357e1a8ae272b3d2cb2439d5bc028d",
+        "zknowledge/_persistence.py": "5c430c268cb202a543ff5f094876f28aa086dacebe27bbbe2a64f4b15082f059",
+        "zknowledge/adapters/__init__.py": "519c5d33e6368479a03c6b3ebd51c18dec5889342ebb6bfcda07c684758969a8",
+        "zknowledge/adapters/graph_store.py": "02339d2c36e030f3d32241ead731e84999226a7262c5e5b527f1001289b55cfb",
+        "zknowledge/adapters/search_index.py": "371b2cb61e7b1b13df39a0dca8bc5cd2e8581fba923af61b4ce71eea49e0cd17",
+        "zknowledge/adapters/snapshot_store.py": "5a506f593bab5eeb296e6cd8319cc041332962f91bebdf667112db6e984ee8a6",
+        "zknowledge/build_models.py": "1770793706ee05c0e7fe4a712ccf94a880fb3810e95fca5791d5b340237d5246",
+        "zknowledge/builds.py": "49bd3d66617aeb8358680902294bb28591781e6a945234f7b33a70b4b1580ea6",
+        "zknowledge/config.py": "eb751698c729034472d8e8012df556f8e58b5a855d495077aa54476a4f5cb868",
+        "zknowledge/document_processing.py": "908843a16198d644c179979305c4f32f616d87b770d1f9e492e8ac4138fc5571",
+        "zknowledge/documents.py": "406ee9c432a8972cc8159618e86939180b95b2902d12d619d5a36c61e3467a8b",
+        "zknowledge/embedding.py": "5f0784c76e6d7efcbee2e863cc8677ac9b8987d0dbf7490f2de49c6c400320ff",
+        "zknowledge/errors.py": "eb67f391ad20f7a5abebb6aede6ce1b1dfe9ac07cce4d49be099c1c278a6df81",
+        "zknowledge/execution.py": "34861934c9bef5f5aa69d7287ab3901c1e55857d4b8254a570d222f9fe38713f",
+        "zknowledge/index_catalog.py": "0bea48be146b8bcb9340ec9077e790124955975320d86519f45ec541f1821a2d",
+        "zknowledge/kb.py": "dd1ead87e1165f68ce41f160d980cea50d8662f689beb1136fe5c4ace43f917d",
+        "zknowledge/manifest.py": "d7cb7d3ca30f6a988d26afd0fa3aec667211203e423baaf2313038ea5f2ec90a",
+        "zknowledge/models.py": "d8140eb1d2adcf7ceb53303f7c7e4657474ef7f24215552e50038bf17ec1b4ef",
+        "zknowledge/preflight.py": "e3fe849b3b0feedfd7c169410074a286473c57bc5935ba625887d614ff66732a",
+        "zknowledge/publication_store.py": "669467077ecdd7939b061d95ff391fc30da71b054b9aeaae523b15138e3eb177",
+        "zknowledge/source_store.py": "106391631cf9c51f67c6e432b1cc9830efdce1ef4cd6206cf88f77b98bb1a12f",
+        "zknowledge/sources.py": "d055a80678da0d5e703706b803cb6bf41b5fd3444233d98ba9e9d4a7311cd814"
+      },
+      "runner_sha256": "6ec62b0f85d8ba2e960703d82ac9d48754ddad3355eea88dbea09bb975617027",
+      "cases": [
+        {
+          "passed": true,
+          "measurements": {
+            "sources": 10,
+            "main_revisions": 3,
+            "failure_attempts": 2,
+            "physical_counts": {
+              "KGSource": 10,
+              "KGRevision": 32,
+              "KGContentUnit": 272,
+              "KGSegment": 256,
+              "KGProjection": 512,
+              "KGPublication": 30,
+              "KGBuild": 32
+            },
+            "input_bytes_including_failure_fixtures": 262144,
+            "retained_readers": 2,
+            "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+            "capture_and_build_seconds": 10.71960750001017,
+            "readonly_reopen_seconds": 0.11240112499217503,
+            "peak_rss_bytes": 430931968,
+            "disk_bytes": 19908540,
+            "validation_p50_ms": 5.267790998914279,
+            "validation_p95_ms": 5.5958340090001,
+            "logical_vector_dimensions": 384
+          },
+          "threshold_failures": []
+        },
+        {
+          "passed": false,
+          "measurements": {
+            "sources": 100,
+            "main_revisions": 3,
+            "failure_attempts": 2,
+            "physical_counts": {
+              "KGSource": 100,
+              "KGRevision": 302,
+              "KGContentUnit": 2702,
+              "KGSegment": 2416,
+              "KGProjection": 4832,
+              "KGPublication": 300,
+              "KGBuild": 302
+            },
+            "input_bytes_including_failure_fixtures": 2473984,
+            "retained_readers": 2,
+            "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+            "capture_and_build_seconds": 130.5444902080053,
+            "readonly_reopen_seconds": 0.9766042080009356,
+            "peak_rss_bytes": 620609536,
+            "disk_bytes": 99070855,
+            "validation_p50_ms": 11.795917002018541,
+            "validation_p95_ms": 12.613999992026947,
+            "logical_vector_dimensions": 384
+          },
+          "threshold_failures": [
+            "capture_and_build_seconds"
+          ]
+        }
+      ],
+      "unchanged": true,
+      "passed": false
+    },
+    "raw_readonly_after_sigkill": {
+      "artifact": ".artifacts/phase3/crash-diagnose/after_commit/readonly-check.json",
+      "changed": {
+        "index/collections/2fa0d1c044242a4270f75449f8651972595364eeb3ac32b48a2bd7e3b3b17000/0/embedding.index.1.proxima": {
+          "before": "c7437bed39a98fd0d612b03a1f444036deb3b1748032f8ed29fd0f1a781e4613",
+          "after": "4c1d6e7b3cd32dbe132ad0a661c6a0045b38a3e5e1990884cc49370c59fd2fb5"
+        }
+      }
+    },
+    "clean_readonly_open_mmap_override_false_did_not_fix": {
+      "scope": "cleanly_closed_100_source_buffer_storage_readonly",
+      "passed": false,
+      "changed": {
+        "index/collections/f7520fa2d55654ae45b2f2f142d01d95327e7b72200e9102f07a3c2d27e8025a/38/embedding.index.1.proxima": {
+          "before": "fded184386c587d9f10d372bbab43c6829d4f11bb662bf2925d0fbf4c3152b21",
+          "after": "d65e323b018f7305e86961bd1fa3f316ff9db5090742a40f7d2c2ab428eb6d0d"
+        },
+        "index/collections/f7520fa2d55654ae45b2f2f142d01d95327e7b72200e9102f07a3c2d27e8025a/39/embedding.index.1.proxima": {
+          "before": "98408fc60c9d777614fbda09d0116be3a02a77041e8d381dfcf63a3d8b871a6c",
+          "after": "4c880762ccb38c768447554dcfc6f7cf3e8d64e79f8c7714f5122bfc953bf690"
+        }
+      },
+      "sources": 100
+    },
+    "buffer_storage_compaction_exploration": {
+      "adopted": false,
+      "observed_error": "native buffer pool/write_range and failed to open index during optimize; neither configuration nor native wheel changed"
+    },
+    "v1_long_read_scope": {
+      "passed": false,
+      "reason": "Two Read transactions held across a complete multi-source batch exhausted fixed retired-version budget; v2 pins across one source update and tests exhaustion separately. Numeric thresholds unchanged."
+    }
+  },
+  "notes": [
+    "Scale profile_sha256 is the Phase 3 workload hash. Nested environment.profile_sha256 refers to the reused Spike-1/2 environment recorder profile, not Phase 3 thresholds.",
+    "Negative controls reproduce excluded native contracts; they are not positive correctness claims.",
+    "SDK, gate, scale and SIGKILL source hashes were matched at delivery.",
+    "Native fault tests use the recorded libcxx-csv-fallback build; no native rebuild was needed.",
+    "Peak RSS covers one combined SDK worker. Retained disk and readonly copy bytes are separate; instantaneous compaction disk peak was not continuously sampled."
+  ],
+  "not_covered": [
+    "Phase 4 public search/RRF/evidence retrieval",
+    "real model and ANN/extraction quality",
+    "1,000-source actual SDK workload",
+    "all native WAL/optimize syscall failures combined with SDK receipts",
+    "hardware power loss and network filesystems",
+    "application GC, old database migration and full-corpus embedding-space catch-up"
+  ],
+  "project_boundary_unchanged": true,
+  "artifact_paths": {
+    "gate": ".artifacts/phase3/gate-delivery.json",
+    "sdk_scale": ".artifacts/phase3/sdk-scale-isolated/results.json",
+    "sdk_sigkill": ".artifacts/phase3/crash-delivery/results.json",
+    "native_faults": ".artifacts/phase3/native-final/native-results.json"
+  },
+  "verification_source_sha256": {
+    "tests/__init__.py": "69c6015fe57a4677a0e2d374cb5eecf65477111e2eef890596b42f6803acfb18",
+    "tests/integration/__init__.py": "a661508b4ab137e89d80493a538386814c5a851e49d532d3ce4bfaa4b3df0522",
+    "tests/integration/test_adapter_probe.py": "298ab1cdf9d2674da71318c7d70176becb8e18fdef734aba649876c294c70819",
+    "tests/integration/test_builds.py": "59f49c79ccaed38110f00cd4d35a8ed19fbfb5f48da91ce6b40101982c67a83a",
+    "tests/integration/test_kb_lifecycle.py": "633c17160ec237b817a841361cad5f5248acde256b6e6f3459f904a550ebecb9",
+    "tests/integration/test_sources.py": "d3419ba985007d2bb2d3fe243182405019199a09d20e5c40cb9d89ab2644018b",
+    "tests/integration/test_spike_contracts.py": "8acff665a4a26ff41d2f5ed067fb249eaec0ce83a4ef7d2446154f735ef496a2",
+    "tests/unit/__init__.py": "3907dd94ea2dd5bedc2a7e41000776bd50512c24b2063357261333c8751649dd",
+    "tests/unit/test_admission.py": "4324ab1dfa38032f65e4dcb07c9949cb4d0558935c864a633e37f44282eb55fa",
+    "tests/unit/test_document_processing.py": "7a7cbaefe8183514abdbca612d277ffce122c6fe5c67279d26b5ae9772893735",
+    "tests/unit/test_documents.py": "a3729ef3e9c142f30adb1853fe89b1a6ac8dc12a3b300e15a1809535b34316de",
+    "tests/unit/test_effective_view_spike.py": "6e9073a35bdf967193c495845549eca205524afa07bb56a12992f57365302d98",
+    "tests/unit/test_embedding.py": "25b1c9ac6cdc9a03b5f360f5e309d178b4fb1b4bbcfa8470326a18a2f41143bf",
+    "tests/unit/test_errors.py": "96e748bc88beac6df82b36b9421e0902c57f2eeff2cd0808a3b7e15472d104cc",
+    "tests/unit/test_graph_store_map.py": "5d44a3678b04b3253bf1e38647d6875931850859a706913a49d79df3d2748fbf",
+    "tests/unit/test_jobhandle.py": "afa91e629ec1339c277aa33ce6b0894fec6134378e380a8f6f9b5cf75548484f",
+    "tests/unit/test_manifest.py": "9cfb93299fd928a5dc4de23dfc111a0482c48b006e4640726eae46bbcb30ad65",
+    "tests/unit/test_snapshot_store.py": "4b4da5c1326d31247b5ff5c491f47eaeaf9bbeb18df332dd6ca666d5c157ed9f",
+    "examples/phase2_ingest.py": "6fcb0185d0c35962276ee5e6f83500967d45d2137785bc3a6145510bfd34b1ed",
+    "examples/phase3_build.py": "a8b6b8ab7b272c1832955f14448117e24cdeea45c9696cb30edf193fec46cc39",
+    "spikes/phase3/crash.py": "bc72bb34ba2933ab0e85c668cbdd6ea5394f3773cdceb6d8fd0a73ba55275bd4",
+    "spikes/phase3/gate.py": "ab73d092ff0a4c5af0bdffe631d29c4989940746ef52e10e62658b82fffd75ff",
+    "spikes/phase3/inventory.py": "b2bd1fcec3bf15f9241c073045f47e91cb56115dcc199a78d3bec48ccbc1db78",
+    "spikes/phase3/readonly_negative.py": "1508afbbc99af9afea0c2e19448e710d696bc31c2e656b31d4bb19596067748f",
+    "spikes/phase3/scale.py": "17567b1e8c02fc53953fa97a4596165ba92b24a0ecdc51a52c752dff4f1df300",
+    "spikes/phase3/upsert_negative.py": "2a6b9f535042c1a05afbf88d4d77ae4ac8e36104ce1bb1d7f38ef780d4e06ee5"
+  },
+  "profile_sha256": "a7ff6609da3f7a65260a75c6b10007f5e63776c59d125a347b96e9b96c697d74"
+}

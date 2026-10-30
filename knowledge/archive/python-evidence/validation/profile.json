@@ -1,0 +1,42 @@
+{
+  "profile_id": "local-dev-1000-v2",
+  "confirmed_by_user": true,
+  "source_counts": [
+    10,
+    100,
+    1000
+  ],
+  "target_sources": 1000,
+  "chunks_per_source_revision": 8,
+  "chunk_bytes": 1024,
+  "retained_revisions": 3,
+  "revision_roles": [
+    "current",
+    "candidate",
+    "retained"
+  ],
+  "vector_dimensions": 384,
+  "queries_per_case": 100,
+  "query_warmups": 5,
+  "top_k": 10,
+  "rss_limit_bytes": 2147483648,
+  "query_p95_limit_ms": 200,
+  "build_limit_seconds": 120,
+  "reopen_limit_seconds": 120,
+  "contract_timeout_seconds": 30,
+  "concurrent_readers": 2,
+  "fault_seed": 20261021,
+  "notes": [
+    "Thresholds confirmed before official runs; changes require a new profile and rerun.",
+    "Synthetic corpus/vectors are storage workloads, not extraction or ANN quality claims.",
+    "Peak RSS includes fixture generation and native libraries in each isolated worker.",
+    "Target pass is a tested operating point, not the engine capacity ceiling.",
+    "Graphs retain current/candidate/old versions; read-holder behavior is measured separately.",
+    "v1 default-budget failure retained in initial artifacts; v2 explicitly fixes query resource limits without changing acceptance thresholds."
+  ],
+  "graph_config": {
+    "transaction_mode": "tp",
+    "transaction_timeout_ms": 1000,
+    "max_intermediate_rows": 1000000
+  }
+}

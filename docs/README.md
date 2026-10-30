@@ -54,3 +54,18 @@ zg --help index
 
 For development setup and pull request conventions, see
 [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+## Knowledge framework development
+
+The [Rust knowledge components](../rust/crates/zg-knowledge/README.md) implement
+reusable knowledge components, candidate publication and typed code exploration.
+They reuse the workspace zvec binding and pinned upstream graphdb Rust binding.
+The [G3 plan](../knowledge/G3_IMPLEMENTATION_PLAN.md) tracks graph augmentation
+and exact retrieval scopes. Coverage and build cost remain separate limitations;
+see the [G2 acceptance record](../knowledge/G2_ACCEPTANCE_REPORT.md).
+
+The [knowledge framework](../knowledge/README.md) links the current design and
+validation records. Engine and KG share low-level [storage utilities](../rust/crates/zg-storage/README.md).
+The Python implementation and storage probes have been retired into a restorable
+archive; see the [historical baseline guide](../knowledge/HISTORY.md) for migration
+comparison and the [retirement validation](../knowledge/RETIREMENT.md).

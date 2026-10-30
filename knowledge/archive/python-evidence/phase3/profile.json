@@ -1,0 +1,24 @@
+{
+  "id": "phase3-sdk-10-100-v2-bounded-reads",
+  "source_counts": [10, 100],
+  "sections": 8,
+  "section_bytes": 1024,
+  "retained_revisions": 3,
+  "dimensions": 384,
+  "retained_readers": 2,
+  "reader_pin_scope": "one source capture/build/publication amid three retained revisions across the workload",
+  "failure_attempts": 2,
+  "peak_rss_limit_bytes": 2147483648,
+  "capture_and_build_limit_seconds": 120,
+  "readonly_reopen_limit_seconds": 120,
+  "validation_p95_limit_ms": 200,
+  "query_samples": 100,
+  "notes": [
+    "Actual SDK schema and combined graph/text/vector process; synthetic embeddings only.",
+    "Internal publication-validation read latency is not Phase 4 public search latency.",
+    "Thresholds frozen before measurement, inherited conservatively from local development limits.",
+    "1,000-source actual SDK evaluation remains M5 per the current implementation plan.",
+    "v1 held native readers across an entire multi-source batch and exhausted the fixed 64-version retirement budget; v2 uses bounded reader lifetime, tests exhaustion separately, and keeps all numeric thresholds unchanged.",
+    "Native HNSW blocks are compacted at 16 blocks, preserving every projection ID. This is native physical maintenance, not application GC."
+  ]
+}

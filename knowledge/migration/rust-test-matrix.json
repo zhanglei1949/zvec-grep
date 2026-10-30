@@ -1,0 +1,847 @@
+{
+  "baseline": "Frozen Python Phase 1-3, 138 tests; Rust rewrite binding-independent stage",
+  "meaning": "component_only maps related Rust component tests, not complete per-case or persistent SDK equivalence. No Phase 1-3 equivalence is claimed before graphdb integration. Parser AST IDs, internal IDs, fingerprints and physical format intentionally differ.",
+  "counts": {
+    "awaiting_graphdb": 78,
+    "component_partial": 6,
+    "legacy_only": 10,
+    "component_only": 38,
+    "language_specific": 6
+  },
+  "tests": [
+    {
+      "python_test": "knowledge/tests/integration/test_adapter_probe.py:TestGraphStoreProbe.test_empty_db_open_health_and_readonly_reopen",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_adapter_probe.py:TestSearchIndexProbe.test_create_insert_query_and_readonly_reopen",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_adapter_probe.py:TestSearchIndexProbe.test_open_not_created_is_a_state_not_an_error",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_capture_build_reopen_and_bounded_inspection",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_repeat_build_and_replay_are_not_repeat_publication",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_changed_embedding_reuses_text_and_retains_old_generation",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_segment_change_reuses_parse_parser_change_rebuilds",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_a_b_a_reselect_not_unchanged",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_precomputed_persisted_input_and_exact_manifest_coverage",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_required_missing_optional_provider_error_and_empty",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_required_provider_failure_keeps_current_and_same_operation_retry",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_new_capture_fences_an_old_build",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_old_read_snapshot_coexists_with_publication",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_later_publication_before_earlier_confirmation_is_success",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_atomic_publish_failure_has_no_partial_effect",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_commit_response_lost_quarantines_and_reconciles",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_cancel_before_publish_and_after_commit",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_stale_attempt_fenced",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_multi_source_merge_and_partial_space_switch_rejected",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_missing_artifact_is_not_false_unchanged_or_recreated",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_disk_and_runtime_budget_failures_preserve_publication",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_actual_graph_budget_is_passed_to_native_engine",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_segment_expansion_stops_before_metadata_and_index_writes",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_independent_sources_keep_separate_revision_and_segment_ownership",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_same_target_concurrent_builds_can_reuse_completed_effect",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_unrelated_sources_concurrent_first_vector_publications_merge",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_index_response_loss_uses_fetch_without_duplicate_reinsert",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_creation_interrupted_after_native_create_reconciles_explicitly",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_missing_registered_collection_is_error_not_empty_index",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_readonly_checks_do_not_mutate_files",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_readonly_copy_budget_failure_does_not_write_original_files",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_build_deadline_and_cancelled_input_are_not_success",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_native_item_status_preserves_codes_without_input_leak",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_close_drains_accepted_build_without_public_guard_failure",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_provider_result_saved_before_status_loss_does_not_replay",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_retired_read_budget_backpressure_keeps_failure_record_and_current_view",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_physical_compaction_keeps_old_published_projection_ids",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_builds.py:TestDocumentBuilds.test_capture_failure_can_record_outcome_under_retained_read_backpressure",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_create_open_close_reopen",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_create_refuses_non_empty",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_second_writable_open_is_occupied",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_readonly_open_no_lock",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_incompatible_format_rejected",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_mixed_store_rejected",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_incomplete_init_rejected",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_no_public_raw_cypher_or_connection",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_kb_lifecycle.py:TestKbLifecycle.test_capabilities_and_admission_visible",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_receipt_and_record_carry_digest_and_snapshot_separately",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_register_identity_conflict_and_pagination",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_revisions_reselection_and_processing_change",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_shared_bytes_independent_sources_and_relationships",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_original_utf8_crlf_bom_empty_and_readonly_reopen",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_path_capture_and_exclusions_before_read",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_invalid_utf8_and_failed_same_input_retry",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_concurrent_source_update_conflict_and_same_input",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_cancel_before_commit_and_late_cancel_after_commit",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_unknown_commit_and_confirmation_require_reopen_reconciliation",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_prepared_intent_without_commit_explicit_reconciliation",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_old_schema_and_schema_create_interruption",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_close_drains_capture_and_rejects_new_work",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_custom_input_policy_budget_and_growth",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_missing_referenced_snapshot_is_not_silently_repaired",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_stale_attempt_cannot_commit",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_sources.py:TestSources.test_active_operation_and_snapshot_failure_retry",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_spike_contracts.py:TestBaseSpikeContracts.test_graph_visibility_atomicity_and_open_matrix",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_spike_contracts.py:TestBaseSpikeContracts.test_native_read_pin_release",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/integration/test_spike_contracts.py:TestBaseSpikeContracts.test_zvec_partial_write_refill_and_reopen",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_admission.py:TestAdmissionController.test_actual_cost_upgrade_respects_other_workers_and_releases_full_cost",
+      "rust_status": "component_partial",
+      "correspondence": "execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::reservation_growth_observes_other_jobs_and_releases_full_cost",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_admission.py:TestAdmissionController.test_slot_limit_then_release",
+      "rust_status": "component_partial",
+      "correspondence": "execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::reservation_growth_observes_other_jobs_and_releases_full_cost",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_admission.py:TestAdmissionController.test_candidate_space_budget",
+      "rust_status": "component_partial",
+      "correspondence": "Count/byte admission is implemented; persisted candidate/disk budgets and SDK retry classification remain for graphdb integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_admission.py:TestAdmissionController.test_request_over_total_budget_is_non_retryable",
+      "rust_status": "component_partial",
+      "correspondence": "Count/byte admission is implemented; persisted candidate/disk budgets and SDK retry classification remain for graphdb integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_admission.py:TestAdmissionController.test_queue_full_rejects_waiter",
+      "rust_status": "component_partial",
+      "correspondence": "execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::reservation_growth_observes_other_jobs_and_releases_full_cost",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_admission.py:TestAdmissionController.test_lease_context_manager_releases_once",
+      "rust_status": "component_partial",
+      "correspondence": "execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::reservation_growth_observes_other_jobs_and_releases_full_cost",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_bootstrap.py:TestBootstrapLayout.test_standalone_layout_preserves_original_module_name",
+      "rust_status": "legacy_only",
+      "correspondence": "Frozen Python dependency bootstrap; Rust uses Cargo plus workspace zvec-rust. Keep until final cutover, do not translate Python build logic.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_bootstrap.py:TestBootstrapLayout.test_nested_layout_is_idempotent_and_rejects_pin_mismatch",
+      "rust_status": "legacy_only",
+      "correspondence": "Frozen Python dependency bootstrap; Rust uses Cargo plus workspace zvec-rust. Keep until final cutover, do not translate Python build logic.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_bootstrap.py:TestBootstrapLayout.test_registered_empty_checkout_can_be_prepared_from_local_mirror",
+      "rust_status": "legacy_only",
+      "correspondence": "Frozen Python dependency bootstrap; Rust uses Cargo plus workspace zvec-rust. Keep until final cutover, do not translate Python build logic.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_bootstrap.py:TestBootstrapLayout.test_non_git_dependency_directory_is_preserved",
+      "rust_status": "legacy_only",
+      "correspondence": "Frozen Python dependency bootstrap; Rust uses Cargo plus workspace zvec-rust. Keep until final cutover, do not translate Python build logic.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_two_parsers_and_two_extractors_same_protocol",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_stage_fingerprints_stable_isolated_and_dependency_sensitive",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_snapshot_digest_utf8_and_byte_bounds",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_parser_positions_tree_types_and_status",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_cancel_deadline_and_input_output_budgets",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_extraction_evidence_types_schema_and_qualifiers",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_document_processing.py:TestProcessingContracts.test_provider_exception_is_not_empty_success_or_raw_content",
+      "rust_status": "component_only",
+      "correspondence": "components::two_extractors_use_owned_types_and_validate_evidence; components::independent_empty_extractor_and_explicit_incomplete_parse; components::extraction_rejects_missing_subject_conflicting_object_bad_value_and_evidence; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_markdown_structure_uses_raw_crlf_bom_offsets",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_fenced_fake_heading_not_section_and_setext_is_section",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_plaintext_does_not_invent_markdown_sections",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_long_unicode_and_unbroken_code_preserve_coverage",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_overlap_policy_and_stable_segment_ids",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_empty_and_headings_only",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_parser_and_segmenter_fingerprints_are_separate",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_bad_segment_coverage_or_digest_rejected",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_documents.py:TestDocumentBuildProcessing.test_budget_cancel_and_incomplete_parse",
+      "rust_status": "component_only",
+      "correspondence": "components::commonmark_bom_crlf_tables_fences_and_section_hierarchy; components::empty_plaintext_long_unicode_and_overlap_coverage; components::stage_fingerprints_and_provider_replacement; components::segment_gaps_duplicate_ids_order_digest_and_foreign_snapshot_are_rejected; components::provider_output_ranges_cycles_budgets_and_incomplete_status",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_effective_view_spike.py:TestEffectiveViewReference.test_qualified_claims_coexist_and_conflict_is_not_last_write_wins",
+      "rust_status": "legacy_only",
+      "correspondence": "Historical proxy-schema Spike evidence; actual Rust graph view must be revalidated after binding integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_effective_view_spike.py:TestEffectiveViewReference.test_shared_support_deletion_and_dependency_invalidation",
+      "rust_status": "legacy_only",
+      "correspondence": "Historical proxy-schema Spike evidence; actual Rust graph view must be revalidated after binding integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_effective_view_spike.py:TestEffectiveViewReference.test_manual_replacement_revoke_retains_original",
+      "rust_status": "legacy_only",
+      "correspondence": "Historical proxy-schema Spike evidence; actual Rust graph view must be revalidated after binding integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_effective_view_spike.py:TestEffectiveViewReference.test_scope_preserves_global_dispute_and_required_manual_metadata",
+      "rust_status": "legacy_only",
+      "correspondence": "Historical proxy-schema Spike evidence; actual Rust graph view must be revalidated after binding integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_effective_view_spike.py:TestEffectiveViewReference.test_independent_manual_support_survives_both_source_deletions",
+      "rust_status": "legacy_only",
+      "correspondence": "Historical proxy-schema Spike evidence; actual Rust graph view must be revalidated after binding integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_effective_view_spike.py:TestScaleFixturePartition.test_current_old_and_candidate_partitions_have_no_duplicates_or_dangling_edges",
+      "rust_status": "legacy_only",
+      "correspondence": "Historical proxy-schema Spike evidence; actual Rust graph view must be revalidated after binding integration.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_precomputed_freezes_input_and_manifest",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_wrong_digest_missing_duplicate_and_count_rejected",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_space_change_includes_semantics_beyond_dimension",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_invalid_numeric_output",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_credentials_cannot_enter_descriptor",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_provider_result_identity_and_unexpected_failure",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_embedding.py:TestEmbeddingContract.test_synthetic_explicit_test_identity",
+      "rust_status": "component_only",
+      "correspondence": "components::embeddings_precomputed_spaces_finiteness_and_per_item_coverage; components::nested_credentials_and_precomputed_manifest_changes_affect_contracts",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_errors.py:TestErrorModel.test_base_defaults_and_dict",
+      "rust_status": "language_specific",
+      "correspondence": "Rust Error enum and Result replace Python exception hierarchy, dict export and cause overrides; native error mapping remains gated by graphdb binding.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_errors.py:TestErrorModel.test_subclass_classification",
+      "rust_status": "language_specific",
+      "correspondence": "Rust Error enum and Result replace Python exception hierarchy, dict export and cause overrides; native error mapping remains gated by graphdb binding.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_errors.py:TestErrorModel.test_cause_and_explicit_override",
+      "rust_status": "language_specific",
+      "correspondence": "Rust Error enum and Result replace Python exception hierarchy, dict export and cause overrides; native error mapping remains gated by graphdb binding.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_errors.py:TestErrorModel.test_storage_error_default_stage_is_unknown",
+      "rust_status": "language_specific",
+      "correspondence": "Rust Error enum and Result replace Python exception hierarchy, dict export and cause overrides; native error mapping remains gated by graphdb binding.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_errors.py:TestErrorModel.test_all_share_base",
+      "rust_status": "language_specific",
+      "correspondence": "Rust Error enum and Result replace Python exception hierarchy, dict export and cause overrides; native error mapping remains gated by graphdb binding.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_graph_store_map.py:TestGraphStoreErrorMapping.test_commit_outcome_unknown_maps_to_recovery_required",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_graph_store_map.py:TestGraphStoreErrorMapping.test_generic_error_maps_to_storage_error",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_graph_store_map.py:TestGraphStoreErrorMapping.test_write_txn_rejected_on_read_only",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_graph_store_map.py:TestGraphStoreErrorMapping.test_capabilities_report_no_vector_or_fulltext",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_completed_job_returns_result",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_known_error_marks_failed_with_code",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_recovery_required_error_maps_status",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_admission_rejection_fails_job",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_cooperative_cancel",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_wait_timeout_does_not_change_execution",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerPool.test_shutdown_drains",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_jobhandle.py:TestWorkerQueueBound.test_executor_backlog_is_bounded_before_worker_admission",
+      "rust_status": "component_only",
+      "correspondence": "execution_workflow::cancellation_before_and_after_commit_and_unknown_outcome; execution_workflow::bounded_admission_queue_and_lease_release; execution_workflow::worker_count_allows_bounded_overlap_and_shutdown_drains; execution_workflow::panics_release_resources_and_worker_remains_available",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_new_manifest_not_ready_with_stable_ids",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_roundtrip_and_mark_ready",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_incompatible_format_rejected",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_missing_manifest_is_incomplete_init",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_ownership_valid_then_tampered",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_missing_marker_is_identity_mismatch",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_manifest.py:TestManifest.test_update_store_state_preserves_identity",
+      "rust_status": "awaiting_graphdb",
+      "correspondence": "No equivalent persistent Rust API yet. Port this case on actual upstream graphdb binding, including source/receipt/publication/reopen behavior.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotStore.test_put_get_content_addressed_and_dedup",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotStore.test_read_range_left_closed_right_open",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotStore.test_invalid_range_rejected",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotStore.test_invalid_and_missing_id",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotStore.test_non_bytes_rejected",
+      "rust_status": "language_specific",
+      "correspondence": "SnapshotStore::put accepts &[u8]; passing a String is rejected by the Rust type system.",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotIntegrity.test_concurrent_instances_same_content_and_no_temporary_leaks",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotIntegrity.test_corrupt_bytes_metadata_and_encoding_conflict",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    },
+    {
+      "python_test": "knowledge/tests/unit/test_snapshot_store.py:TestSnapshotIntegrity.test_interrupted_metadata_installation_is_not_readable_success",
+      "rust_status": "component_only",
+      "correspondence": "components::immutable_snapshot_roundtrip_metadata_ranges_and_encoding; components::corrupted_or_incomplete_snapshot_never_becomes_success; components::same_content_concurrent_writers_and_reopen",
+      "phase_1_3_equivalent": false
+    }
+  ],
+  "baseline_archive": {
+    "path": "knowledge/archive/python-baseline.zip",
+    "sha256": "14973e013285f0ee5836a74e1d907f92e238eba086c94fc0c539693aeb16dc84",
+    "python_test_identifiers": "Original paths and test names inside the archive; active Python source is retired.",
+    "retirement_is_behavior_equivalence": false
+  }
+}

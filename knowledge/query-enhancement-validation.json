@@ -1,0 +1,91 @@
+{
+  "stage": "G0/G1 candidate facts only",
+  "date": "2026-10-22",
+  "published": false,
+  "search_ready": false,
+  "upstream_binding": {
+    "head": "9d6e966ef0ae214cff8d5018efe1dafb37bc2a99",
+    "rust_directory_git_status": "?? rust/",
+    "lockable_binding_commit_verified": false,
+    "native_query_transaction_capabilities": "not re-probed in this turn; pin gate already unmet"
+  },
+  "workspace_serial": {
+    "harnesses": 41,
+    "passed": 755,
+    "failed": 0,
+    "ignored": 10
+  },
+  "workspace_serial_command": "cargo test --locked --offline --workspace --features zg-engine/knowledge-graph --no-fail-fast -j 14 -- --test-threads=1",
+  "workspace_serial_scope_note": "Completed broad run. Subsequently tightened Rust type-scope resolution and added one regression; final source covered by targeted relation/extraction tests and workspace clippy/default checks below.",
+  "final_targeted": {
+    "relations": {
+      "harnesses": 1,
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0
+    },
+    "contract": {
+      "harnesses": 1,
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    "extraction": {
+      "harnesses": 1,
+      "passed": 33,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "final_checks": {
+    "workspace_graph_feature_clippy_all_targets": "passed -D warnings",
+    "workspace_default_all_targets_check": "passed",
+    "default_zg_dependency_excludes_knowledge": true,
+    "example": {
+      "files": 8,
+      "references": 21,
+      "resolved": 16,
+      "unresolved": 4,
+      "unsupported": 1,
+      "published": false,
+      "search_ready": false
+    }
+  },
+  "prior_failures": [
+    {
+      "run": "sandbox workspace",
+      "passed_before_stop": 3,
+      "failed": 3,
+      "harness": "zg auth",
+      "details": "one PermissionDenied socket fixture; two error-text assertions. All five passed outside sandbox."
+    },
+    {
+      "run": "outside-sandbox parallel workspace",
+      "failed": 2,
+      "harness": "zg server_lifecycle",
+      "details": "invalid daemon instance.lock record at startup; all 13 passed in serial. Root cause not established; no assertions changed."
+    }
+  ],
+  "quality_evaluation": "not run; 16 initial labels require human review; G1 facts tests do not score search or reverse traversal",
+  "not_implemented": [
+    "graphdb integration",
+    "persistent graph incremental maintenance",
+    "joint publication/recovery",
+    "relations API / CLI / MCP",
+    "graph search expansion",
+    "retrieval quality or performance measurement"
+  ],
+  "source_sha256": {
+    "rust/crates/zg-engine/examples/graph_facts.rs": "b0c51ae4de2b67054ba889aede3cf69249e9110c8829cabe1c54cc143bbf62a4",
+    "rust/crates/zg-engine/src/extraction/code.rs": "426afdfca9e57f4a0320d732c0107ff84b4d746d582b60155e30c9c7fa204029",
+    "rust/crates/zg-engine/src/graph_facts/code.rs": "46c71ad5fcd154c133cedd24b913f881b7d8f78af8de5d4dbb960847aa091833",
+    "rust/crates/zg-engine/src/graph_facts/mod.rs": "3d03cecf2032bc70fa72d7d969cdc0ce60a7b06197ec02f7e9d051d08edb8c19",
+    "rust/crates/zg-engine/tests/graph_facts.rs": "74e8f4698f74cd4012d980b594a902914b5be2475186d3e4425c5f5c2bc7ec1e",
+    "rust/crates/zg-knowledge/src/documents.rs": "6f9475748fc2fce7bff7792e6478c4304ae2655426b4e9235b52f4899e5894a8",
+    "rust/crates/zg-knowledge/src/relations/code.rs": "4916752844cfdc3046175060b73b89a4bbca89a58fd17cba338b14e45101fe1d",
+    "rust/crates/zg-knowledge/src/relations/markdown.rs": "bd725ef76f25a24c45a179c84142bc0c7bfd32636d324d7cd17081bcc733c59e",
+    "rust/crates/zg-knowledge/src/relations/mod.rs": "bb9e1bc719f8b2a53890cfe056af76afcc8615c6fa38b6d9ee73f16cd18993f0",
+    "rust/crates/zg-knowledge/tests/relations.rs": "1def2298bf740f193b2b5f24c1f7ed6d93caa38a795663fd5b6ec3cfdfc33b8c"
+  },
+  "logs": ".artifacts/graph-g1/ (ignored local logs)"
+}
