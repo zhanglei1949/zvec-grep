@@ -1,4 +1,4 @@
 [submodule "rust/thirdparty/graphdb"]
 	path = rust/thirdparty/graphdb
 	url = https://github.com/zhanglei1949/graphdb.git
-	branch = codex/kg-ordered-scan
+	branch = codex/rust-bulk-arrow
