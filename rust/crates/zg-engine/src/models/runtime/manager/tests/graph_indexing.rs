@@ -40,18 +40,23 @@ pub(super) fn models(calls: &Arc<AtomicUsize>) -> ModelRuntimeManager {
     let calls = Arc::clone(calls);
     ModelRuntimeManager::with_factory(move |_, _, _| {
         Ok(Arc::new(FixtureModel {
-            info: EmbeddingModelInfo {
-                model: crate::domain::model::ModelInfo {
-                    provider: "qwen".into(),
-                    name: "text-embedding-v4".into(),
-                    endpoint: Some("https://example.invalid/v1".into()),
-                },
-                dimension: 2,
-                metric: Metric::Cosine,
-                max_batch_size: 8,
-                max_input_tokens: Some(64),
-                max_image_bytes: None,
-            },
+            info: EmbeddingModelInfo::new(
+                crate::domain::model::ModelInfo::new(
+                    "qwen",
+                    "text-embedding-v4",
+                    [
+                        crate::domain::ContentKind::Text,
+                        crate::domain::ContentKind::Code,
+                    ],
+                    8,
+                )
+                .expect("model"),
+                2,
+                crate::domain::model::EmbeddingMetric::Cosine,
+                Some(64),
+                None,
+            )
+            .expect("embedding"),
             calls: Arc::clone(&calls),
         }))
     })
@@ -127,7 +132,7 @@ async fn graph_explicit_recovery_inspection_is_readonly_and_reconciles_selected_
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     let result = service.index(&manager, opts).await.expect("initial graph");
@@ -291,7 +296,7 @@ async fn graph_recovery_selects_only_matching_committed_candidate_and_rejects_st
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     service.index(&manager, opts).await.expect("initial");
@@ -364,7 +369,7 @@ async fn graph_recovery_classifies_partial_import_and_does_not_repair_text_fence
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     service.index(&manager, opts).await.expect("initial");
@@ -439,7 +444,7 @@ async fn graph_recovery_resumes_an_interrupted_import_with_fixed_identity() {
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     service.index(&manager, opts).await.expect("initial");
@@ -524,7 +529,7 @@ async fn graph_resume_late_stop_preserves_commit_through_host_recheck() {
         corpus(dir.path());
         let calls = Arc::new(AtomicUsize::new(0));
         let manager = models(&calls);
-        let service = WorkspaceIndexService::with_test_registry();
+        let service = WorkspaceIndexService::new();
         let mut opts = options(dir.path());
         opts.graph = Some(policy());
         service.index(&manager, opts).await.expect("initial");
@@ -643,7 +648,7 @@ pub(super) fn text_hashes(
 async fn graph_publication_first_enable_on_existing_text_is_model_free() {
     let dir = tempfile::tempdir().expect("workspace");
     corpus(dir.path());
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let model = models(&calls);
     service
@@ -651,7 +656,9 @@ async fn graph_publication_first_enable_on_existing_text_is_model_free() {
         .await
         .expect("ordinary text index");
     let manifest = active(dir.path());
-    assert!(!manifest.storage_home().join("graph").exists());
+    assert!(manifest.storage_home().join("graph/graph.sqlite").exists());
+    assert!(!manifest.storage_home().join("graph/HEAD.json").exists());
+    assert!(!manifest.storage_home().join("graph/STATE.json").exists());
     let before = text_hashes(&manifest.storage_home().join("storage"));
     let embeddings = calls.load(Ordering::Acquire);
     let zero = ModelRuntimeManager::with_factory(|_, _, _| {
@@ -688,7 +695,7 @@ async fn graph_publication_first_enable_on_existing_text_is_model_free() {
 async fn graph_publication_legacy_manifest_is_rejected_before_policy_or_models() {
     let dir = tempfile::tempdir().expect("workspace");
     corpus(dir.path());
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let model = models(&calls);
     service
@@ -734,7 +741,7 @@ async fn graph_publication_exclusion_invalidates_target_without_embedding() {
     };
     let dir = tempfile::tempdir().expect("workspace");
     corpus(dir.path());
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let model = models(&calls);
     let mut initial = options(dir.path());
@@ -804,7 +811,7 @@ async fn graph_publication_exclusion_invalidates_target_without_embedding() {
 async fn graph_publication_service_joint_rebuild_model_free_reuse_and_policy_change() {
     let dir = tempfile::tempdir().expect("workspace");
     corpus(dir.path());
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let model = models(&calls);
     let mut initial = options(dir.path());
@@ -913,7 +920,7 @@ async fn graph_publication_service_joint_rebuild_model_free_reuse_and_policy_cha
 async fn graph_publication_same_mtime_content_change_off_and_cancel_before_policy() {
     let dir = tempfile::tempdir().expect("workspace");
     corpus(dir.path());
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let model = models(&calls);
     let mut initial = options(dir.path());
@@ -1037,7 +1044,7 @@ async fn graph_coverage_reports_each_gap_and_recovers_after_source_and_policy_fi
     std::fs::write(dir.path().join("src/broken.rs"), "fn broken( {\n").expect("broken source");
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     let result = service

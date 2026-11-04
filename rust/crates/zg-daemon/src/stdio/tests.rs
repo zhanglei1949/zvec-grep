@@ -18,7 +18,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::{relay, same_daemon};
+use super::{StdioBridgeStopCheck, relay, same_daemon};
 use crate::{DaemonError, DaemonStatus};
 
 struct SendAttempt {
@@ -160,6 +160,29 @@ fn daemon_identity_requires_the_same_running_process_and_url() {
     stopped.running = false;
     stopped.ready = false;
     assert!(!same_daemon(&connected, &stopped));
+}
+
+#[test]
+fn stop_check_tolerates_two_missing_polls_and_recovers() {
+    let connected = status(10, "http://127.0.0.1:7999/mcp");
+    let stopped = DaemonStatus::default();
+    let mut check = StdioBridgeStopCheck::default();
+
+    assert!(!check.should_stop(&connected, &stopped));
+    assert!(!check.should_stop(&connected, &stopped));
+    assert!(!check.should_stop(&connected, &connected));
+    assert!(!check.should_stop(&connected, &stopped));
+    assert!(!check.should_stop(&connected, &stopped));
+    assert!(check.should_stop(&connected, &stopped));
+}
+
+#[test]
+fn stop_check_rejects_a_different_live_daemon_immediately() {
+    let connected = status(10, "http://127.0.0.1:7999/mcp");
+    let replacement = status(11, "http://127.0.0.1:7999/mcp");
+    let mut check = StdioBridgeStopCheck::default();
+
+    assert!(check.should_stop(&connected, &replacement));
 }
 
 #[tokio::test]
@@ -343,4 +366,26 @@ async fn send_failure_is_reported_and_closes_both_transports() {
     assert!(error.to_string().contains("fixture send failed"));
     assert!(client.closed.load(Ordering::SeqCst));
     assert!(daemon.closed.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn unreadable_status_does_not_interrupt_a_live_daemon_relay() {
+    let home = tempfile::tempdir().expect("home");
+    // A regular file cannot be read as a daemon state directory on any platform.
+    let invalid_home = home.path().join("not-a-directory");
+    std::fs::write(&invalid_home, "fixture").expect("invalid home");
+    let connected = status(std::process::id(), "http://127.0.0.1:7999/mcp");
+    let (downstream, mut client) = transport();
+    let (upstream, mut daemon) = transport();
+    let task =
+        tokio::spawn(async move { relay(downstream, upstream, &connected, &invalid_home).await });
+    tokio::time::sleep(Duration::from_millis(2200)).await;
+    client.send(json!({"jsonrpc":"2.0", "id":1, "method":"ping"}));
+    let request = daemon.receive().await;
+    request.complete.send(Ok(())).expect("request");
+    daemon.send(json!({"jsonrpc":"2.0", "id":1, "result":{}}));
+    let response = client.receive().await;
+    response.complete.send(Ok(())).expect("response");
+    drop(client.incoming);
+    finish_relay(task).await.expect("normal shutdown");
 }

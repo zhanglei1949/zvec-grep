@@ -29,6 +29,39 @@ async fn drain_runtime_callbacks() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn disabled_idle_timeout_keeps_inactive_runtimes() {
+    let workspace = tempdir().expect("workspace");
+    let root = workspace.path().canonicalize().expect("root");
+    let (_default_manager, watchers, _sender) = idle_fixture();
+    let manager = WorkspaceRuntimeManager::new_with_idle_ttl(
+        Arc::new(RecordingExecutor::default()),
+        watchers.clone(),
+        SchedulerConfig::default(),
+        None,
+    );
+    let options = IndexOptions {
+        root: Some(root.clone()),
+        ..IndexOptions::default()
+    };
+    drop(manager.runtime(root, &options).expect("runtime"));
+
+    manager
+        .retire_idle(tokio::time::Instant::now() + Duration::from_hours(365 * 24))
+        .await;
+
+    assert_eq!(manager.snapshot().active_runtimes, 1);
+    assert!(
+        manager
+            .inner
+            .maintenance
+            .lock()
+            .expect("maintenance")
+            .is_none()
+    );
+    manager.shutdown_all().await.expect("shutdown");
+}
+
+#[tokio::test(start_paused = true)]
 async fn idle_retirement_closes_watcher_forgets_history_and_rejects_stale_callbacks() {
     let workspace = tempdir().expect("workspace");
     let root = workspace.path().canonicalize().expect("root");
@@ -66,7 +99,7 @@ async fn idle_retirement_closes_watcher_forgets_history_and_rejects_stale_callba
         .await
         .expect("watch");
     manager
-        .on_index_succeeded(old, submitted.job, 99, options, true)
+        .on_index_succeeded(old, submitted.job.id, 99, options, true)
         .await
         .expect("stale completion");
     assert_eq!(replacement.indexed_revision.load(Ordering::Acquire), 0);

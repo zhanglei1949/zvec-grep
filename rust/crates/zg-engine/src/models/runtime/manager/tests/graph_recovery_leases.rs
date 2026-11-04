@@ -18,7 +18,7 @@ async fn graph_nonempty_dirty_repair_preserves_text_and_rebuilds_without_embeddi
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service

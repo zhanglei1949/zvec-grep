@@ -285,18 +285,23 @@ async fn graph_constrain_cancellation_keeps_other_reader_safe_and_releases_admis
     let notify = entered.clone();
     let manager = ModelRuntimeManager::with_factory(move |_, _, _| {
         Ok(Arc::new(WaitingModel {
-            info: EmbeddingModelInfo {
-                model: crate::domain::model::ModelInfo {
-                    provider: "qwen".into(),
-                    name: "text-embedding-v4".into(),
-                    endpoint: Some("https://example.invalid/v1".into()),
-                },
-                dimension: 2,
-                metric: Metric::Cosine,
-                max_batch_size: 8,
-                max_input_tokens: Some(64),
-                max_image_bytes: None,
-            },
+            info: EmbeddingModelInfo::new(
+                crate::domain::model::ModelInfo::new(
+                    "qwen",
+                    "text-embedding-v4",
+                    [
+                        crate::domain::ContentKind::Text,
+                        crate::domain::ContentKind::Code,
+                    ],
+                    8,
+                )
+                .expect("model"),
+                2,
+                crate::domain::model::EmbeddingMetric::Cosine,
+                Some(64),
+                None,
+            )
+            .expect("embedding"),
             entered: notify.clone(),
         }))
     });

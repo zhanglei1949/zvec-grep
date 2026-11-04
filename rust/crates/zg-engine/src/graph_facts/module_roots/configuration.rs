@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 #[cfg(any(test, feature = "knowledge-graph-graphdb"))]
 use std::io::Read;
-use std::path::{Component, Path, PathBuf};
+#[cfg(any(test, feature = "knowledge-graph-graphdb"))]
+use std::path::Component;
+use std::path::{Path, PathBuf};
 
 #[cfg(any(test, feature = "knowledge-graph-graphdb"))]
 const MAX_CONFIGURATION_BYTES: u64 = 8 << 20;

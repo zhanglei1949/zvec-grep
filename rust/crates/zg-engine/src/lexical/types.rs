@@ -2,14 +2,19 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::domain::TextRange;
+pub(crate) use super::matches::LexicalMatch;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct LexicalSearchRequest {
+    #[serde(skip)]
+    pub signal: Option<tokio_util::sync::CancellationToken>,
     pub root: Option<PathBuf>,
     pub patterns: Vec<String>,
     pub pattern_files: Vec<PathBuf>,
     pub paths: Vec<PathBuf>,
+    /// An empty preselected file list means no files, rather than the whole root.
+    #[serde(skip)]
+    pub paths_selected: bool,
     pub limit: Option<usize>,
     pub options: LexicalOptions,
 }
@@ -30,18 +35,6 @@ pub(crate) struct LexicalOptions {
     pub max_file_size_bytes: Option<u64>,
     pub modified_after_epoch_ms: Option<u64>,
     pub modified_before_epoch_ms: Option<u64>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct LexicalMatch {
-    pub rank: usize,
-    pub absolute_path: PathBuf,
-    pub relative_path: PathBuf,
-    pub range: TextRange,
-    pub excerpt_range: Option<TextRange>,
-    /// Source coordinates of the returned lines, which may extend beyond the match.
-    pub content_range: TextRange,
-    pub content: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

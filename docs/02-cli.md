@@ -57,6 +57,12 @@ Search routes:
 | `--fuse` | Combine all groups into one ranked plan |
 | `--rg` | Run exhaustive managed ripgrep without an index |
 
+CLI `--rg`, API rg requests and MCP `zvec_grep_rg` return plain text matches
+without parsing code or Markdown structure. Search
+threads follow ripgrep's defaults: up to 12 available CPU threads, one for a
+single file, or the explicit `-j` value. Direct and Server modes use the same local
+grep path.
+
 Result controls:
 
 | Option | Meaning |
@@ -125,11 +131,11 @@ Core options:
 | `--endpoint <url>` | Remote provider endpoint |
 | `--model-cache <path>` | Local model cache directory |
 | `--device <device>` | `auto`, `cpu`, `metal`, `vulkan`, or `cuda` |
-| `--embedding-concurrency <n>` | Concurrent Embedding tasks |
+| `--index-embedding-concurrency <n>` | Concurrent Embedding tasks |
 | `--allow-remote` | Authorize Remote Embedding for this command |
 
 Local Potion embedding tasks run on worker threads. They default to two workers;
-`--embedding-concurrency` can override that value for larger machines.
+`--index-embedding-concurrencyy` can override that value for larger machines.
 
 File discovery accepts `-g/--glob`, `--iglob`, `-t/--type`, `-T/--type-not`,
 `--hidden`, `--no-ignore`, `--ignore-file`, `--max-depth`, `--max-filesize`, and
@@ -158,8 +164,8 @@ scripts.
 ## `zg --install` and `zg --uninstall`
 
 ```text
-zg --install [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|all|auto] [--mcp-transport stdio|http] [--mcp-toolset agent|full] [--yes] [--force]
-zg --uninstall [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|all|auto] [--yes]
+zg --install [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|grok|pi|all|auto] [--mcp-transport stdio|http] [--mcp-toolset agent|full] [--yes] [--force]
+zg --uninstall [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|grok|pi|all|auto] [--yes]
 ```
 
 `--target` is repeatable. `qoder` is the single Qoder target and configures
@@ -172,9 +178,20 @@ the Copilot CLI. `zg --install` also accepts:
 | --- | --- |
 | `--mcp-transport <stdio\|http>` | MCP connection mode; default `stdio` |
 | `--mcp-toolset <agent\|full>` | Daemon MCP surface; default `agent` |
-| `--mcp-tool-timeout <seconds>` | Codex, Qwen Code, both Qoder clients, OpenCode, and GitHub Copilot MCP timeout; default 600 seconds |
+| `--mcp-tool-timeout <seconds>` | Codex, Qwen Code, both Qoder clients, OpenCode, GitHub Copilot, and Pi MCP timeout; default 600 seconds |
 | `--mcp-token-env <name>` | Environment variable containing the server token |
 | `--force` | Replace a conflicting unmanaged `zvec_grep` entry |
+
+The `grok` target keeps Grok Build's own per-call timeout default, which is
+already generous, and manages tool pre-approval through the `[permission]`
+table instead.
+
+The `pi` target configures user-level MCP and the active context
+file under `${PI_CODING_AGENT_DIR:-~/.pi/agent}`. Both transports start with
+direct tool exposure; reinstall preserves user exposure and enabled-state
+choices. HTTP authentication is retained when `--mcp-token-env` is omitted.
+Use `/reload` or a new Pi session to apply changes. Pi may require manual
+`zg --auth grant` authorization before Remote Embedding can be used.
 
 See [Agent integrations](./01-agents.md) before using `--force`.
 

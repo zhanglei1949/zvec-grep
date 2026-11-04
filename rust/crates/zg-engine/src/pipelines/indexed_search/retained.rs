@@ -32,11 +32,11 @@ impl RetainedHit {
             .graph_entities(&[self.entity_id.as_str().into()])?
             .pop()
             .ok_or_else(|| EngineError::storage_failure("retrieved entity missing"))?;
-        if entity.id != self.entity_id
-            || entity.file_id != self.file.id
-            || entity.source_range != self.entity_range
-            || !entity.fragments.contains(&self.fragment)
-            || sha256_hex(&serde_json::to_vec(&entity.content).map_err(|_| inconsistent())?)
+        if entity.id() != &self.entity_id
+            || entity.file_id() != self.file.id()
+            || entity.source_range() != self.entity_range
+            || !entity.fragments().contains(&self.fragment)
+            || sha256_hex(&serde_json::to_vec(&entity.content()).map_err(|_| inconsistent())?)
                 != self.content_digest
         {
             return Err(EngineError::storage_failure(
@@ -100,26 +100,26 @@ pub(super) fn collect(
             .collect::<BTreeMap<_, _>>();
         for hit in &search.hits {
             let entity = &hit.entity;
-            if entity.file_id != hit.file.id
-                || EntityId::new(entity.file_id, &entity.content, entity.source_range)? != entity.id
+            if entity.file_id() != hit.file.id()
+                || EntityId::new(entity.file_id(), entity.content(), entity.source_range())?
+                    != *entity.id()
             {
                 return Err(inconsistent());
             }
-            entity.validate()?;
             let identity = (
                 hit.file.clone(),
-                entity.source_range,
-                sha256_hex(&serde_json::to_vec(&entity.content).map_err(|_| inconsistent())?),
-                entity.fragments.clone(),
+                entity.source_range(),
+                sha256_hex(&serde_json::to_vec(&entity.content()).map_err(|_| inconsistent())?),
+                entity.fragments().to_vec(),
             );
             if identities
-                .insert(entity.id.clone(), identity.clone())
+                .insert(entity.id().clone(), identity.clone())
                 .is_some_and(|previous| previous != identity)
             {
                 return Err(inconsistent());
             }
             for evidence in &hit.evidence {
-                if !entity.fragments.contains(&evidence.fragment) {
+                if !entity.fragments().contains(&evidence.fragment) {
                     return Err(inconsistent());
                 }
                 let route = evidence
@@ -130,15 +130,15 @@ pub(super) fn collect(
                     .trim_end_matches(".prefer-symbol");
                 let origin = route_sources.get(route).ok_or_else(inconsistent)?;
                 let candidate = retained
-                    .entry((entity.id.clone(), evidence.fragment.id.clone()))
+                    .entry((entity.id().clone(), evidence.fragment.id.clone()))
                     .or_insert_with(|| RetainedHit {
                         file: hit.file.clone(),
-                        entity_id: entity.id.clone(),
-                        entity_range: entity.source_range,
+                        entity_id: entity.id().clone(),
+                        entity_range: entity.source_range(),
                         content_digest: identity.2.clone(),
-                        content_bytes: match &entity.content {
-                            Content::Text(text) => Some(text.len() as u64),
-                            _ => None,
+                        content_bytes: match &entity.content() {
+                            Content::Text(text) | Content::Code(text) => Some(text.len() as u64),
+                            Content::Image(_) => None,
                         },
                         fragment: evidence.fragment.clone(),
                         priority: 0,
@@ -198,25 +198,19 @@ mod tests {
             }],
             timings: vec![],
             hits: vec![SearchHit {
-                entity: Entity {
-                    id,
+                entity: Entity::new(id, file_id, source_range, content, None, fragments.clone())
+                    .expect("entity"),
+                file: FileRecord::new(
                     file_id,
-                    source_range,
-                    content,
-                    metadata: None,
-                    fragments: fragments.clone(),
-                },
-                file: FileRecord {
-                    id: file_id,
-                    relative_path: SourcePath::new("src/a.rs")
-                        .expect("valid deterministic fixture"),
-                    snapshot: FileSnapshot {
+                    SourcePath::new("src/a.rs").expect("valid deterministic fixture"),
+                    FileSnapshot {
                         size_bytes: 20,
                         modified_epoch_ms: None,
                         content_hash: Some("a".repeat(64)),
                     },
-                    index_status: FileIndexStatus::NotIndexed,
-                },
+                    FileIndexStatus::NotIndexed,
+                )
+                .expect("file"),
                 evidence: fragments
                     .into_iter()
                     .map(|fragment| SearchEvidence {
@@ -249,8 +243,8 @@ mod tests {
         assert_eq!(hits[1].query_sources, ["Q1"]);
         assert_eq!(hits[0].fragment, first.hits[0].evidence[0].fragment);
         assert_eq!(hits[0].file, first.hits[0].file);
-        assert_eq!(hits[0].entity_id, first.hits[0].entity.id);
-        assert_eq!(hits[0].entity_range, first.hits[0].entity.source_range);
+        assert_eq!(&hits[0].entity_id, first.hits[0].entity.id());
+        assert_eq!(hits[0].entity_range, first.hits[0].entity.source_range());
         assert_eq!(hits[0].content_bytes, Some(11));
         assert_eq!(hits[0].content_digest.len(), 64);
     }
@@ -266,9 +260,27 @@ mod tests {
         for variant in 0..3 {
             let mut changed = first.clone();
             match variant {
-                0 => changed.hits[0].entity.content = Content::Text("different".into()),
+                0 => {
+                    let entity = &changed.hits[0].entity;
+                    changed.hits[0].entity = crate::domain::Entity::new(
+                        entity.id().clone(),
+                        entity.file_id(),
+                        entity.source_range(),
+                        Content::Text("different".into()),
+                        entity.metadata().cloned(),
+                        entity.fragments().to_vec(),
+                    )
+                    .expect("entity");
+                }
                 1 => changed.hits[0].evidence[0].fragment.range = Range::Full,
-                _ => changed.hits[0].file.snapshot.content_hash = Some("b".repeat(64)),
+                _ => {
+                    let mut snapshot = changed.hits[0].file.snapshot().clone();
+                    snapshot.content_hash = Some("b".repeat(64));
+                    changed.hits[0]
+                        .file
+                        .set_snapshot(snapshot)
+                        .expect("snapshot");
+                }
             }
             assert!(collect(&[first.clone(), changed], &request.groups, None).is_err());
         }

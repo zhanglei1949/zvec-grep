@@ -23,12 +23,16 @@ fn source_state(
     bound: Option<&BoundFileFacts>,
     resolved: &BTreeSet<(&str, &str)>,
 ) -> EngineResult<GraphSourceCoverage> {
-    let source = file.relative_path.to_path_buf().to_str().map(str::to_owned);
+    let source = file
+        .relative_path()
+        .to_path_buf()
+        .to_str()
+        .map(str::to_owned);
     let facts = bound.and_then(|b| b.facts.as_ref());
     let diagnostics = facts.map_or_else(Vec::new, |facts| {
         facts.diagnostics.iter().map(|d| d.code.clone()).collect()
     });
-    let state = if !file.index_status.is_indexed() {
+    let state = if !file.index_status().is_indexed() {
         GraphSourceState::NotIndexed
     } else if let Some(path) = source.as_deref().filter(|path| {
         !path.contains(['\\', ':', '\0']) && !path.split('/').any(|c| matches!(c, "" | "." | ".."))
@@ -59,7 +63,7 @@ fn source_state(
         GraphSourceState::UnsupportedPath
     };
     Ok(GraphSourceCoverage {
-        file_id: file.id.get(),
+        file_id: file.id().get(),
         source,
         state,
         diagnostics,
@@ -102,16 +106,16 @@ pub(super) fn summarize(
             for file in files {
                 check_context(context)?;
                 let formats =
-                    FileFormat::from_path(&manifest.workspace.source_path(&file.relative_path))?;
+                    FileFormat::from_path(&manifest.workspace.source_path(file.relative_path()))?;
                 let language = roots.language(
-                    &file.relative_path.to_path_buf().to_string_lossy(),
+                    &file.relative_path().to_path_buf().to_string_lossy(),
                     &formats,
                 );
                 let Some(language) = language.filter(|l| (*l == Language::Markdown) == is_doc)
                 else {
                     continue;
                 };
-                let bound = by_source.get(&file.id.get()).copied();
+                let bound = by_source.get(&file.id().get()).copied();
                 let source = source_state(file, language, &roots, bound, &resolved)?;
                 if source.state == GraphSourceState::Ready {
                     result.coverage += 1;

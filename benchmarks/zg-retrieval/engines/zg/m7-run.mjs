@@ -65,7 +65,7 @@ await writeJson(graph, spec.graph);
 await writeJson(
   join(base, "index.json"),
   await cli([
-    "index",
+    "--index",
     root,
     "--mode",
     "direct",
@@ -309,7 +309,7 @@ requests.push(
 const client = new PublicMcp(
     [
       binary,
-      "server",
+      "--server",
       "--stdio",
       "--listen",
       `127.0.0.1:${port}`,
@@ -328,7 +328,7 @@ try {
       direct = JSON.parse(
         (
           await cli([
-            "explore",
+            "--explore",
             "--root",
             root,
             "--mode",
@@ -341,7 +341,7 @@ try {
       daemon = JSON.parse(
         (
           await cli([
-            "explore",
+            "--explore",
             "--root",
             root,
             "--mode",
@@ -372,7 +372,7 @@ try {
   }
 } finally {
   await client.close();
-  await cli(["server", "off"]);
+  await cli(["--server", "off"]);
   await writeFile(join(base, "mcp-stderr.log"), client.stderr);
 }
 const contexts = [];
@@ -463,7 +463,7 @@ for (const c of spec.unsupported_sources) {
     ],
   });
   const result = await cli([
-    "index",
+    "--index",
     workspace,
     "--mode",
     "direct",
@@ -488,7 +488,7 @@ for (const c of spec.unsupported_sources) {
     const value = JSON.parse(
       (
         await cli([
-          "explore",
+          "--explore",
           "--root",
           workspace,
           "--mode",
@@ -509,7 +509,7 @@ for (const c of spec.unsupported_sources) {
   let error;
   try {
     await cli([
-      "explore",
+      "--explore",
       "--root",
       workspace,
       "--mode",

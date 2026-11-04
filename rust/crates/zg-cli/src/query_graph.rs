@@ -57,6 +57,40 @@ mod tests {
     use crate::{Cli, CliPlan};
 
     #[test]
+    fn graph_search_does_not_take_the_path_lookup_shortcut() {
+        let directory = tempfile::tempdir().expect("workspace");
+        let plan = Cli::try_parse_from(["zg", "src/lib.rs", "--graph-mode", "augment"])
+            .expect("parse")
+            .into_plan(directory.path().to_path_buf())
+            .expect("plan");
+        let CliPlan::Query {
+            path_lookup,
+            request,
+            ..
+        } = plan
+        else {
+            panic!("search");
+        };
+        assert!(!path_lookup);
+        assert!(!request.graph.is_off());
+    }
+
+    #[test]
+    fn explore_uses_a_management_flag_and_keeps_bare_words_as_search_text() {
+        let directory = tempfile::tempdir().expect("workspace");
+        let explore = Cli::try_parse_from(["zg", "--explore", "locate", "--name", "target"])
+            .expect("parse")
+            .into_plan(directory.path().to_path_buf())
+            .expect("plan");
+        assert!(matches!(explore, CliPlan::Explore { .. }));
+        let search = Cli::try_parse_from(["zg", "explore"])
+            .expect("parse")
+            .into_plan(directory.path().to_path_buf())
+            .expect("plan");
+        assert!(matches!(search, CliPlan::Query { .. }));
+    }
+
+    #[test]
     fn query_graph_flags_keep_text_routes_and_share_the_json_contract() {
         let directory = tempfile::tempdir().expect("input");
         std::fs::write(directory.path().join("graph.json"), r#"{"mode":"augment","seeds":2,"expansion":{"max_hops":1,"direction":"incoming","boundary":{"sources":[]}}}"#).expect("graph JSON");
@@ -67,7 +101,6 @@ mod tests {
         .expect("execution JSON");
         let cli = Cli::try_parse_from([
             "zg",
-            "query",
             "caller",
             "--fts",
             "target",
@@ -100,7 +133,6 @@ mod tests {
         assert!(
             Cli::try_parse_from([
                 "zg",
-                "query",
                 "x",
                 "--graph-mode",
                 "augment",
@@ -110,13 +142,13 @@ mod tests {
             .is_err()
         );
         assert!(
-            Cli::try_parse_from(["zg", "query", "--rg", "x", "--graph-mode", "augment"])
+            Cli::try_parse_from(["zg", "--rg", "x", "--graph-mode", "augment"])
                 .expect("parse")
                 .into_plan("/tmp".into())
                 .is_err()
         );
         let CliPlan::Query { request, .. } =
-            Cli::try_parse_from(["zg", "query", "x", "--graph-mode=augment"])
+            Cli::try_parse_from(["zg", "x", "--graph-mode=augment"])
                 .expect("parse")
                 .into_plan("/tmp".into())
                 .expect("plan")

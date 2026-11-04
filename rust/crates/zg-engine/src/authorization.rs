@@ -1,4 +1,8 @@
 //! Signed workspace consent shared by direct, daemon, and MCP operations.
+//!
+//! Consent preflight and grant-file management are the explicit exception to
+//! the `ZvecGrep` operation boundary described in `rust/CONTRIBUTING.md`.
+//! They operate before engine work and never load models or send remote data.
 
 use crate::{
     EngineError,
@@ -27,6 +31,22 @@ pub struct IndexAuthorization {
     pub endpoint_host: String,
 }
 
+/// Verified workspace consent, without terminal presentation details.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorizationStatus {
+    pub root: PathBuf,
+    pub path: PathBuf,
+    pub grants: Vec<AuthorizationGrantStatus>,
+}
+
+/// A verified remote destination approved for a workspace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorizationGrantStatus {
+    pub model: String,
+    pub endpoint: String,
+    pub endpoint_host: String,
+}
+
 /// Resolves required consent without loading models, writing state, or sending data.
 ///
 /// # Errors
@@ -44,10 +64,7 @@ pub fn index_authorizations(
     options: &crate::api::index::IndexOptions,
 ) -> Result<Vec<IndexAuthorization>, EngineError> {
     let requested_root = crate::workspace::layout::resolve_workspace_root(options.root.as_deref())?;
-    let location = match find_nearest_workspace(&requested_root)? {
-        Some(location) => location,
-        None => workspace_index_location(&requested_root)?,
-    };
+    let location = workspace_index_location(&requested_root)?;
     let existing = inspect_workspace_manifest(&location.home)?.into_manifest(options.rebuild)?;
     authorizations_for_manifest(options, &location.root, existing.as_ref())
 }
@@ -101,10 +118,7 @@ fn authorization_for_manifest(
     }
     let url = reqwest::Url::parse(&endpoint)
         .map_err(|_| EngineError::invalid_argument("Invalid embedding endpoint"))?;
-    let endpoint_host = match url.port() {
-        Some(port) => format!("{}:{port}", url.host_str().unwrap_or_default()),
-        None => url.host_str().unwrap_or_default().to_owned(),
-    };
+    let endpoint_host = format_endpoint_host(&url);
     let workspace_roots = vec![root.clone()];
     Ok(Some(IndexAuthorization {
         root,
@@ -113,6 +127,13 @@ fn authorization_for_manifest(
         endpoint,
         endpoint_host,
     }))
+}
+
+fn format_endpoint_host(url: &reqwest::Url) -> String {
+    match url.port() {
+        Some(port) => format!("{}:{port}", url.host_str().unwrap_or_default()),
+        None => url.host_str().unwrap_or_default().to_owned(),
+    }
 }
 
 /// Destination and data categories requiring consent for an indexed query.
@@ -425,7 +446,7 @@ pub(crate) fn remote_endpoint(
         .or_else(|| crate::config::string(&config, &["models", reference, "endpoint"]))
         .or_else(|| env::var("ZVEC_GREP_ENDPOINT").ok())
         .unwrap_or_else(|| entry.default_endpoint.to_string());
-    let url = reqwest::Url::parse(endpoint.trim())
+    let mut url = reqwest::Url::parse(endpoint.trim())
         .map_err(|_| EngineError::invalid_argument("Invalid remote embedding endpoint"))?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host_str().is_none()
@@ -436,6 +457,12 @@ pub(crate) fn remote_endpoint(
         return Err(EngineError::invalid_argument(
             "Embedding endpoint must be an HTTP(S) URL without credentials or fragment",
         ));
+    }
+    // SDK examples provide an API base URL. Resolve it before consent is
+    // checked so the signed destination and the actual request URL agree.
+    let path = url.path().trim_end_matches('/');
+    if entry.kind == "text" && path.ends_with("/v1") {
+        url.set_path(&format!("{path}/embeddings"));
     }
     Ok(url.to_string())
 }
@@ -459,7 +486,7 @@ pub fn grant(
             manifest
                 .as_ref()
                 .and_then(|m| m.embedding())
-                .map(|e| e.model.reference())
+                .map(|e| e.model().reference())
         })
         .or_else(|| {
             env::var("ZVEC_GREP_EMBEDDING")
@@ -549,7 +576,7 @@ fn read_grants(root: &Path) -> Result<Vec<Grant>, EngineError> {
     };
     let records: SignedGrants = serde_json::from_slice(&bytes).map_err(|error| {
         EngineError::invalid_argument(format!(
-            "Invalid workspace authorization format: {error}; run `zg auth revoke \"{}\"`, then authorize again with `zg auth grant`",
+            "Invalid workspace authorization format: {error}; run `zg --auth revoke \"{}\"`, then authorize again with `zg --auth grant`",
             root.display()
         ))
     })?;
@@ -578,7 +605,7 @@ fn read_grants(root: &Path) -> Result<Vec<Grant>, EngineError> {
                 || signed.grant.scope != "workspace"
             {
                 return Err(EngineError::permission_denied(format!(
-                    "Invalid workspace authorization signature or scope; run `zg auth revoke \"{}\"`, then authorize again with `zg auth grant`",
+                    "Invalid workspace authorization signature or scope; run `zg --auth revoke \"{}\"`, then authorize again with `zg --auth grant`",
                     root.display()
                 )));
             }
@@ -591,23 +618,48 @@ fn read_grants(root: &Path) -> Result<Vec<Grant>, EngineError> {
 ///
 /// # Errors
 /// Returns an error if existing consent cannot be verified.
-pub fn status(root: &Path) -> Result<String, EngineError> {
+pub fn status_snapshot(root: &Path) -> Result<AuthorizationStatus, EngineError> {
     let root = root_path(root)?;
-    let grants = read_grants(&root)?;
-    if grants.is_empty() {
+    let grants = read_grants(&root)?
+        .into_iter()
+        .map(|grant| {
+            let endpoint_host = reqwest::Url::parse(&grant.endpoint)
+                .map_or_else(|_| grant.endpoint.clone(), |url| format_endpoint_host(&url));
+            AuthorizationGrantStatus {
+                model: grant.model,
+                endpoint: grant.endpoint,
+                endpoint_host,
+            }
+        })
+        .collect();
+    Ok(AuthorizationStatus {
+        path: root.join(".zvec-grep/authorization.json"),
+        root,
+        grants,
+    })
+}
+
+/// Reports verified consent without creating any state.
+///
+/// # Errors
+/// Returns an error if existing consent cannot be verified.
+pub fn status(root: &Path) -> Result<String, EngineError> {
+    let status = status_snapshot(root)?;
+    if status.grants.is_empty() {
         return Ok(format!(
             "Remote Embedding: not authorized\nRoot: {}",
-            root.display()
+            status.root.display()
         ));
     }
-    let destinations = grants
+    let destinations = status
+        .grants
         .iter()
         .map(|grant| format!("Model: {}\nEndpoint: {}", grant.model, grant.endpoint))
         .collect::<Vec<_>>()
         .join("\n");
     Ok(format!(
         "Remote Embedding: authorized\nRoot: {}\nScope: workspace\n{destinations}",
-        root.display()
+        status.root.display()
     ))
 }
 
@@ -617,16 +669,40 @@ pub fn status(root: &Path) -> Result<String, EngineError> {
 /// Returns an error when the authorization file cannot be removed or its deletion synced.
 pub fn revoke(root: &Path) -> Result<String, EngineError> {
     let root = root_path(root)?;
-    let home = root.join(".zvec-grep");
-    match fs::remove_file(home.join("authorization.json")) {
-        Ok(()) => sync_directory(&home)?,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(io(e)),
-    }
+    revoke_all(&root)?;
     Ok(format!(
         "Remote Embedding: not authorized\nRoot: {}",
         root.display()
     ))
+}
+
+/// Removes all workspace grants and reports how many records were removed.
+/// Invalid consent can still be removed without a working signing key.
+/// Returns `None` when removed consent could not be read or parsed to count records.
+///
+/// # Errors
+/// Returns an error when authorization state cannot be removed or synced.
+pub fn revoke_all(root: &Path) -> Result<Option<usize>, EngineError> {
+    let root = root_path(root)?;
+    let home = root.join(".zvec-grep");
+    let path = home.join("authorization.json");
+    let count = match fs::read(&path) {
+        Ok(bytes) => match serde_json::from_slice::<SignedGrants>(&bytes) {
+            Ok(SignedGrants::Many(records)) => Some(records.len()),
+            Ok(SignedGrants::One(_)) => Some(1),
+            // Explicit revocation remains the recovery path for malformed consent.
+            Err(_) => None,
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some(0)),
+        // Revocation must also work when existing consent cannot be read.
+        Err(_) => None,
+    };
+    match fs::remove_file(path) {
+        Ok(()) => sync_directory(&home)?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Some(0)),
+        Err(e) => return Err(io(e)),
+    }
+    Ok(count)
 }
 
 fn approved_destination(
@@ -673,7 +749,7 @@ pub(crate) fn require(
         return Ok(());
     }
     Err(EngineError::permission_denied(format!(
-        "Remote embedding authorization required for {model} at {endpoint}. Run zg auth grant \"{}\" --capability embedding --scope workspace --embedding {model} --endpoint \"{endpoint}\", or pass --allow-remote for this command only.",
+        "Remote embedding authorization required for {model} at {endpoint}. Run zg --auth grant \"{}\" --capability embedding --scope workspace --embedding {model} --endpoint \"{endpoint}\", or pass --allow-remote for this command only.",
         root.display()
     )))
 }
@@ -712,6 +788,52 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         None
+    }
+
+    #[test]
+    fn text_embedding_base_urls_resolve_before_authorization() {
+        let Some(_root) = isolated_authorization_root(
+            "authorization::tests::text_embedding_base_urls_resolve_before_authorization",
+        ) else {
+            return;
+        };
+        for model in ["qwen/text-embedding-v4", "qwen/qwen3.7-text-embedding"] {
+            for (input, expected) in [
+                ("/v1", "/v1/embeddings"),
+                ("/v1/", "/v1/embeddings"),
+                ("/compatible-mode/v1", "/compatible-mode/v1/embeddings"),
+                ("/compatible-mode/v1/", "/compatible-mode/v1/embeddings"),
+                (
+                    "/gateway/v1/?api-version=2026-01",
+                    "/gateway/v1/embeddings?api-version=2026-01",
+                ),
+                ("/v1/embeddings", "/v1/embeddings"),
+                ("/custom-embeddings", "/custom-embeddings"),
+                ("/v10", "/v10"),
+            ] {
+                let expected = format!("https://example.test{expected}");
+                let resolved =
+                    remote_endpoint(model, Some(&format!(" https://example.test{input} ")))
+                        .expect("valid text endpoint");
+                assert_eq!(resolved, expected);
+                assert_eq!(
+                    remote_endpoint(model, Some(&resolved)).expect("idempotent endpoint"),
+                    expected
+                );
+            }
+        }
+        assert_eq!(
+            remote_endpoint("qwen/qwen3-vl-embedding", Some("https://example.test/v1/"))
+                .expect("multimodal endpoint"),
+            "https://example.test/v1/"
+        );
+        for endpoint in [
+            "ftp://example.test/v1",
+            "https://user:password@example.test/v1",
+            "https://example.test/v1#fragment",
+        ] {
+            assert!(remote_endpoint("qwen/qwen3.7-text-embedding", Some(endpoint)).is_err());
+        }
     }
 
     #[test]
@@ -758,8 +880,8 @@ mod tests {
             };
             let error = index_authorizations(&options).expect_err("old consent is not trusted");
             assert_eq!(error.code(), EngineError::INVALID_ARGUMENT);
-            assert!(error.message().contains("zg auth revoke"));
-            assert!(error.message().contains("zg auth grant"));
+            assert!(error.message().contains("zg --auth revoke"));
+            assert!(error.message().contains("zg --auth grant"));
             assert!(
                 grant(
                     &root,
@@ -857,8 +979,8 @@ mod tests {
                 .err()
                 .expect("reject invalid authorization");
             assert_eq!(error.code(), EngineError::PERMISSION_DENIED);
-            assert!(error.message().contains("zg auth revoke"));
-            assert!(error.message().contains("zg auth grant"));
+            assert!(error.message().contains("zg --auth revoke"));
+            assert!(error.message().contains("zg --auth grant"));
             assert_eq!(fs::read(&path).expect("preserved invalid consent"), bytes);
             revoke(&root).expect("revoke invalid authorization");
         }
@@ -1028,7 +1150,7 @@ mod tests {
             api::context::{ContextOptions, options::RefreshPolicy},
             domain::{
                 IndexDescriptor, IndexState, Workspace,
-                model::{EmbeddingModelInfo, Metric, ModelConfig},
+                model::{EmbeddingMetric, EmbeddingModelInfo, ModelConfig},
             },
             workspace::{build::prepare_build, manifest::write_workspace_manifest},
         };
@@ -1036,21 +1158,33 @@ mod tests {
         let home = directory.path().join(".zvec-grep");
         let mut active = WorkspaceManifest::new(
             Workspace {
-                name: "workspace".to_owned(),
                 root: directory.path().to_path_buf(),
                 scan: crate::domain::ScanRules::default(),
-                index: IndexState::Enabled(IndexDescriptor::single(EmbeddingModelInfo {
-                    model: crate::domain::model::ModelInfo {
-                        provider: "qwen".into(),
-                        name: "text-embedding-v4".into(),
-                        endpoint: None,
-                    },
-                    dimension: 1024,
-                    metric: Metric::Cosine,
-                    max_batch_size: 32,
-                    max_input_tokens: None,
-                    max_image_bytes: None,
-                })),
+                index: IndexState::Enabled(Box::new(
+                    IndexDescriptor::new(
+                        EmbeddingModelInfo::new(
+                            crate::domain::model::ModelInfo::new(
+                                "qwen",
+                                "text-embedding-v4",
+                                [
+                                    crate::domain::ContentKind::Text,
+                                    crate::domain::ContentKind::Code,
+                                    crate::domain::ContentKind::Image,
+                                ],
+                                32,
+                            )
+                            .expect("valid model metadata"),
+                            1024,
+                            EmbeddingMetric::Cosine,
+                            None,
+                            None,
+                        )
+                        .expect("valid embedding metadata"),
+                        std::collections::BTreeMap::new(),
+                        crate::domain::FTS_CONFIG,
+                    )
+                    .expect("index descriptor"),
+                )),
                 created_epoch_ms: 1,
                 updated_epoch_ms: 1,
             },
@@ -1143,5 +1277,111 @@ mod tests {
         options.allow_remote = false;
         options.embedding.as_mut().expect("model").reference = "local/potion-code-16m-v2".into();
         assert!(index_authorization(&options).expect("local").is_none());
+    }
+
+    #[test]
+    fn disclosure_and_status_use_the_same_endpoint_host() {
+        let Some(root) = isolated_authorization_root(
+            "authorization::tests::disclosure_and_status_use_the_same_endpoint_host",
+        ) else {
+            return;
+        };
+        for (endpoint, expected) in [
+            ("https://provider.test/v1/embeddings", "provider.test"),
+            ("https://provider.test:443/v1/embeddings", "provider.test"),
+            (
+                "https://provider.test:8443/v1/embeddings",
+                "provider.test:8443",
+            ),
+            ("http://[::1]:8080/v1/embeddings", "[::1]:8080"),
+        ] {
+            let target = index_authorization(&IndexOptions {
+                root: Some(root.clone()),
+                embedding: Some(EmbeddingModelSpec {
+                    reference: "qwen/text-embedding-v4".into(),
+                    revision: None,
+                    cache_dir: None,
+                    endpoint: Some(endpoint.into()),
+                    device: Device::Auto,
+                }),
+                ..IndexOptions::default()
+            })
+            .expect("disclosure")
+            .expect("consent required");
+            assert_eq!(target.endpoint_host, expected);
+            grant_index(&target).expect("grant");
+            let status = status_snapshot(&root).expect("verified status");
+            assert_eq!(status.grants.len(), 1);
+            assert_eq!(status.grants[0].endpoint_host, target.endpoint_host);
+            assert_eq!(revoke_all(&root).expect("revoke"), Some(1));
+        }
+    }
+
+    #[tokio::test]
+    async fn nested_index_authorization_ignores_parent_manifest_and_grants() {
+        let Some(root) = isolated_authorization_root(
+            "authorization::tests::nested_index_authorization_ignores_parent_manifest_and_grants",
+        ) else {
+            return;
+        };
+        let engine = crate::ZvecGrep::new();
+        let parent_options = IndexOptions {
+            root: Some(root.clone()),
+            embedding: Some(EmbeddingModelSpec {
+                reference: "qwen/text-embedding-v4".into(),
+                revision: None,
+                cache_dir: None,
+                endpoint: Some("https://parent.test/embeddings".into()),
+                device: Device::Auto,
+            }),
+            api_key: Some("parent-test-key".into()),
+            allow_remote: true,
+            ..IndexOptions::default()
+        };
+        engine
+            .index(parent_options.clone())
+            .await
+            .expect("empty parent index");
+        engine.close();
+        let parent_manifest = root.join(".zvec-grep/manifest.json");
+        let before = fs::read(&parent_manifest).expect("parent manifest");
+        let mut unapproved = parent_options;
+        unapproved.allow_remote = false;
+        let parent_target = index_authorization(&unapproved)
+            .expect("parent plan")
+            .expect("parent consent");
+        grant_index(&parent_target).expect("parent grant");
+
+        let child = root.join("sub");
+        fs::create_dir(&child).expect("child directory");
+        let mut options = IndexOptions {
+            root: Some(child.clone()),
+            ..unapproved.clone()
+        };
+        let target = index_authorization(&options)
+            .expect("child plan")
+            .expect("parent grant does not authorize child");
+        assert_eq!(target.root, fs::canonicalize(&child).expect("child root"));
+        assert_eq!(target.workspace_roots, vec![target.root.clone()]);
+        options.embedding.as_mut().expect("child model").reference =
+            "qwen/qwen3.7-text-embedding".into();
+        options.endpoint = Some("https://child.test/embeddings".into());
+        for rebuild in [false, true] {
+            options.rebuild = rebuild;
+            let target = index_authorization(&options)
+                .expect("independent child plan")
+                .expect("child consent");
+            assert_eq!(target.root, fs::canonicalize(&child).expect("child root"));
+            assert_eq!(target.model, "qwen/qwen3.7-text-embedding");
+            assert_eq!(target.endpoint, "https://child.test/embeddings");
+        }
+        assert_eq!(
+            fs::read(parent_manifest).expect("parent manifest unchanged"),
+            before
+        );
+        assert!(
+            !child.join(".zvec-grep").exists(),
+            "preflight does not create child state"
+        );
     }
 }

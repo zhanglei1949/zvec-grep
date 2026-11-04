@@ -28,8 +28,20 @@ cargo test --manifest-path rust/Cargo.toml -p zg-transport-mcp
 ```
 
 Configure the native library path as for the other Rust workspace tests.
-The legacy provider's unverified freshness is covered separately under
-`mcp-unverified-current-index-freshness` in `allowed-differences.toml`.
+
+Optional numeric and boolean tool inputs advertise scalar JSON Schema types,
+matching Node.js, with optionality expressed by omission from `required`.
+The tested Qwen-compatible provider returns string arguments when these types
+are expressed as type arrays or `anyOf` alternatives, even for valid schemas.
+Runtime parsing remains strict and still accepts explicit null
+as absence for these fields. The `maxDepth` and `maxFileSizeBytes` index inputs
+retain nullable schemas because null explicitly clears their saved settings.
+Regression tests cover the actual tool catalog, HTTP discovery and calls,
+numeric constraints, optionality, and the distinction between absence and reset.
+
+Freshness requires observed file-change evidence and is independent of index
+provenance or background activity. The remaining Node.js difference is covered
+under `mcp-observed-file-change-freshness` in `allowed-differences.toml`.
 
 Fixtures explicitly declare the source range of each item's content; the capture
 script does not infer it from text length. Node.js still uses a line-count heuristic
@@ -37,3 +49,27 @@ in its formatter. Rust follows the engine's `content_range` instead, including w
 an EOF fragment retains a final empty line. Separate regression cases cover that
 known oracle bug, whole-entity content, and both preview modes under
 `engine-content-source-coordinates` in `allowed-differences.toml`.
+
+`rg-presentation.json` captures eight responses from the real Node MCP rg handler:
+context, long unbounded output, explicit head truncation, empty results, symbols,
+overlapping symbol matches, redundant declarations and multiple files. Regenerate
+with `node rust/scripts/capture-mcp-rg-presentation.mjs` after `npm run build`.
+`rg_format::tests::captured_rg_presentation_uses_plain_matches` compares source
+lines and context. Symbol cases intentionally omit the captured Node headers:
+Rust rg searches return plain matches without structural parsing. This difference
+is recorded under `managed-rg-plain-text` in `allowed-differences.toml`.
+
+The regular `cargo test --workspace --all-targets` entry point also runs:
+
+- MCP input mapping, native type selection, scan diagnostics, preview and metadata;
+- real duplex protocol consent, progress and cancellation tests;
+- daemon session admission/idle expiry and stdio failure-tolerance tests;
+- actual daemon HTTP discovery, tools/list, validation, origin checks and remote
+  consent continuation for `2026-07-28`;
+- actual legacy HTTP and new/legacy stdio remote consent, index lifecycle, runtime
+  refresh and direct/server source-coordinate regressions.
+
+These tests are part of the existing Linux/Windows/macOS Rust CI matrix. They use
+local HTTP fixtures, temporary roots and mock embedding responses; no global
+workspace registration is needed. Deferred MCP-01 remains separate: these focused cases do
+not claim to be a complete snapshot of every public Node schema and response.

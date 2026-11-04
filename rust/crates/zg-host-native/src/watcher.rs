@@ -142,7 +142,13 @@ impl WorkspaceWatcherFactoryPort for NativeWatcherFactory {
         let watcher = tokio::select! {
             () = control.cancellation.cancelled() => return Err(HostError::cancelled("watcher initialization was cancelled")),
             () = deadline_wait(control.deadline) => return Err(HostError::deadline_exceeded("watcher initialization exceeded its deadline")),
-            result = initialization => result.map_err(watcher_error)??,
+            result = initialization => match result.map_err(watcher_error)? {
+                Ok(watcher) => Some(watcher),
+                Err(error) => {
+                    warn!(%error, "native watcher initialization failed; retrying in background");
+                    None
+                }
+            },
         };
         let (batch_sender, batch_receiver) = mpsc::channel(config.batch_capacity);
         let close = CancellationToken::new();
@@ -152,7 +158,7 @@ impl WorkspaceWatcherFactoryPort for NativeWatcherFactory {
             root,
             root_is_file: metadata.is_file(),
             config,
-            watcher: Some(watcher),
+            watcher,
             raw_sender,
             raw_receiver,
             overflowed,
@@ -161,19 +167,20 @@ impl WorkspaceWatcherFactoryPort for NativeWatcherFactory {
             close: close.clone(),
         }));
         Ok(Arc::new(NativeWatchSession {
-            inner: Arc::new(WatchSessionInner {
-                receiver: Mutex::new(batch_receiver),
-                flush_sender,
-                close,
-                task: StdMutex::new(Some(task)),
-            }),
+            receiver: Mutex::new(batch_receiver),
+            flush_sender,
+            close,
+            task: StdMutex::new(Some(task)),
         }))
     }
 }
 
 #[derive(Debug)]
 struct NativeWatchSession {
-    inner: Arc<WatchSessionInner>,
+    flush_sender: mpsc::Sender<FlushRequest>,
+    receiver: Mutex<mpsc::Receiver<WorkspaceChangeBatch>>,
+    close: CancellationToken,
+    task: StdMutex<Option<JoinHandle<()>>>,
 }
 
 #[derive(Debug)]
@@ -182,15 +189,7 @@ struct FlushRequest {
     acknowledge: oneshot::Sender<()>,
 }
 
-#[derive(Debug)]
-struct WatchSessionInner {
-    flush_sender: mpsc::Sender<FlushRequest>,
-    receiver: Mutex<mpsc::Receiver<WorkspaceChangeBatch>>,
-    close: CancellationToken,
-    task: StdMutex<Option<JoinHandle<()>>>,
-}
-
-impl Drop for WatchSessionInner {
+impl Drop for NativeWatchSession {
     fn drop(&mut self) {
         self.close.cancel();
         if let Ok(mut task) = self.task.lock()
@@ -204,8 +203,7 @@ impl Drop for WatchSessionInner {
 impl NativeWatchSession {
     async fn flush_changes(&self, reconcile: bool) -> Result<(), HostError> {
         let (sender, receiver) = oneshot::channel();
-        self.inner
-            .flush_sender
+        self.flush_sender
             .send(FlushRequest {
                 reconcile,
                 acknowledge: sender,
@@ -230,14 +228,14 @@ impl WorkspaceWatchSessionPort for NativeWatchSession {
 
     async fn next_changes(&self, control: &TaskControl) -> Result<WorkspaceChangeBatch, HostError> {
         check_control(control)?;
-        if self.inner.close.is_cancelled() {
+        if self.close.is_cancelled() {
             return Err(HostError::resource_closed(
                 "workspace watch session has been closed",
             ));
         }
-        let mut receiver = self.inner.receiver.lock().await;
+        let mut receiver = self.receiver.lock().await;
         tokio::select! {
-            () = self.inner.close.cancelled() => Err(HostError::resource_closed(
+            () = self.close.cancelled() => Err(HostError::resource_closed(
                 "workspace watch session has been closed",
             )),
             () = control.cancellation.cancelled() => Err(HostError::cancelled(
@@ -253,8 +251,8 @@ impl WorkspaceWatchSessionPort for NativeWatchSession {
     }
 
     async fn close(&self) -> Result<(), HostError> {
-        self.inner.close.cancel();
-        let task = lock_task(&self.inner.task).take();
+        self.close.cancel();
+        let task = lock_task(&self.task).take();
         if let Some(task) = task {
             task.await.map_err(|error| {
                 HostError::internal(format!("native watcher task failed: {error}"))
@@ -292,11 +290,21 @@ async fn watch_loop(mut state: WatchLoop) {
         .resume_check_interval
         .map(|interval| Instant::now() + interval);
     let mut last_resume_check = Instant::now();
-    let mut retry_deadline = None;
-    let mut stable_deadline = Some(Instant::now() + Duration::from_secs(1));
-    let mut consecutive_errors = 0_u32;
-    let mut recovery_reconcile_pending = false;
+    let initialization_failed = state.watcher.is_none();
+    let mut retry_deadline = initialization_failed.then(|| Instant::now() + retry_delay(1));
+    let mut stable_deadline =
+        (!initialization_failed).then(|| Instant::now() + Duration::from_secs(1));
+    let mut consecutive_errors = u32::from(initialization_failed);
+    let mut recovery_reconcile_pending = initialization_failed;
     let mut pending_flush: Option<oneshot::Sender<()>> = None;
+    if initialization_failed {
+        changes.require_full_rescan();
+        schedule_flush(
+            &state.config,
+            &mut debounce_deadline,
+            &mut max_wait_deadline,
+        );
+    }
 
     loop {
         // Drain delivered raw events before acknowledging a reader's barrier.
@@ -307,9 +315,19 @@ async fn watch_loop(mut state: WatchLoop) {
                 || retry_deadline.is_some()
             {
                 changes.require_full_rescan();
-                if let Err(error) = refresh_watcher(&mut state).await {
-                    warn!(%error, "could not refresh watcher registrations at reader barrier");
-                    retry_deadline = Some(Instant::now() + retry_delay(consecutive_errors));
+                match refresh_watcher(&mut state).await {
+                    Ok(()) if state.watcher.is_some() && consecutive_errors > 0 => {
+                        retry_deadline = None;
+                        stable_deadline = Some(Instant::now() + Duration::from_secs(1));
+                    }
+                    Ok(()) => {}
+                    Err(error) => {
+                        warn!(%error, "could not refresh watcher registrations at reader barrier");
+                        consecutive_errors = consecutive_errors.saturating_add(1);
+                        stable_deadline = None;
+                        retry_deadline = Some(Instant::now() + retry_delay(consecutive_errors));
+                        recovery_reconcile_pending = true;
+                    }
                 }
             }
             if !flush_changes(&mut changes, &state.batch_sender, &state.close).await {
@@ -443,13 +461,23 @@ async fn watch_loop(mut state: WatchLoop) {
                             Ok((watcher, Err(error))) => {
                                 warn!(%error, "native watcher event policy failed");
                                 state.watcher = watcher;
+                                consecutive_errors = consecutive_errors.saturating_add(1);
+                                stable_deadline = None;
                                 retry_deadline = Some(Instant::now() + retry_delay(consecutive_errors));
-                                changes.require_full_rescan();
+                                if !recovery_reconcile_pending {
+                                    recovery_reconcile_pending = true;
+                                    changes.require_full_rescan();
+                                }
                             }
                             Err(error) => {
                                 warn!(%error, "native watcher event worker failed");
+                                consecutive_errors = consecutive_errors.saturating_add(1);
+                                stable_deadline = None;
                                 retry_deadline = Some(Instant::now() + retry_delay(consecutive_errors));
-                                changes.require_full_rescan();
+                                if !recovery_reconcile_pending {
+                                    recovery_reconcile_pending = true;
+                                    changes.require_full_rescan();
+                                }
                             }
                         }
                         if !changes.is_empty() {
@@ -471,10 +499,29 @@ async fn watch_loop(mut state: WatchLoop) {
                 }
             }
         }
-        if refresh_registration && let Err(error) = refresh_watcher(&mut state).await {
-            warn!(%error, "could not reconcile watcher registrations");
-            consecutive_errors = consecutive_errors.saturating_add(1);
-            retry_deadline = Some(Instant::now() + retry_delay(consecutive_errors));
+        if refresh_registration {
+            match refresh_watcher(&mut state).await {
+                Ok(()) if state.watcher.is_some() && consecutive_errors > 0 => {
+                    retry_deadline = None;
+                    stable_deadline = Some(Instant::now() + Duration::from_secs(1));
+                }
+                Ok(()) => {}
+                Err(error) => {
+                    warn!(%error, "could not reconcile watcher registrations");
+                    consecutive_errors = consecutive_errors.saturating_add(1);
+                    stable_deadline = None;
+                    retry_deadline = Some(Instant::now() + retry_delay(consecutive_errors));
+                    if !recovery_reconcile_pending {
+                        recovery_reconcile_pending = true;
+                        changes.require_full_rescan();
+                        schedule_flush(
+                            &state.config,
+                            &mut debounce_deadline,
+                            &mut max_wait_deadline,
+                        );
+                    }
+                }
+            }
         }
     }
     state.watcher.take();
@@ -740,9 +787,11 @@ fn watch_directories(
 ) -> Result<WatchPlan, HostError> {
     let mut plan = WatchPlan::default();
     // Watching the parent preserves root replacement and recreation detection.
-    add_existing_parent(&root.path, &mut plan.directories);
+    plan.directories
+        .extend(existing_parent(&root.path).map(Path::to_path_buf));
     for control_path in root.policy.control_paths() {
-        add_existing_parent(&control_path, &mut plan.directories);
+        plan.directories
+            .extend(existing_parent(&control_path).map(Path::to_path_buf));
     }
     for path in &plan.directories {
         register(path)?;
@@ -757,26 +806,17 @@ fn watch_directories(
     }
     // Traversal may discover additional rule files (including symlink targets).
     for control in root.policy.control_paths() {
-        let mut parents = BTreeSet::new();
-        add_existing_parent(&control, &mut parents);
-        for parent in parents {
-            if plan.directories.insert(parent.clone()) {
-                register(&parent)?;
-            }
+        if let Some(parent) = existing_parent(&control)
+            && plan.directories.insert(parent.to_path_buf())
+        {
+            register(parent)?;
         }
     }
     Ok(plan)
 }
 
-fn add_existing_parent(path: &Path, directories: &mut BTreeSet<PathBuf>) {
-    let mut parent = path.parent();
-    while let Some(path) = parent {
-        if path.is_dir() {
-            directories.insert(path.to_path_buf());
-            break;
-        }
-        parent = path.parent();
-    }
+fn existing_parent(path: &Path) -> Option<&Path> {
+    path.ancestors().skip(1).find(|parent| parent.is_dir())
 }
 
 fn collect_watch_directories(
@@ -862,12 +902,10 @@ fn add_file_link(
         .entry(target.clone())
         .or_default()
         .insert(alias.to_path_buf());
-    let mut parents = BTreeSet::new();
-    add_existing_parent(&target, &mut parents);
-    for parent in parents {
-        if plan.directories.insert(parent.clone()) {
-            register(&parent)?;
-        }
+    if let Some(parent) = existing_parent(&target)
+        && plan.directories.insert(parent.to_path_buf())
+    {
+        register(parent)?;
     }
     Ok(())
 }
@@ -1060,20 +1098,15 @@ async fn sleep_until_option(deadline: Option<Instant>) {
 }
 
 async fn deadline_wait(deadline: Option<std::time::Instant>) {
-    if let Some(deadline) = deadline {
-        tokio::time::sleep_until(Instant::from_std(deadline)).await;
-    } else {
-        std::future::pending::<()>().await;
-    }
+    sleep_until_option(deadline.map(Instant::from_std)).await;
 }
 
 fn retry_delay(consecutive_errors: u32) -> Duration {
     let exponent = consecutive_errors.saturating_sub(1).min(6);
-    Duration::from_millis((100_u64.saturating_mul(2_u64.pow(exponent))).min(5_000))
+    Duration::from_millis((100 * 2_u64.pow(exponent)).min(5_000))
 }
 
 fn normalize_config(mut config: NativeWatcherConfig) -> NativeWatcherConfig {
-    config.max_changed_paths = config.max_changed_paths.max(1);
     config.raw_event_capacity = config.raw_event_capacity.max(1);
     config.batch_capacity = config.batch_capacity.max(1);
     config
@@ -1112,11 +1145,21 @@ mod tests {
     use notify::event::CreateKind;
     use std::sync::atomic::AtomicUsize;
 
+    #[test]
+    fn watcher_recovery_uses_node_backoff_schedule() {
+        let expected = [100, 200, 400, 800, 1_600, 3_200, 5_000, 5_000];
+        assert_eq!(
+            (1..=8)
+                .map(|attempt| retry_delay(attempt).as_millis())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
     #[derive(Debug)]
     struct TestPolicy {
         excluded: PathBuf,
         control_file: PathBuf,
-        control_changes: AtomicUsize,
         invalidations: AtomicUsize,
     }
 
@@ -1133,7 +1176,6 @@ mod tests {
             if path != self.control_file {
                 return Ok(None);
             }
-            self.control_changes.fetch_add(1, Ordering::Relaxed);
             Ok(Some(PathBuf::new()))
         }
 
@@ -1153,7 +1195,6 @@ mod tests {
             Arc::new(TestPolicy {
                 excluded: path.join("blocked"),
                 control_file,
-                control_changes: AtomicUsize::new(0),
                 invalidations: AtomicUsize::new(0),
             }),
         )
@@ -1259,7 +1300,6 @@ mod tests {
         let policy = Arc::new(TestPolicy {
             excluded: temporary.path().join("blocked"),
             control_file: temporary.path().join(".rules"),
-            control_changes: AtomicUsize::new(0),
             invalidations: AtomicUsize::new(0),
         });
         let spec = RootSpec::new(temporary.path().to_path_buf(), policy.clone());
@@ -1306,7 +1346,6 @@ mod tests {
         let policy = Arc::new(TestPolicy {
             excluded: temporary.path().join("blocked"),
             control_file: temporary.path().join(".rules"),
-            control_changes: AtomicUsize::new(0),
             invalidations: AtomicUsize::new(0),
         });
         let spec = RootSpec::new(temporary.path().to_path_buf(), policy.clone());

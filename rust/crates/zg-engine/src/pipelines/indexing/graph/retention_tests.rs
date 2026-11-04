@@ -11,7 +11,7 @@ use crate::{
 
 async fn fixture() -> (tempfile::TempDir, WorkspaceIndexService, WorkspaceManifest) {
     let dir = tempfile::tempdir().expect("workspace");
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     service
         .index(
             &ModelRuntimeManager::new(),

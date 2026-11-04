@@ -69,7 +69,7 @@ async fn initial() -> (tempfile::TempDir, crate::ZvecGrep) {
     std::fs::create_dir(dir.path().join("src")).expect("src");
     std::fs::write(dir.path().join("src/a.rs"), "fn entry() {}\n").expect("source");
     let calls = Arc::new(AtomicUsize::new(0));
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service

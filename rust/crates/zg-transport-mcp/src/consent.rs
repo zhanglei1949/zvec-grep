@@ -1,5 +1,9 @@
 //! Remote embedding consent uses the same signed grants as the CLI.
 
+mod continuation;
+use continuation::ContinuationApproval;
+pub(crate) use continuation::ContinuationState;
+
 use rmcp::{
     RoleServer,
     model::{ElicitRequestParams, ElicitResult, ElicitationAction},
@@ -108,38 +112,59 @@ async fn ask(
     if context.ct.is_cancelled() {
         return Err(EngineError::cancelled("MCP authorization was cancelled"));
     }
+    if let Some(approval) = context.extensions.get::<ContinuationApproval>() {
+        if approval.targets.iter().any(|required| {
+            &required.target == target
+                && required.query_text == query_text
+                && required.workspace_content == workspace_content
+        }) {
+            return Ok(approval.decision);
+        }
+        return Err(EngineError::permission_denied(
+            "Remote authorization scope changed; retry consent",
+        ));
+    }
     let supported = context
         .client_capabilities()
         .and_then(|caps| caps.elicitation)
         .is_some_and(|cap| cap.form.is_some() || cap.url.is_none());
     if !supported {
         return Err(EngineError::permission_denied(
-            "Remote embedding requires consent. This MCP client does not support form elicitation; grant workspace authorization with `zg auth` or use FTS with autoUpdate: false.",
+            "Remote embedding requires consent. This MCP client does not support form elicitation; grant workspace authorization with `zg --auth` or use FTS with autoUpdate: false.",
         ));
     }
     let mut choices = vec!["once", "workspace", "cancel"];
     if allow_fts {
         choices.insert(2, "fts_only");
     }
-    let requested_schema = serde_json::from_value(serde_json::json!({
+    let requested_schema = serde_json::json!({
         "type": "object", "properties": {"choice": {
             "type": "string", "enum": choices,
             "description": "once: this operation only; workspace: persist consent for this root/model/endpoint and future watcher updates; fts_only: lexical query without refresh; cancel: send nothing"
         }}, "required": ["choice"]
-    })).map_err(|error| EngineError::internal(format!("Invalid consent schema: {error}")))?;
+    });
     let message = format!(
         "Allow remote embedding? Destination: {} (host: {}). Model: {}. Workspace: {}. Source roots: {}. Query text sent: {query_text}. Workspace content sent for indexing/refresh: {workspace_content}. Only explicit acceptance permits transmission. Do not enter credentials in this form.",
         target.endpoint,
         target.endpoint_host,
         target.model,
-        target.root.display(),
+        zg_cli::output_path(&target.root).display(),
         target
             .workspace_roots
             .iter()
-            .map(|root| root.display().to_string())
+            .map(|root| zg_cli::output_path(root).display().to_string())
             .collect::<Vec<_>>()
             .join(", "),
     );
+    let result = elicit_form(message, requested_schema, context).await?;
+    decision(&result, allow_fts)
+}
+
+pub(crate) async fn elicit_form(
+    message: String,
+    requested_schema: serde_json::Value,
+    context: &RequestContext<RoleServer>,
+) -> Result<ElicitResult, EngineError> {
     let mut handle = context
         .peer
         .send_cancellable_request(
@@ -147,7 +172,11 @@ async fn ask(
                 ElicitRequestParams::FormElicitationParams {
                     meta: None,
                     message,
-                    requested_schema,
+                    requested_schema: serde_json::from_value(requested_schema).map_err(
+                        |error| {
+                            EngineError::internal(format!("Invalid interaction schema: {error}"))
+                        },
+                    )?,
                 },
             )),
             rmcp::service::PeerRequestOptions::no_options(),
@@ -172,7 +201,7 @@ async fn ask(
     if context.ct.is_cancelled() {
         return Err(EngineError::cancelled("MCP authorization was cancelled"));
     }
-    decision(&result, allow_fts)
+    Ok(result)
 }
 
 fn decision(result: &ElicitResult, allow_fts: bool) -> Result<Decision, EngineError> {

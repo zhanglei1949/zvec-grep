@@ -46,7 +46,7 @@ class AugmentOpenCode(ZvecOpenCode):
 
     @staticmethod
     def _index_command(embedding_model):
-        return (f"zg index --embedding {shlex.quote(embedding_model)} "
+        return (f"zg --index --embedding {shlex.quote(embedding_model)} "
                 "--graph-options /tmp/zg-augment-graph.json")
 
     async def _index_seed_identity(self, environment, workdir, *, zvec_grep_version):
@@ -70,7 +70,7 @@ class AugmentOpenCode(ZvecOpenCode):
         return True
 
     async def _restored_index_is_ready(self, environment, workdir, *, supports_ready_check):
-        result = await self.exec_as_agent(environment, command="zg status --check-ready", cwd=workdir)
+        result = await self.exec_as_agent(environment, command="zg --status --check-ready", cwd=workdir)
         return result, True
 
     async def _save_index_seed(self, environment, workdir, *, seed_key, identity):

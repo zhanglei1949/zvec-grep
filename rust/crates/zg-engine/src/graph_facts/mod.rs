@@ -109,6 +109,7 @@ pub fn inspect_sources(
         };
         let entities = if input.language == Language::Markdown {
             extraction::extract_for_indexing(&source, extraction::ChunkOptions::default())?
+                .fragments
         } else {
             extraction::code::extract_with_graph(
                 &source,

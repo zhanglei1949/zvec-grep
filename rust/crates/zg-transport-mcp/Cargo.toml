@@ -13,10 +13,13 @@ knowledge-graph-graphdb = ["zg-engine/knowledge-graph-graphdb"]
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
+http.workspace = true
+ignore.workspace = true
 rmcp = { workspace = true, features = ["elicitation"] }
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["macros", "sync"] }
 tokio-util.workspace = true
 uuid.workspace = true
@@ -24,6 +27,7 @@ zg-cli = { path = "../zg-cli" }
 zg-engine = { path = "../zg-engine" }
 
 [dev-dependencies]
+tempfile.workspace = true
 zg-testkit = { path = "../zg-testkit" }
 rmcp = { workspace = true, features = ["client", "transport-io"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

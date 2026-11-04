@@ -51,7 +51,7 @@ export function graphObservation(response) {
 
 export function bridge(config, probe = false) {
   if (!["zg-off", "zg-augment"].includes(config.profile)) throw new Error("invalid profile");
-  const backend = spawn("zg", ["server", "--stdio", "--mcp-toolset", "agent"], {
+  const backend = spawn("zg", ["--server", "--stdio", "--mcp-toolset", "agent"], {
     stdio: ["pipe", "pipe", "inherit"],
   });
   const pending = new Map();

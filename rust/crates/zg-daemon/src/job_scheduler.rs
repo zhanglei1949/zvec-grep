@@ -115,7 +115,7 @@ pub(crate) struct IndexJobScheduler {
 
 struct SchedulerInner {
     executor: Arc<dyn IndexExecutor>,
-    permits: Arc<Semaphore>,
+    permits: Semaphore,
     state: Mutex<SchedulerState>,
     outstanding: AtomicUsize,
     closed: AtomicBool,
@@ -164,7 +164,7 @@ impl IndexJobScheduler {
         Self {
             inner: Arc::new(SchedulerInner {
                 executor,
-                permits: Arc::new(Semaphore::new(concurrency)),
+                permits: Semaphore::new(concurrency),
                 state: Mutex::new(SchedulerState::default()),
                 outstanding: AtomicUsize::new(0),
                 closed: AtomicBool::new(false),
@@ -185,7 +185,6 @@ impl IndexJobScheduler {
     ) -> Result<SubmitIndexJobResult, SchedulerError> {
         // Naming is an explicit caller mutation, never a background refresh setting.
         if reason == JobReason::Watch {
-            options.name = None;
             options.graph = None;
         }
         // Changing the saved corpus can affect paths outside a narrow watcher batch.
@@ -206,7 +205,6 @@ impl IndexJobScheduler {
             let needs_followup = reason == JobReason::Watch
                 || active_snapshot.reason == JobReason::Watch
                 || options.rebuild
-                || options.name.is_some()
                 || options.graph.is_some()
                 || has_selection_update(&options);
             if needs_followup
@@ -510,7 +508,7 @@ fn spawn_job(inner: Arc<SchedulerInner>, job: Arc<ScheduledJob>) {
                 finish_job(&inner, &job);
                 return;
             }
-            permit = Arc::clone(&inner.permits).acquire_owned() => permit,
+            permit = inner.permits.acquire() => permit,
         };
         let Ok(_permit) = permit else {
             finish_cancelled(&job, "the daemon job scheduler closed");
@@ -636,9 +634,35 @@ fn merge_options(current: &mut Option<IndexOptions>, mut incoming: IndexOptions)
     }
     current.reset_paths |= incoming.reset_paths;
     current.rebuild |= incoming.rebuild;
+    merge_update(
+        &mut current.scan.included_formats,
+        incoming.scan.included_formats.take(),
+    );
+    merge_update(
+        &mut current.scan.excluded_formats,
+        incoming.scan.excluded_formats.take(),
+    );
+    if incoming.scan.globs.is_some() {
+        current.scan.sensitive_globs = None;
+        current.scan.insensitive_globs = None;
+    }
     merge_update(&mut current.scan.globs, incoming.scan.globs.take());
-    merge_update(&mut current.scan.hidden, incoming.scan.hidden.take());
-    merge_update(&mut current.scan.no_ignore, incoming.scan.no_ignore.take());
+    merge_update(
+        &mut current.scan.sensitive_globs,
+        incoming.scan.sensitive_globs.take(),
+    );
+    merge_update(
+        &mut current.scan.insensitive_globs,
+        incoming.scan.insensitive_globs.take(),
+    );
+    merge_update(
+        &mut current.scan.include_hidden,
+        incoming.scan.include_hidden.take(),
+    );
+    merge_update(
+        &mut current.scan.use_default_ignores,
+        incoming.scan.use_default_ignores.take(),
+    );
     merge_update(
         &mut current.scan.follow_symlinks,
         incoming.scan.follow_symlinks.take(),
@@ -657,12 +681,6 @@ fn merge_options(current: &mut Option<IndexOptions>, mut incoming: IndexOptions)
         incoming.scan.max_file_size_bytes.take(),
     );
     merge_runtime_options(current, &mut incoming);
-    // An omitted name leaves a pending explicit rename intact.
-    merge_update(&mut current.name, incoming.name.take());
-    if incoming.changes.is_empty() {
-        current.changes.clear();
-        return;
-    }
     if full_scan {
         current.changes.clear();
         return;
@@ -772,39 +790,91 @@ fn job_error(error: EngineError) -> JobError {
 }
 
 fn redact_job_error_text(message: &str) -> String {
-    let mut redacted = redact_bearer_credentials(message);
+    let mut redacted = redact_url_userinfo(message);
+    redacted = redact_assigned_value(&redacted, "authorization", true);
+    for scheme in ["bearer", "basic"] {
+        redacted = redact_auth_scheme(&redacted, scheme);
+    }
     for name in [
-        "authorization",
+        "access_token",
+        "access-token",
+        "access token",
+        "accesstoken",
+        "refresh_token",
+        "refresh-token",
+        "refresh token",
+        "refreshtoken",
+        "id_token",
+        "id-token",
+        "id token",
+        "idtoken",
         "api_key",
         "api-key",
         "api key",
         "apikey",
+        "password",
+        "secret",
         "token",
     ] {
-        redacted = redact_assigned_value(&redacted, name);
+        redacted = redact_assigned_value(&redacted, name, false);
     }
-    let mut truncated = redacted
-        .chars()
+    redacted = redact_openai_keys(&redacted);
+    let mut characters = redacted.chars();
+    let mut truncated = characters
+        .by_ref()
         .take(MAX_PERSISTED_ERROR_CHARS)
         .collect::<String>();
-    if redacted.chars().count() > MAX_PERSISTED_ERROR_CHARS {
+    if characters.next().is_some() {
         truncated.push('…');
     }
     truncated
 }
 
-fn redact_bearer_credentials(message: &str) -> String {
+fn redact_url_userinfo(message: &str) -> String {
+    let mut output = message.to_owned();
+    let mut cursor = 0;
+    loop {
+        let Some(relative_marker) = output[cursor..].find("://") else {
+            return output;
+        };
+        let marker = cursor + relative_marker;
+        let mut scheme_start = marker;
+        while scheme_start > 0
+            && (output.as_bytes()[scheme_start - 1].is_ascii_alphanumeric()
+                || matches!(output.as_bytes()[scheme_start - 1], b'+' | b'.' | b'-'))
+        {
+            scheme_start -= 1;
+        }
+        let valid_scheme =
+            scheme_start < marker && output.as_bytes()[scheme_start].is_ascii_alphabetic();
+        let authority_start = marker + 3;
+        let authority_end = output.as_bytes()[authority_start..]
+            .iter()
+            .position(|byte| byte.is_ascii_whitespace() || *byte == b'/')
+            .map_or(output.len(), |offset| authority_start + offset);
+        if valid_scheme && let Some(relative_at) = output[authority_start..authority_end].find('@')
+        {
+            let userinfo_end = authority_start + relative_at;
+            output.replace_range(authority_start..userinfo_end, REDACTED);
+            cursor = authority_start + REDACTED.len() + 1;
+        } else {
+            cursor = authority_start;
+        }
+    }
+}
+
+fn redact_auth_scheme(message: &str, scheme: &str) -> String {
     let mut output = message.to_owned();
     let mut cursor = 0;
     loop {
         let lowercase = output.to_ascii_lowercase();
-        let Some(relative_start) = lowercase[cursor..].find("bearer") else {
+        let Some(relative_start) = lowercase[cursor..].find(scheme) else {
             return output;
         };
         let marker_start = cursor + relative_start;
-        let marker_end = marker_start + "bearer".len();
+        let marker_end = marker_start + scheme.len();
         let before_is_word =
-            marker_start > 0 && lowercase.as_bytes()[marker_start - 1].is_ascii_alphanumeric();
+            marker_start > 0 && is_identifier_byte(lowercase.as_bytes()[marker_start - 1]);
         let after_is_space = lowercase
             .as_bytes()
             .get(marker_end)
@@ -814,7 +884,7 @@ fn redact_bearer_credentials(message: &str) -> String {
             continue;
         }
         let value_start = skip_ascii_whitespace(output.as_bytes(), marker_end);
-        let value_end = credential_end(output.as_bytes(), value_start);
+        let value_end = quoted_or_token_end(output.as_bytes(), value_start);
         if value_start == value_end {
             cursor = marker_end;
             continue;
@@ -824,7 +894,7 @@ fn redact_bearer_credentials(message: &str) -> String {
     }
 }
 
-fn redact_assigned_value(message: &str, name: &str) -> String {
+fn redact_assigned_value(message: &str, name: &str, allow_spaces: bool) -> String {
     let mut output = message.to_owned();
     let mut cursor = 0;
     loop {
@@ -845,7 +915,15 @@ fn redact_assigned_value(message: &str, name: &str) -> String {
             cursor = name_end;
             continue;
         }
-        let separator = skip_ascii_whitespace(output.as_bytes(), name_end);
+        let mut separator = name_end;
+        if output
+            .as_bytes()
+            .get(separator)
+            .is_some_and(|byte| matches!(byte, b'\'' | b'"'))
+        {
+            separator += 1;
+        }
+        separator = skip_ascii_whitespace(output.as_bytes(), separator);
         if !output
             .as_bytes()
             .get(separator)
@@ -855,13 +933,47 @@ fn redact_assigned_value(message: &str, name: &str) -> String {
             continue;
         }
         let value_start = skip_ascii_whitespace(output.as_bytes(), separator + 1);
-        let value_end = credential_end(output.as_bytes(), value_start);
+        let value_end = if allow_spaces {
+            quoted_or_line_end(output.as_bytes(), value_start)
+        } else {
+            quoted_or_assigned_value_end(output.as_bytes(), value_start)
+        };
         if value_start == value_end {
             cursor = name_end;
             continue;
         }
         output.replace_range(value_start..value_end, REDACTED);
         cursor = value_start + REDACTED.len();
+    }
+}
+
+fn redact_openai_keys(message: &str) -> String {
+    let mut output = message.to_owned();
+    let mut cursor = 0;
+    loop {
+        let lowercase = output.to_ascii_lowercase();
+        let Some(relative_start) = lowercase[cursor..].find("sk-") else {
+            return output;
+        };
+        let start = cursor + relative_start;
+        if start > 0 && is_identifier_byte(lowercase.as_bytes()[start - 1]) {
+            cursor = start + 3;
+            continue;
+        }
+        let mut end = start + 3;
+        while output
+            .as_bytes()
+            .get(end)
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            end += 1;
+        }
+        if end - (start + 3) < 8 {
+            cursor = end;
+            continue;
+        }
+        output.replace_range(start..end, "sk-[redacted]");
+        cursor = start + "sk-[redacted]".len();
     }
 }
 
@@ -872,14 +984,60 @@ fn skip_ascii_whitespace(bytes: &[u8], mut cursor: usize) -> usize {
     cursor
 }
 
-fn credential_end(bytes: &[u8], mut cursor: usize) -> usize {
-    while bytes
-        .get(cursor)
-        .is_some_and(|byte| !byte.is_ascii_whitespace() && !matches!(byte, b',' | b';'))
-    {
-        cursor += 1;
+fn quoted_or_token_end(bytes: &[u8], cursor: usize) -> usize {
+    quoted_end(bytes, cursor).unwrap_or_else(|| {
+        let mut end = cursor;
+        while bytes.get(end).is_some_and(|byte| {
+            !byte.is_ascii_whitespace() && !matches!(byte, b'"' | b'\'' | b',' | b';' | b'&')
+        }) {
+            end += 1;
+        }
+        end
+    })
+}
+
+fn quoted_or_assigned_value_end(bytes: &[u8], cursor: usize) -> usize {
+    quoted_end(bytes, cursor).unwrap_or_else(|| {
+        let mut end = cursor;
+        while bytes
+            .get(end)
+            .is_some_and(|byte| !byte.is_ascii_whitespace() && *byte != b'&')
+        {
+            end += 1;
+        }
+        end
+    })
+}
+
+fn quoted_or_line_end(bytes: &[u8], cursor: usize) -> usize {
+    quoted_end(bytes, cursor).unwrap_or_else(|| {
+        let mut end = cursor;
+        while bytes
+            .get(end)
+            .is_some_and(|byte| !matches!(byte, b'\r' | b'\n'))
+        {
+            end += 1;
+        }
+        end
+    })
+}
+
+fn quoted_end(bytes: &[u8], cursor: usize) -> Option<usize> {
+    let quote @ (b'\'' | b'"') = *bytes.get(cursor)? else {
+        return None;
+    };
+    let mut end = cursor + 1;
+    while let Some(byte) = bytes.get(end) {
+        if *byte == b'\\' {
+            end = (end + 2).min(bytes.len());
+        } else {
+            end += 1;
+            if *byte == quote {
+                break;
+            }
+        }
     }
-    cursor
+    Some(end)
 }
 
 fn is_identifier_byte(byte: u8) -> bool {
@@ -954,14 +1112,18 @@ mod tests {
     use tokio::sync::Notify;
     use zg_engine::{
         EngineError,
-        api::index::{
-            IndexOptions, IndexResult,
-            options::{ScanRulesUpdate, WorkspaceChange},
+        api::{
+            context::options::FileFormat,
+            index::{
+                IndexOptions, IndexResult,
+                options::{ScanRulesUpdate, WorkspaceChange},
+            },
         },
     };
 
     use super::{
         IndexExecutor, IndexJobScheduler, JobReason, JobState, SchedulerConfig, SchedulerError,
+        redact_job_error_text,
     };
 
     struct GatedExecutor {
@@ -997,9 +1159,7 @@ mod tests {
         async fn index(&self, _options: IndexOptions) -> Result<IndexResult, EngineError> {
             self.started.notify_one();
             self.release.notified().await;
-            Ok(IndexResult {
-                ..IndexResult::default()
-            })
+            Ok(IndexResult::default())
         }
     }
 
@@ -1108,7 +1268,12 @@ mod tests {
     #[async_trait]
     impl IndexExecutor for ImmediateExecutor {
         async fn index(&self, options: IndexOptions) -> Result<IndexResult, EngineError> {
-            match options.name.as_deref() {
+            match options
+                .root
+                .as_deref()
+                .and_then(|path| path.file_name())
+                .and_then(|name| name.to_str())
+            {
                 Some("failed") => Err(EngineError::internal("fixture failure")),
                 Some("cancelled") => Err(EngineError::cancelled("fixture cancellation")),
                 _ => Ok(IndexResult::default()),
@@ -1124,8 +1289,7 @@ mod tests {
         let permits = scheduler
             .inner
             .permits
-            .clone()
-            .acquire_many_owned(2)
+            .acquire_many(2)
             .await
             .expect("permits");
         let submitted = scheduler
@@ -1152,17 +1316,17 @@ mod tests {
             IndexJobScheduler::new(Arc::new(ImmediateExecutor), SchedulerConfig::default());
         let mut completed = Vec::new();
         for index in 0..300 {
-            let root = PathBuf::from(format!("/workspace-{index}"));
             let (name, expected) = match index % 3 {
                 0 => ("succeeded", JobState::Succeeded),
                 1 => ("failed", JobState::Failed),
                 _ => ("cancelled", JobState::Cancelled),
             };
+            let root = PathBuf::from(format!("/workspace-{index}/{name}"));
             let job = scheduler
                 .submit(
                     root.clone(),
                     IndexOptions {
-                        name: Some(name.into()),
+                        root: Some(root.clone()),
                         ..IndexOptions::default()
                     },
                     JobReason::Manual,
@@ -1608,7 +1772,6 @@ mod tests {
                 root.clone(),
                 IndexOptions {
                     root: Some(root.clone()),
-                    name: Some("stale-workspace-name".into()),
                     changes: vec![zg_engine::api::index::options::WorkspaceChange::Upsert(
                         PathBuf::from("src/lib.rs"),
                     )],
@@ -1622,7 +1785,6 @@ mod tests {
                 root.clone(),
                 IndexOptions {
                     root: Some(root.clone()),
-                    name: Some("another-stale-name".into()),
                     changes: vec![zg_engine::api::index::options::WorkspaceChange::Delete(
                         PathBuf::from("src/lib.rs"),
                     )],
@@ -1645,7 +1807,6 @@ mod tests {
         assert_eq!(completed.job.state, JobState::Succeeded);
         let calls = executor.calls.lock().expect("calls should be readable");
         assert_eq!(calls.len(), 2);
-        assert!(calls[1].name.is_none());
         assert_eq!(
             calls[1].changes,
             [zg_engine::api::index::options::WorkspaceChange::Delete(
@@ -1691,8 +1852,11 @@ mod tests {
                     root.clone(),
                     IndexOptions {
                         scan: ScanRulesUpdate {
+                            included_formats: Some(vec![FileFormat::Rust]),
+                            excluded_formats: Some(vec![FileFormat::Json]),
                             globs: Some(vec!["*.rs".into()]),
-                            hidden: Some(true),
+                            include_hidden: Some(true),
+                            use_default_ignores: Some(true),
                             follow_symlinks: Some(true),
                             max_depth: Some(Some(3)),
                             ..Default::default()
@@ -1709,8 +1873,11 @@ mod tests {
                     root.clone(),
                     IndexOptions {
                         scan: ScanRulesUpdate {
+                            included_formats: Some(vec![FileFormat::Python]),
+                            excluded_formats: Some(Vec::new()),
                             globs: Some(Vec::new()),
-                            hidden: Some(false),
+                            include_hidden: Some(false),
+                            use_default_ignores: Some(false),
                             max_depth: Some(None),
                             ..Default::default()
                         },
@@ -1752,8 +1919,14 @@ mod tests {
     }
 
     fn assert_merged_selection(applied: &IndexOptions) {
+        assert_eq!(
+            applied.scan.included_formats,
+            Some(vec![FileFormat::Python])
+        );
+        assert_eq!(applied.scan.excluded_formats, Some(Vec::new()));
         assert_eq!(applied.scan.globs, Some(Vec::new()));
-        assert_eq!(applied.scan.hidden, Some(false));
+        assert_eq!(applied.scan.include_hidden, Some(false));
+        assert_eq!(applied.scan.use_default_ignores, Some(false));
         assert_eq!(applied.scan.follow_symlinks, Some(true));
         assert_eq!(applied.scan.max_depth, Some(None));
         assert!(
@@ -1939,13 +2112,82 @@ mod tests {
     }
 
     #[test]
+    fn queued_glob_updates_keep_both_supplied_categories() {
+        let mut pending = Some(IndexOptions {
+            scan: ScanRulesUpdate {
+                globs: Some(vec!["*.rs".into()]),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        super::merge_options(
+            &mut pending,
+            IndexOptions {
+                scan: ScanRulesUpdate {
+                    insensitive_globs: Some(vec![zg_engine::api::index::options::GlobRule {
+                        pattern: "*.MD".into(),
+                        case_insensitive: true,
+                    }]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let scan = pending
+            .expect("merged request")
+            .scan
+            .apply(&zg_engine::api::index::options::ScanRules::default())
+            .expect("updated scan rules");
+        assert_eq!(scan.globs().len(), 2);
+        assert_eq!(scan.globs()[0].pattern, "*.rs");
+        assert_eq!(scan.globs()[1].pattern, "*.MD");
+        assert!(scan.globs()[1].case_insensitive);
+    }
+
+    #[test]
+    fn queued_complete_globs_discard_earlier_category_updates() {
+        let mut pending = Some(IndexOptions {
+            scan: ScanRulesUpdate {
+                sensitive_globs: Some(vec!["old/**".into()]),
+                insensitive_globs: Some(vec![zg_engine::api::index::options::GlobRule {
+                    pattern: "!secret/**".into(),
+                    case_insensitive: true,
+                }]),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        super::merge_options(
+            &mut pending,
+            IndexOptions {
+                scan: ScanRulesUpdate {
+                    globs: Some(vec!["secret/**".into()]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let scan = pending
+            .expect("merged request")
+            .scan
+            .apply(&zg_engine::api::index::options::ScanRules::default())
+            .expect("updated scan rules");
+        assert_eq!(
+            scan.globs(),
+            vec![zg_engine::api::index::options::GlobRule::from("secret/**")]
+        );
+    }
+
+    #[test]
     fn a_later_reset_discards_pending_selection_updates_but_remains_pending_for_later_patches() {
         use zg_engine::api::index::options::ScanRulesUpdate;
 
         let mut pending = Some(IndexOptions {
             scan: ScanRulesUpdate {
+                included_formats: Some(vec![FileFormat::Rust]),
+                excluded_formats: Some(vec![FileFormat::Json]),
                 globs: Some(vec!["old/**".into()]),
-                hidden: Some(true),
+                include_hidden: Some(true),
                 max_depth: Some(Some(3)),
                 ..Default::default()
             },
@@ -1964,8 +2206,10 @@ mod tests {
         );
         let reset = pending.as_ref().expect("pending reset");
         assert!(reset.reset_paths);
+        assert_eq!(reset.scan.included_formats, None);
+        assert_eq!(reset.scan.excluded_formats, None);
         assert_eq!(reset.scan.globs, None);
-        assert_eq!(reset.scan.hidden, None);
+        assert_eq!(reset.scan.include_hidden, None);
         assert_eq!(reset.scan.max_depth, None);
         super::merge_options(
             &mut pending,
@@ -1986,89 +2230,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explicit_names_reach_the_executor_after_queued_or_running_manual_jobs() {
-        for (queued, narrow) in [(false, false), (false, true), (true, false), (true, true)] {
-            let executor = Arc::new(RecordingExecutor {
-                calls: Mutex::new(Vec::new()),
-                started: Notify::new(),
-                releases: tokio::sync::Semaphore::new(0),
-            });
-            let scheduler = IndexJobScheduler::new(
-                executor.clone(),
-                SchedulerConfig {
-                    concurrency: 1,
-                    queue_capacity: 8,
-                },
-            );
-            if queued {
-                scheduler
-                    .submit(
-                        PathBuf::from("/blocker"),
-                        IndexOptions::default(),
-                        JobReason::Manual,
-                    )
-                    .expect("occupy the worker");
-                executor.started.notified().await;
-            }
-            let root = PathBuf::from("/workspace");
-            let first = scheduler
-                .submit(root.clone(), IndexOptions::default(), JobReason::Manual)
-                .expect("initial manual index");
-            if !queued {
-                executor.started.notified().await;
-            }
-            let renamed = scheduler
-                .submit(
-                    root.clone(),
-                    IndexOptions {
-                        root: Some(root.clone()),
-                        name: Some("renamed-workspace".into()),
-                        changes: if narrow {
-                            vec![WorkspaceChange::Upsert("file.rs".into())]
-                        } else {
-                            Vec::new()
-                        },
-                        ..IndexOptions::default()
-                    },
-                    JobReason::Manual,
-                )
-                .expect("explicit rename");
-            assert_eq!(renamed.job.id == first.job.id, queued);
-            let refresh = scheduler
-                .submit(root, IndexOptions::default(), JobReason::Watch)
-                .expect("full background refresh merges with the pending rename");
-            assert_eq!(refresh.job.id, renamed.job.id);
-
-            executor.releases.add_permits(1);
-            tokio::time::timeout(
-                std::time::Duration::from_secs(2),
-                executor.started.notified(),
-            )
-            .await
-            .expect("explicit rename must reach the executor");
-            executor.releases.add_permits(1);
-            let completed = scheduler
-                .wait(renamed.job.id)
-                .await
-                .expect("rename completes");
-            assert_eq!(completed.job.state, JobState::Succeeded);
-            assert_eq!(
-                executor
-                    .calls
-                    .lock()
-                    .expect("recorded requests")
-                    .last()
-                    .expect("rename was executed")
-                    .name
-                    .as_deref(),
-                Some("renamed-workspace")
-            );
-            scheduler.shutdown().await;
-        }
-    }
-
-    #[tokio::test]
-    async fn global_budget_queues_other_roots_and_reports_real_counts() {
+    async fn global_budget_queues_roots_reports_counts_and_rejects_excess_jobs() {
         let executor = Arc::new(RecordingExecutor {
             calls: Mutex::new(Vec::new()),
             started: Notify::new(),
@@ -2078,7 +2240,7 @@ mod tests {
             executor.clone(),
             SchedulerConfig {
                 concurrency: 1,
-                queue_capacity: 8,
+                queue_capacity: 1,
             },
         );
         let first = scheduler
@@ -2100,6 +2262,14 @@ mod tests {
         let snapshot = scheduler.snapshot();
         assert_eq!(snapshot.running, 1);
         assert_eq!(snapshot.queued, 1);
+        assert!(matches!(
+            scheduler.submit(
+                PathBuf::from("/third"),
+                IndexOptions::default(),
+                JobReason::Manual,
+            ),
+            Err(SchedulerError::QueueFull)
+        ));
         executor.releases.add_permits(1);
         executor.started.notified().await;
         executor.releases.add_permits(1);
@@ -2121,57 +2291,6 @@ mod tests {
                 .state,
             JobState::Succeeded
         );
-    }
-
-    #[tokio::test]
-    async fn queue_capacity_rejects_excess_jobs_without_unbounding_waiters() {
-        let executor = Arc::new(RecordingExecutor {
-            calls: Mutex::new(Vec::new()),
-            started: Notify::new(),
-            releases: tokio::sync::Semaphore::new(0),
-        });
-        let scheduler = IndexJobScheduler::new(
-            executor.clone(),
-            SchedulerConfig {
-                concurrency: 1,
-                queue_capacity: 1,
-            },
-        );
-        let first = scheduler
-            .submit(
-                PathBuf::from("/first"),
-                IndexOptions::default(),
-                JobReason::Manual,
-            )
-            .expect("running job should be accepted");
-        executor.started.notified().await;
-        let second = scheduler
-            .submit(
-                PathBuf::from("/second"),
-                IndexOptions::default(),
-                JobReason::Manual,
-            )
-            .expect("one queued job should be accepted");
-        assert!(matches!(
-            scheduler.submit(
-                PathBuf::from("/third"),
-                IndexOptions::default(),
-                JobReason::Manual,
-            ),
-            Err(SchedulerError::QueueFull)
-        ));
-
-        executor.releases.add_permits(1);
-        executor.started.notified().await;
-        executor.releases.add_permits(1);
-        scheduler
-            .wait(first.job.id)
-            .await
-            .expect("first should finish");
-        scheduler
-            .wait(second.job.id)
-            .await
-            .expect("second should finish");
     }
 
     struct CancellationAwareExecutor {
@@ -2400,6 +2519,48 @@ mod tests {
                 .job
                 .state,
             JobState::Succeeded
+        );
+    }
+
+    #[test]
+    fn persisted_error_redaction_matches_node_credential_forms() {
+        let secret = "https://user:pass@example.test Basic basic-secret password='password secret' access-token=access-secret refresh_token=refresh-secret id token=id-secret secret=plain-secret sk-12345678";
+        let redacted = redact_job_error_text(secret);
+
+        for credential in [
+            "user:pass",
+            "basic-secret",
+            "password secret",
+            "access-secret",
+            "refresh-secret",
+            "id-secret",
+            "plain-secret",
+            "sk-12345678",
+        ] {
+            assert!(!redacted.contains(credential), "leaked {credential}");
+        }
+        assert_eq!(redacted.matches("[redacted]").count(), 8);
+    }
+
+    #[test]
+    fn assigned_credentials_include_punctuation_until_whitespace_or_ampersand() {
+        assert_eq!(
+            redact_job_error_text(
+                "password=abc,def;ghi status=401 api_key=jkl,mno;pqr&other=retained"
+            ),
+            "password=[redacted] status=401 api_key=[redacted]&other=retained"
+        );
+    }
+
+    #[test]
+    fn authorization_assignment_redacts_the_complete_line() {
+        assert_eq!(
+            redact_job_error_text("authorization: custom value with spaces\nvisible"),
+            "authorization: [redacted]\nvisible"
+        );
+        assert_eq!(
+            redact_job_error_text(r#"{"authorization": "Basic quoted secret", "safe": true}"#),
+            r#"{"authorization": [redacted], "safe": true}"#
         );
     }
 

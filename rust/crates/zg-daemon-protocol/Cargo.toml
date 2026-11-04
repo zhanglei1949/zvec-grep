@@ -12,7 +12,6 @@ knowledge-graph-graphdb = ["zg-engine/knowledge-graph-graphdb"]
 
 [dependencies]
 serde.workspace = true
-uuid.workspace = true
 zg-engine = { path = "../zg-engine" }
 
 [dev-dependencies]

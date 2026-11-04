@@ -68,17 +68,17 @@ impl kg::ScopeTextProvider for Text<'_> {
                 self.bytes.set(used);
                 self.entities
                     .borrow_mut()
-                    .insert(entity.id.as_str().to_owned(), entity);
+                    .insert(entity.id().as_str().to_owned(), entity);
                 Ok(metadata)
             })
             .collect()
     }
 }
 fn text_entity(entity: &Entity, ctx: &kg::RequestContext) -> kg::QueryResult<kg::ScopeTextEntity> {
-    if EntityId::new(entity.file_id, &entity.content, entity.source_range)
+    if EntityId::new(entity.file_id(), entity.content(), entity.source_range())
         .ok()
         .as_ref()
-        != Some(&entity.id)
+        != Some(entity.id())
     {
         return Err(kg::QueryError::new(
             kg::QueryErrorKind::ViewMismatch,
@@ -86,7 +86,7 @@ fn text_entity(entity: &Entity, ctx: &kg::RequestContext) -> kg::QueryResult<kg:
             "text identity changed",
         ));
     }
-    let Content::Text(body) = &entity.content else {
+    let (Content::Text(body) | Content::Code(body)) = entity.content() else {
         return Err(kg::QueryError::new(
             kg::QueryErrorKind::Unsupported,
             "scope",
@@ -94,7 +94,7 @@ fn text_entity(entity: &Entity, ctx: &kg::RequestContext) -> kg::QueryResult<kg:
         ));
     };
     let mut fragments = Vec::new();
-    for fragment in &entity.fragments {
+    for fragment in entity.fragments() {
         ctx.check()?;
         let span = match fragment.range {
             Range::Full => kg::ByteSpan {
@@ -120,7 +120,7 @@ fn text_entity(entity: &Entity, ctx: &kg::RequestContext) -> kg::QueryResult<kg:
         });
     }
     Ok(kg::ScopeTextEntity {
-        id: entity.id.as_str().into(),
+        id: entity.id().as_str().into(),
         content_bytes: body.len() as u64,
         fragments,
     })
@@ -230,9 +230,9 @@ fn prepare(
         let entity = entities
             .get(&unit.entity_id)
             .ok_or_else(|| EngineError::storage_failure("scope entity missing"))?;
-        if allowed.contains(&entity.file_id)
+        if allowed.contains(&entity.file_id())
             && (options.filter.symbol_types.is_empty()
-                || matches!(&entity.metadata,Some(EntityMetadata::Code(code)) if code.symbol_type.is_some_and(|t|options.filter.symbol_types.contains(&t))))
+                || matches!(&entity.metadata(),Some(EntityMetadata::Code(code)) if code.symbol_type.is_some_and(|t|options.filter.symbol_types.contains(&t))))
         {
             if unit.source_spans.len() != 1 {
                 return Err(EngineError::unsupported(
@@ -288,7 +288,8 @@ fn call_evidence(
             {
                 continue;
             }
-            let Content::Text(body) = &entities[&unit.entity_id].content else {
+            let (Content::Text(body) | Content::Code(body)) = entities[&unit.entity_id].content()
+            else {
                 continue;
             };
             let call_start = unit.content_span.start + reference.evidence.span.start - span.start;

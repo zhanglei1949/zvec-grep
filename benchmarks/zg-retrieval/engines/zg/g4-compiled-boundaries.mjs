@@ -224,7 +224,7 @@ export async function main(args = process.argv.slice(2)) {
       const indexed = await capture(
         binary,
         [
-          "index",
+          "--index",
           root,
           "--mode",
           "direct",
@@ -254,7 +254,7 @@ export async function main(args = process.argv.slice(2)) {
       client = new PublicMcp(
         [
           binary,
-          "server",
+          "--server",
           "--stdio",
           "--listen",
           `127.0.0.1:${port}`,
@@ -274,11 +274,11 @@ export async function main(args = process.argv.slice(2)) {
         rust_api: [api, ["explore", root, input]],
         cli_direct: [
           binary,
-          ["explore", "--root", root, "--mode", "direct", "--request", input],
+          ["--explore", "--root", root, "--mode", "direct", "--request", input],
         ],
         cli_daemon: [
           binary,
-          ["explore", "--root", root, "--mode", "server", "--request", input],
+          ["--explore", "--root", root, "--mode", "server", "--request", input],
         ],
       };
       for (const [name, [command, argv]] of Object.entries(commands)) {
@@ -412,7 +412,7 @@ export async function main(args = process.argv.slice(2)) {
         await writeFile(join(directory, "mcp-stderr.log"), client.stderr);
       }
       if (env) {
-        const shutdown = await capture(binary, ["server", "off"], {
+        const shutdown = await capture(binary, ["--server", "off"], {
           env,
           cwd: root,
           timeout: 30_000,

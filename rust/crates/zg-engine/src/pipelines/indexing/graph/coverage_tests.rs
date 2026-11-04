@@ -39,19 +39,20 @@ fn fixture(text: &str) -> (FileRecord, BoundFileFacts) {
     .expect("facts")
     .remove(0);
     bound.record.index_status = zg_knowledge::relations::bound::IndexStatus::Indexed;
-    let file = FileRecord {
-        id: FileId::new(1),
-        relative_path: SourcePath::new("src/lib.rs").expect("path"),
-        snapshot: FileSnapshot {
+    let file = FileRecord::new(
+        FileId::new(1),
+        SourcePath::new("src/lib.rs").expect("path"),
+        FileSnapshot {
             size_bytes: text.len() as u64,
             modified_epoch_ms: None,
             content_hash: Some(crate::utils::sha256_hex(text.as_bytes())),
         },
-        index_status: FileIndexStatus::Indexed {
+        FileIndexStatus::Indexed {
             indexed_epoch_ms: 1,
             entity_count: bound.record.entity_count,
         },
-    };
+    )
+    .expect("file");
     (file, bound)
 }
 fn roots() -> ModuleRoots {

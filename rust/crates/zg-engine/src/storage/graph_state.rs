@@ -29,7 +29,9 @@ pub(crate) fn now() -> u64 {
         .unwrap_or(u64::MAX)
 }
 pub(crate) fn fingerprint(value: &impl Serialize) -> EngineResult<String> {
-    let value = serde_json::to_value(value).map_err(|_| invalid())?;
+    let mut value = serde_json::to_value(value).map_err(|_| invalid())?;
+    // CLI presentation enables preserve_order globally; persisted hashes still sort keys.
+    value.sort_all_objects();
     let bytes = serde_json::to_vec(&value).map_err(|_| invalid())?;
     Ok(crate::utils::sha256_hex(&bytes))
 }
@@ -241,7 +243,7 @@ pub(crate) fn catalog_digest(files: &[FileRecord]) -> String {
     }
     let mut sorted = files
         .iter()
-        .map(|f| (path_bytes(f.relative_path.as_ref()), f))
+        .map(|f| (path_bytes(f.relative_path().as_ref()), f))
         .collect::<Vec<_>>();
     sorted.sort_by(|a, b| a.0.cmp(&b.0));
     let mut hash = Sha256::new();
@@ -252,21 +254,21 @@ pub(crate) fn catalog_digest(files: &[FileRecord]) -> String {
     };
     for (path, file) in sorted {
         part(&mut hash, &path);
-        hash.update(file.id.get().to_be_bytes());
-        hash.update([match file.index_status {
+        hash.update(file.id().get().to_be_bytes());
+        hash.update([match file.index_status() {
             FileIndexStatus::NotIndexed => 0,
             FileIndexStatus::Indexed { .. } => 1,
             FileIndexStatus::Deleting => 2,
             FileIndexStatus::Failed { .. } => 3,
         }]);
-        match &file.snapshot.content_hash {
+        match &file.snapshot().content_hash {
             None => hash.update([0]),
             Some(h) => {
                 hash.update([1]);
                 part(&mut hash, h.as_bytes());
             }
         }
-        hash.update(file.snapshot.size_bytes.to_be_bytes());
+        hash.update(file.snapshot().size_bytes.to_be_bytes());
     }
     hex::encode(hash.finalize())
 }
@@ -329,7 +331,7 @@ impl TextFence {
         let files = snapshot()?;
         if files.iter().any(|f| {
             matches!(
-                f.index_status,
+                f.index_status(),
                 FileIndexStatus::NotIndexed | FileIndexStatus::Deleting
             )
         }) {

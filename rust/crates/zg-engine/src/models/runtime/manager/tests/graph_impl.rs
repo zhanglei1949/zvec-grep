@@ -50,7 +50,7 @@ async fn assert_impl_fixture(root: &str, methods: &str, duplicate: &str) {
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
     let opts = options(dir.path());
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     service
         .index(&manager, opts.clone())
         .await
@@ -119,7 +119,7 @@ async fn assert_impl_fixture(root: &str, methods: &str, duplicate: &str) {
         (methods.into(), 2, Resolved),
     ] {
         std::fs::write(dir.path().join("src/methods.rs"), source).expect("change target");
-        let service = WorkspaceIndexService::with_test_registry();
+        let service = WorkspaceIndexService::new();
         let result = service
             .index(&manager, update.clone())
             .await

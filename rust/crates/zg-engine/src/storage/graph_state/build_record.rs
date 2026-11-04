@@ -123,14 +123,14 @@ pub(crate) fn bound_matches(
 ) -> EngineResult<bool> {
     for bound in &catalog.files {
         let Some(file) = files.iter().find(|f| {
-            f.id.get() == bound.record.file_id
-                && f.relative_path.as_ref() == std::path::Path::new(&bound.record.path)
+            f.id().get() == bound.record.file_id
+                && f.relative_path().as_ref() == std::path::Path::new(&bound.record.path)
         }) else {
             return Ok(false);
         };
-        if !file.index_status.is_indexed()
-            || file.snapshot.content_hash != bound.record.content_hash
-            || file.snapshot.size_bytes != bound.record.size_bytes
+        if !file.index_status().is_indexed()
+            || file.snapshot().content_hash != bound.record.content_hash
+            || file.snapshot().size_bytes != bound.record.size_bytes
         {
             return Ok(false);
         }

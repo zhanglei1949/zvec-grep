@@ -100,7 +100,7 @@ impl SearchStorage for ScopedStorage<'_> {
         self.after(hits.to_vec())?;
         let data = self.inner.load_search_hits(hits)?;
         for stored in data.entities.values() {
-            if self.scope.entities.get(stored.entity.id.as_str()) != Some(&stored.entity) {
+            if self.scope.entities.get(stored.entity.id().as_str()) != Some(&stored.entity) {
                 return Err(EngineError::storage_failure(
                     "scope text changed during retrieval",
                 ));
@@ -150,7 +150,7 @@ impl PreparedScope {
             .entities
             .get(id)
             .ok_or_else(|| EngineError::storage_failure("scope result entity missing"))?;
-        let Content::Text(body) = &entity.content else {
+        let (Content::Text(body) | Content::Code(body)) = entity.content() else {
             return Err(EngineError::unsupported("scope_non_text_body"));
         };
         let displayed = match item.content_range {

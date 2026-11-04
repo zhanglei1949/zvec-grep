@@ -6,3 +6,4 @@ pub(crate) mod indexing;
 
 #[cfg(feature = "knowledge-graph-graphdb")]
 pub(crate) mod explore;
+pub(crate) mod path_search;

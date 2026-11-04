@@ -52,7 +52,7 @@ impl Indexed {
             std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
             std::fs::write(path, &source.text).expect("source");
         }
-        let service = WorkspaceIndexService::with_test_registry();
+        let service = WorkspaceIndexService::new();
         let manager = models(&Arc::new(AtomicUsize::new(0)));
         let mut initial = options(dir.path());
         initial.graph = Some(spec.graph.clone());
@@ -527,7 +527,7 @@ async fn m6_unmapped_header_cannot_bypass_coverage_with_a_forged_ready_head() {
         module_roots: vec![],
         rules: None,
     });
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let result = service
         .index(&models(&Arc::new(AtomicUsize::new(0))), initial)
         .await

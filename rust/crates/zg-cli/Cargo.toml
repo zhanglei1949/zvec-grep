@@ -13,15 +13,24 @@ knowledge-graph-graphdb = ["zg-engine/knowledge-graph-graphdb"]
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
-crossterm.workspace = true
-serde_json.workspace = true
+crossterm = { workspace = true, features = ["bracketed-paste"] }
+grep.workspace = true
+# Configuration objects can contain first-match rules whose order must survive edits.
+serde_json = { workspace = true, features = ["preserve_order"] }
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+tokio-util.workspace = true
 zg-engine = { path = "../zg-engine" }
+
+[target.'cfg(windows)'.dependencies]
+dunce = "1.0.5"
+winapi-util = "0.1.11"
 
 [dev-dependencies]
 tempfile.workspace = true
+toml.workspace = true
+zg-testkit = { path = "../zg-testkit" }
 
 [lints]
 workspace = true

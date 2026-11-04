@@ -85,12 +85,12 @@ Important inputs:
 | --- | --- |
 | `query` | One hybrid natural-language or exact query |
 | `queries` | One or more hybrid query groups |
-| `fts` | Ranked lexical constraints within indexed search, not exhaustive occurrence lookup |
+| `fts` | Supplemental lexical retrieval groups, not hard constraints or exhaustive occurrence lookup |
 | `vector` | Semantic-only query groups |
 | `fuse` | Combine every group into one ranked plan |
 | `limit` | Maximum items per group, up to 50 |
 | `preview` | `short` (default) for bounded snippets, or `full` for all available retrieved-item content; affects display only |
-| `globs` / `insensitiveGlobs` | Ordered path rules |
+| `globs` / `insensitiveGlobs` | A string or list of ordered path rules; insensitive rules follow globs |
 | `fileTypes` / `excludedFileTypes` | ripgrep file-type filters |
 | `symbolTypes` / `preferSymbol` | Indexed symbol controls |
 | `modifiedAfter` / `modifiedBefore` | File modification-time bounds |
@@ -118,7 +118,16 @@ source:
 
 When `freshness` is `possibly_stale`, the response may also include current
 indexing state. Agents can use sufficient results immediately rather than
-running a status preflight.
+running a status preflight. The Node.js implementation also treats pending
+watcher activity and queued or running manual indexing tasks as possibly stale.
+
+**Rust implementation:** `freshness: possibly_stale` requires observed file
+changes: pending file notifications, added/modified/deleted files found by an
+inspection or refresh, or returned sources that differ from their indexed
+snapshots. Without this evidence the response is `fresh`, including an idle index or the first read
+after activation. `results: served_from_current_index` describes the source
+of the results; `background_refresh: scheduled` or `failed` describes refresh
+activity independently of freshness.
 
 Remote models may cause the tool to request explicit Remote Embedding
 authorization. See
@@ -153,6 +162,8 @@ requesting bounded output:
 Scope broad searches with command paths, `-g/--glob`, or `-t/--type`. Managed rg
 supports common ripgrep matching, context, type, glob, ignore, encoding, and
 regex-engine options while preserving zvec-grep's compact result format.
+Results contain plain source lines with file paths, line numbers and match/context
+markers. Code and Markdown files are not parsed for symbol or heading metadata.
 
 ## Full compatibility toolset
 
@@ -190,3 +201,31 @@ The MCP endpoint is loopback-only. Optional Bearer authentication protects the
 local Server but remains independent of Embedding provider credentials and
 Remote Embedding authorization. Configuration examples are in
 [Server authentication](./06-server.md#bearer-authentication).
+
+## Rust compatibility notes
+
+Rust uses the same search routing, preview and freshness rules in `agent` and
+`full`. Search credentials and device selection come from the configured runtime;
+public search does not accept `apiKey` or `device`. Index accepts runtime overrides,
+`follow`, ordered globs and native ripgrep type filters, and defaults to `wait: false`.
+Completed debug indexing returns `scan_diagnostics` alongside extended diagnostics.
+
+The Rust indexed-search API rejects scanning options (`hidden`, `noIgnore`,
+`ignoreFiles`, `maxDepth`, `maxFileSizeBytes`, `follow`); change these through index.
+The Node indexed-search implementation currently ignores them. Rust also rejects
+unknown search/index fields rather than silently discarding them. Retained extensions
+and review conditions are listed in
+[the compatibility registry](../rust/compat/allowed-differences.toml).
+
+With protocol `2026-07-28`, remote permission returns `input_required`; resend the
+same tool arguments and `requestState`, with the accepted decision under
+`inputResponses.remote_embedding_authorization.content.decision`. Decisions are
+`allow_once`, `allow_workspace`, `use_local_search` (search only), or `cancel`.
+States expire after ten minutes and cannot be replayed. A daemon restart requires
+a new prompt. Older clients use reverse elicitation. No protected data is sent
+before consent, and FTS-only disables both vectors and refresh.
+
+HTTP discovery and tool lists advertise a one-hour private cache. Older HTTP
+sessions have a 256-session limit and 30-minute idle expiry; active requests remain
+protected. Closing stdio leaves the shared daemon running. Both transports are
+covered by the normal Rust workspace tests and the three-platform Rust CI matrix.

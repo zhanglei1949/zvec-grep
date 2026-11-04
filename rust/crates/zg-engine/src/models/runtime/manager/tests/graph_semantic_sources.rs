@@ -98,7 +98,7 @@ async fn graph_code_rebuild_inherits_outside_semantics_and_episodes() {
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service
@@ -230,7 +230,7 @@ async fn graph_code_scope_keeps_document_positions_as_auxiliaries() {
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service.index(&manager, initial).await.expect("initial");
@@ -283,7 +283,7 @@ async fn graph_confirmed_file_removal_withdraws_only_its_contribution() {
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service.index(&manager, initial).await.expect("initial");
@@ -346,7 +346,7 @@ async fn graph_text_rebuild_keeps_semantics_across_storage_generations() {
     corpus(dir.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service.index(&manager, initial).await.expect("initial");

@@ -9,15 +9,22 @@ mod controller;
 pub use authentication::resolve_token;
 mod http_client;
 mod job_scheduler;
+mod mcp_sessions;
+pub mod rolling_log;
 mod runtime;
 mod stdio;
 mod workspace_runtime;
 
-use std::{fmt, net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
-
-pub use controller::{
-    DaemonInstanceRecord, DaemonStatus, start_server, stop_server, stop_server_with_token,
+use std::{
+    fmt,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
 };
+
+pub use controller::{DaemonStatus, server_status, start_server, stop_server_with_token};
 pub use stdio::run_stdio_bridge;
 use thiserror::Error;
 use zg_engine::ErrorReport;
@@ -25,10 +32,11 @@ use zg_engine::ZvecGrep;
 pub use zg_transport_mcp::McpToolset;
 
 pub const DEFAULT_LISTEN: &str = "127.0.0.1:7999";
+const WATCHER_IDLE_TIMEOUT_SECONDS_ENV: &str = "ZVEC_GREP_WATCHER_IDLE_TIMEOUT_SECONDS";
+const MAX_TIMER_DELAY_SECONDS: u64 = 2_147_483_647 / 1_000;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ListenAddress {
-    value: String,
     socket: SocketAddr,
 }
 
@@ -52,7 +60,7 @@ impl Default for ListenAddress {
 
 impl fmt::Display for ListenAddress {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.value)
+        write!(formatter, "{}", self.socket)
     }
 }
 
@@ -62,18 +70,16 @@ impl FromStr for ListenAddress {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let value = value.trim();
         let normalized = value
-            .strip_prefix("localhost:")
-            .map_or_else(|| value.to_owned(), |port| format!("127.0.0.1:{port}"));
+            .split_once(':')
+            .filter(|(host, _)| host.eq_ignore_ascii_case("localhost"))
+            .map_or_else(|| value.to_owned(), |(_, port)| format!("127.0.0.1:{port}"));
         let socket = normalized
             .parse::<SocketAddr>()
             .map_err(|_| DaemonError::InvalidListen(value.to_owned()))?;
         if !socket.ip().is_loopback() || socket.port() == 0 {
             return Err(DaemonError::InvalidListen(value.to_owned()));
         }
-        Ok(Self {
-            value: socket.to_string(),
-            socket,
-        })
+        Ok(Self { socket })
     }
 }
 
@@ -109,7 +115,21 @@ pub enum DaemonError {
     #[error("zvec-grep server is already running with PID {pid}")]
     AlreadyRunning { pid: u32 },
     #[error(
-        "zvec-grep server is already running with MCP toolset {active:?}; run `zg server off` before changing toolsets"
+        "legacy zvec-grep daemon (PID {pid}) has no daemonProtocolVersion and cannot serve this client; run `zg --server on` with the same --home to replace it"
+    )]
+    LegacyDaemon { pid: u32 },
+    #[error(
+        "zvec-grep daemon (PID {pid}) uses daemonProtocolVersion {actual}, but this client requires {expected}; use a compatible client or explicitly stop the daemon before restarting"
+    )]
+    ProtocolMismatch {
+        pid: u32,
+        actual: u32,
+        expected: u32,
+    },
+    #[error("server shutdown request failed with HTTP {status}; daemon was not terminated")]
+    ShutdownRejected { status: u16 },
+    #[error(
+        "zvec-grep server is already running with MCP toolset {active:?}; run `zg --server off` before changing toolsets"
     )]
     ToolsetMismatch { active: String },
     #[error("server address {0} is already in use")]
@@ -122,14 +142,22 @@ pub enum DaemonError {
     RefuseCurrentProcess,
     #[error("zvec-grep server instance changed while stopping; refusing to signal PID {pid}")]
     InstanceChanged { pid: u32 },
+    #[error(
+        "cannot verify daemon process identity for PID {pid}: the OS start time does not match the instance record; refusing to stop the process"
+    )]
+    ProcessIdentityMismatch { pid: u32 },
+    #[error("cannot identify a unique healthy daemon at {address}; no shutdown request was sent")]
+    UnverifiedEndpoint { address: String },
     #[error("invalid daemon instance record at {0}")]
     InvalidRecord(PathBuf),
+    #[error(
+        "ZVEC_GREP_WATCHER_IDLE_TIMEOUT_SECONDS must be an integer between 0 and 2147483; 0 disables idle watcher eviction"
+    )]
+    InvalidWatcherIdleTimeout,
     #[error("daemon I/O failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("daemon state serialization failed: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("daemon HTTP server failed: {0}")]
-    Http(#[from] axum::Error),
     #[error("daemon MCP stdio bridge failed: {0}")]
     McpBridge(String),
     #[error("resident daemon is not ready")]
@@ -158,16 +186,6 @@ pub fn resolve_home(explicit: Option<PathBuf>) -> Result<PathBuf, DaemonError> {
     user_home
         .map(|path| PathBuf::from(path).join(".zvec-grep"))
         .ok_or(DaemonError::MissingHome)
-}
-
-/// Returns current daemon status for a home directory.
-///
-/// # Errors
-///
-/// Returns an I/O error when the instance record or health endpoint cannot be
-/// inspected safely.
-pub async fn server_status(home: &std::path::Path) -> Result<DaemonStatus, DaemonError> {
-    controller::server_status(home).await
 }
 
 /// Executes one typed engine command through the resident daemon's local
@@ -338,18 +356,12 @@ pub async fn index_with_progress(
     request: zg_engine::api::index::IndexOptions,
     reporter: &zg_engine::api::index::progress::IndexProgressReporter,
 ) -> Result<zg_engine::api::index::IndexResult, DaemonError> {
-    let status = server_status(home).await?;
-    if !status.ready {
-        return Err(DaemonError::NotReady);
-    }
-    let url = status.server_url.ok_or(DaemonError::NotReady)?;
-    let prefix = url
-        .strip_suffix("/mcp")
-        .ok_or_else(|| DaemonError::McpBridge("daemon published an invalid server URL".into()))?;
+    let url = admin_url(home, "index").await?;
     let result = http_client::post_index_stream(
-        &format!("{prefix}/admin/index"),
+        &url,
         serde_json::to_vec(&request)?,
         reporter,
+        request.signal.as_ref(),
     )
     .await?;
     match result {
@@ -366,14 +378,64 @@ pub async fn index_with_progress(
     }
 }
 
-/// Runs the resident HTTP daemon until local shutdown or an OS termination
-/// signal, then releases its instance record.
+async fn admin_url(home: &Path, endpoint: &str) -> Result<String, DaemonError> {
+    let status = server_status(home).await?;
+    if !status.ready {
+        return Err(DaemonError::NotReady);
+    }
+    let url = status.server_url.ok_or(DaemonError::NotReady)?;
+    let prefix = url
+        .strip_suffix("/mcp")
+        .ok_or_else(|| DaemonError::McpBridge("daemon published an invalid server URL".into()))?;
+    Ok(format!("{prefix}/admin/{endpoint}"))
+}
+
+fn configured_watcher_idle_timeout() -> Result<Option<Duration>, DaemonError> {
+    configured_watcher_idle_timeout_value(std::env::var_os(WATCHER_IDLE_TIMEOUT_SECONDS_ENV))
+}
+
+fn configured_watcher_idle_timeout_value(
+    configured: Option<std::ffi::OsString>,
+) -> Result<Option<Duration>, DaemonError> {
+    let Some(configured) = configured else {
+        return Ok(Some(
+            workspace_runtime::WorkspaceRuntimeManager::DEFAULT_IDLE_TTL,
+        ));
+    };
+    let configured = configured
+        .to_str()
+        .ok_or(DaemonError::InvalidWatcherIdleTimeout)?
+        .trim();
+    if configured.is_empty() {
+        return Ok(Some(
+            workspace_runtime::WorkspaceRuntimeManager::DEFAULT_IDLE_TTL,
+        ));
+    }
+    if !configured.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(DaemonError::InvalidWatcherIdleTimeout);
+    }
+    let seconds = configured
+        .parse::<u64>()
+        .map_err(|_| DaemonError::InvalidWatcherIdleTimeout)?;
+    if seconds > MAX_TIMER_DELAY_SECONDS {
+        return Err(DaemonError::InvalidWatcherIdleTimeout);
+    }
+    Ok((seconds != 0).then(|| Duration::from_secs(seconds)))
+}
+
+/// Runs the daemon and initializes its logging after acquiring the instance record.
+/// The daemon runs until local shutdown or an OS termination signal, then
+/// releases its instance record.
 ///
 /// # Errors
 ///
-/// Returns lifecycle, bind, state-file, or HTTP server errors.
-pub async fn run_server(config: ServerConfig, engine: Arc<ZvecGrep>) -> Result<(), DaemonError> {
-    runtime::run_server(config, engine).await
+/// Returns lifecycle, logging, bind, state-file, or HTTP server errors.
+pub async fn run_server_with_logging(
+    config: ServerConfig,
+    engine: Arc<ZvecGrep>,
+    init_logging: impl FnOnce(&Path) -> Result<(), DaemonError>,
+) -> Result<(), DaemonError> {
+    runtime::run_server(config, engine, init_logging).await
 }
 
 #[must_use]
@@ -383,9 +445,12 @@ pub const fn default_stop_timeout() -> Duration {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{ffi::OsString, str::FromStr, time::Duration};
 
-    use super::ListenAddress;
+    use super::{
+        ListenAddress, configured_watcher_idle_timeout_value,
+        workspace_runtime::WorkspaceRuntimeManager,
+    };
 
     #[tokio::test(start_paused = true)]
     async fn explore_dispatch_timeout_and_cancellation_keep_engine_error_codes() {
@@ -435,7 +500,7 @@ mod tests {
         assert!(
             super::require_query_capability(
                 &serde_json::json!({
-                    "protocol_version":16,"capabilities":["explore.code.v1"]
+                    "protocol_version":17,"capabilities":["explore.code.v1"]
                 }),
                 "explore.code.v1"
             )
@@ -447,13 +512,13 @@ mod tests {
     fn augmentation_requires_current_protocol_and_its_own_capability() {
         for value in [
             serde_json::json!({"protocol_version":13,"capabilities":["augment.code.v1"]}),
-            serde_json::json!({"protocol_version":16,"capabilities":["explore.code.v1"]}),
+            serde_json::json!({"protocol_version":17,"capabilities":["explore.code.v1"]}),
         ] {
             assert!(super::require_query_capability(&value, "augment.code.v1").is_err());
         }
         assert!(
             super::require_query_capability(
-                &serde_json::json!({"protocol_version":16,"capabilities":["augment.code.v1"]}),
+                &serde_json::json!({"protocol_version":17,"capabilities":["augment.code.v1"]}),
                 "augment.code.v1"
             )
             .is_ok()
@@ -464,9 +529,34 @@ mod tests {
     fn listen_address_accepts_only_loopback() {
         assert!(ListenAddress::from_str("127.0.0.1:7999").is_ok());
         assert!(ListenAddress::from_str("localhost:7999").is_ok());
+        assert!(ListenAddress::from_str("LOCALHOST:7999").is_ok());
         assert!(ListenAddress::from_str("[::1]:7999").is_ok());
         assert!(ListenAddress::from_str("0.0.0.0:7999").is_err());
         assert!(ListenAddress::from_str("127.0.0.1:0").is_err());
+    }
+
+    #[test]
+    fn watcher_idle_timeout_matches_node_environment_semantics() {
+        assert_eq!(
+            configured_watcher_idle_timeout_value(None).expect("default timeout"),
+            Some(WorkspaceRuntimeManager::DEFAULT_IDLE_TTL)
+        );
+        assert_eq!(
+            configured_watcher_idle_timeout_value(Some(OsString::from(" 15 ")))
+                .expect("configured timeout"),
+            Some(Duration::from_secs(15))
+        );
+        assert_eq!(
+            configured_watcher_idle_timeout_value(Some(OsString::from("0")))
+                .expect("disabled timeout"),
+            None
+        );
+        for invalid in ["-1", "1.5", "2147484", "seconds"] {
+            assert!(
+                configured_watcher_idle_timeout_value(Some(OsString::from(invalid))).is_err(),
+                "{invalid} must be rejected"
+            );
+        }
     }
 }
 
@@ -477,7 +567,7 @@ mod constrain_capability_tests {
         let old = serde_json::json!({"protocol_version":15,"capabilities":["explore.code.v1","augment.code.v1"]});
         assert!(super::require_query_capability(&old, "constrain.code.v1").is_err());
         let current =
-            serde_json::json!({"protocol_version":16,"capabilities":["constrain.code.v1"]});
+            serde_json::json!({"protocol_version":17,"capabilities":["constrain.code.v1"]});
         assert!(super::require_query_capability(&current, "constrain.code.v1").is_ok());
     }
 }

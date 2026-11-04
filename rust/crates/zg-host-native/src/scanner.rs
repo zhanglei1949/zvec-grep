@@ -33,12 +33,6 @@ impl NativeScanner {
             scan_slots: Arc::new(Semaphore::new(1)),
         }
     }
-
-    #[must_use]
-    pub fn with_max_concurrent_scans(mut self, maximum: usize) -> Self {
-        self.scan_slots = Arc::new(Semaphore::new(maximum.max(1)));
-        self
-    }
 }
 
 impl Default for NativeScanner {
@@ -76,31 +70,6 @@ impl WorkspaceScannerPort for NativeScanner {
     }
 }
 
-#[derive(Clone, Debug)]
-struct BlockingControl {
-    cancellation: tokio_util::sync::CancellationToken,
-    deadline: Option<Instant>,
-}
-
-impl BlockingControl {
-    fn check(&self) -> Result<(), HostError> {
-        if self.cancellation.is_cancelled() {
-            return Err(HostError::cancelled(
-                "native scanner operation was cancelled",
-            ));
-        }
-        if self
-            .deadline
-            .is_some_and(|deadline| Instant::now() >= deadline)
-        {
-            return Err(HostError::deadline_exceeded(
-                "native scanner operation exceeded its deadline",
-            ));
-        }
-        Ok(())
-    }
-}
-
 async fn acquire_slot<'a>(
     slots: &'a Semaphore,
     control: &TaskControl,
@@ -122,13 +91,10 @@ async fn acquire_slot<'a>(
 async fn run_blocking<T, F>(control: &TaskControl, function: F) -> Result<T, HostError>
 where
     T: Send + 'static,
-    F: FnOnce(BlockingControl) -> Result<T, HostError> + Send + 'static,
+    F: FnOnce(TaskControl) -> Result<T, HostError> + Send + 'static,
 {
     control_check(control)?;
-    let blocking_control = BlockingControl {
-        cancellation: control.cancellation.clone(),
-        deadline: control.deadline,
-    };
+    let blocking_control = control.clone();
     let task = tokio::task::spawn_blocking(move || function(blocking_control));
     tokio::select! {
         () = control.cancellation.cancelled() => {
@@ -174,21 +140,18 @@ struct ScanDomain {
     metadata: Metadata,
 }
 
-fn discover_sync(
-    request: &ScanRequest,
-    control: &BlockingControl,
-) -> Result<ScanSnapshot, HostError> {
-    control.check()?;
+fn discover_sync(request: &ScanRequest, control: &TaskControl) -> Result<ScanSnapshot, HostError> {
+    control_check(control)?;
     let domains = validate_domains(&request.roots)?;
     let scope = ScanScope::new(&request.scope_paths)?;
     let mut files = Vec::new();
     let mut diagnostics = ScanDiagnostics::default();
 
     for domain in domains {
-        control.check()?;
+        control_check(control)?;
         if domain.metadata.is_file() {
             scan_root_file(&domain.root, &scope, &mut files, &mut diagnostics, control)?;
-        } else if domain.metadata.is_dir() {
+        } else {
             scan_root_directory(&domain, &scope, &mut files, &mut diagnostics, control)?;
         }
     }
@@ -223,7 +186,6 @@ impl ScanScope {
             })
             .collect::<Result<Vec<_>, _>>()?;
         normalized.sort();
-        normalized.dedup();
         let mut compacted: Vec<PathBuf> = Vec::with_capacity(normalized.len());
         for path in normalized {
             if compacted.iter().any(|parent| path.starts_with(parent)) {
@@ -335,7 +297,7 @@ fn scan_root_file(
     scope: &ScanScope,
     files: &mut Vec<DiscoveredFile>,
     diagnostics: &mut ScanDiagnostics,
-    control: &BlockingControl,
+    control: &TaskControl,
 ) -> Result<(), HostError> {
     if !scope.includes_file(&root.path) {
         return Ok(());
@@ -358,7 +320,7 @@ fn scan_root_directory(
     scope: &ScanScope,
     files: &mut Vec<DiscoveredFile>,
     diagnostics: &mut ScanDiagnostics,
-    control: &BlockingControl,
+    control: &TaskControl,
 ) -> Result<(), HostError> {
     if !scope.intersects_directory(&domain.root.path) {
         return Ok(());
@@ -388,9 +350,9 @@ fn walk(
     visited: &mut HashSet<PathBuf>,
     files: &mut Vec<DiscoveredFile>,
     diagnostics: &mut ScanDiagnostics,
-    control: &BlockingControl,
+    control: &TaskControl,
 ) -> Result<(), HostError> {
-    control.check()?;
+    control_check(control)?;
     let read_directory = fs::read_dir(current_path)
         .map_err(|error| scan_error("scan directory", current_path, &error))?;
     let mut entries = read_directory
@@ -399,12 +361,12 @@ fn walk(
     entries.sort_by_key(fs::DirEntry::file_name);
 
     for entry in entries {
-        control.check()?;
+        control_check(control)?;
         let absolute_path = entry.path();
         if !scope.includes_file(&absolute_path) && !scope.intersects_directory(&absolute_path) {
             continue;
         }
-        let relative_path = absolute_path.strip_prefix(&root.path).map_err(|error| {
+        absolute_path.strip_prefix(&root.path).map_err(|error| {
             HostError::internal(format!("scanner produced an out-of-root path: {error}"))
         })?;
         let file_type = entry
@@ -457,6 +419,9 @@ fn walk(
         {
             continue;
         }
+        let relative_path = absolute_path.strip_prefix(&root.path).map_err(|error| {
+            HostError::internal(format!("scanner produced an out-of-root path: {error}"))
+        })?;
         if let Some(file) =
             read_file_info(root, &absolute_path, relative_path, diagnostics, control)?
         {
@@ -478,9 +443,9 @@ fn read_file_info(
     absolute_path: &Path,
     relative_path: &Path,
     diagnostics: &mut ScanDiagnostics,
-    control: &BlockingControl,
+    control: &TaskControl,
 ) -> Result<Option<DiscoveredFile>, HostError> {
-    control.check()?;
+    control_check(control)?;
     let metadata = fs::metadata(absolute_path)
         .map_err(|error| scan_error("inspect source", absolute_path, &error))?;
     if !metadata.is_file() {
@@ -521,11 +486,11 @@ fn read_file_info(
 
 fn read_batch_sync(
     request: &ReadBatchRequest,
-    control: &BlockingControl,
+    control: &TaskControl,
 ) -> Result<Vec<SourceFile>, HostError> {
     let mut sources = Vec::with_capacity(request.files.len());
     for file in &request.files {
-        control.check()?;
+        control_check(control)?;
         validate_relative_path(&file.relative_path)?;
         let absolute_path = if fs::metadata(&file.root).is_ok_and(|metadata| metadata.is_file()) {
             file.root.clone()
@@ -539,7 +504,7 @@ fn read_batch_sync(
             )
         })?;
         let (bytes, source_fingerprint) = read_source_snapshot(&absolute_path, handle)?;
-        control.check()?;
+        control_check(control)?;
         sources.push(SourceFile {
             root: file.root.clone(),
             relative_path: file.relative_path.clone(),
@@ -695,7 +660,7 @@ mod tests {
             &mut HashSet::new(),
             &mut Vec::new(),
             &mut ScanDiagnostics::default(),
-            &BlockingControl {
+            &TaskControl {
                 cancellation: tokio_util::sync::CancellationToken::new(),
                 deadline: None,
             },
@@ -715,7 +680,7 @@ mod tests {
             &directory.path().join("removed-during-scan.rs"),
             Path::new("removed-during-scan.rs"),
             &mut ScanDiagnostics::default(),
-            &BlockingControl {
+            &TaskControl {
                 cancellation: tokio_util::sync::CancellationToken::new(),
                 deadline: None,
             },

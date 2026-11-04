@@ -13,8 +13,8 @@ use zg_engine::api::explore::{
 pub struct ExploreArgs {
     #[arg(long, global = true)]
     pub root: Option<PathBuf>,
-    #[arg(long, global = true, env = "ZVEC_GREP_MODE", default_value = "auto")]
-    pub mode: ClientMode,
+    #[arg(long, global = true)]
+    pub mode: Option<ClientMode>,
     #[arg(long, global = true, env = "ZVEC_GREP_HOME")]
     pub home: Option<PathBuf>,
     /// Complete `ExploreRequest` JSON, mutually exclusive with subcommands.
@@ -243,7 +243,7 @@ pub(crate) fn plan(args: ExploreArgs, current: &Path) -> Result<CliPlan, CliErro
     };
     options.validate().map_err(|e| bad(e.to_string()))?;
     Ok(CliPlan::Explore {
-        mode: args.mode,
+        mode: super::resolve_client_mode(args.mode)?,
         home: args.home,
         request: Box::new(options),
     })
@@ -256,7 +256,7 @@ mod tests {
     fn callers_and_json_requests_use_the_same_typed_operation() {
         let cli = super::super::Cli::try_parse_from([
             "zg",
-            "explore",
+            "--explore",
             "--mode",
             "direct",
             "--root",
@@ -284,7 +284,13 @@ mod tests {
         for flag in ["--refresh", "--embedding", "--auto-update"] {
             assert!(
                 super::super::Cli::try_parse_from([
-                    "zg", "explore", flag, "wait", "locate", "--name", "x"
+                    "zg",
+                    "--explore",
+                    flag,
+                    "wait",
+                    "locate",
+                    "--name",
+                    "x"
                 ])
                 .is_err()
             );
@@ -292,7 +298,7 @@ mod tests {
         assert!(
             super::super::Cli::try_parse_from([
                 "zg",
-                "explore",
+                "--explore",
                 "locate",
                 "--name",
                 "x",
@@ -308,7 +314,7 @@ mod tests {
         assert!(
             super::super::Cli::try_parse_from([
                 "zg",
-                "explore",
+                "--explore",
                 "neighbors",
                 "--name",
                 "x",

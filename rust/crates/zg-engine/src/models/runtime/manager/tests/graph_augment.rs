@@ -44,7 +44,7 @@ pub(super) async fn build_code(
 ) -> WorkspaceIndexService {
     std::fs::create_dir(root.join("src")).expect("src");
     std::fs::write(root.join("src/lib.rs"), code).expect("code");
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(root);
     opts.graph = graph.then(policy);
     service.index(manager, opts).await.expect("index");
@@ -57,7 +57,7 @@ async fn graph_augment_preserves_normal_items_and_verified_evidence() {
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
     build(directory.path(), &manager, true).await;
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let opts = query_options(directory.path());
     let mut off = opts.clone();
     off.graph = GraphQueryMode::Off {};
@@ -173,7 +173,7 @@ async fn graph_augment_missing_graph_degrades_but_cancelled_text_request_fails()
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
     build(directory.path(), &manager, false).await;
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = query_options(directory.path());
     let result = indexed_search::service::context(&service, &manager, &opts, None, false)
         .await
@@ -198,7 +198,7 @@ async fn graph_augment_two_hops_contains_and_shared_budget_are_bounded() {
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
     build(directory.path(), &manager, true).await;
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = query_options(directory.path());
     opts.graph = GraphQueryMode::Augment {
         seeds: 5,
@@ -266,7 +266,7 @@ async fn graph_augment_total_deadline_during_admission_is_not_degradation() {
         .expect("workspace");
     let lock = acquire_home_lock(&location.home, LockMode::Write, "augment-test")
         .expect("writer blocks readers");
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = query_options(directory.path());
     let execution = crate::api::explore::ExecutionOptions {
         request_timeout_ms: 5,
@@ -297,7 +297,7 @@ async fn graph_augment_imports_share_business_traversal_and_domain_admission() {
         )
         .await,
     );
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = query_options(directory.path());
     opts.graph = GraphQueryMode::Augment {
         seeds: 1,
@@ -348,7 +348,7 @@ async fn graph_augment_incomplete_code_domain_degrades_without_relaxing_ready() 
         )
         .await,
     );
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let opts = query_options(directory.path());
     let result = indexed_search::service::context(&service, &manager, &opts, None, false)
         .await
@@ -408,7 +408,7 @@ async fn graph_augment_writer_text_degrades_and_unstable_text_fails() {
         serde_json::to_vec(&state).expect("state JSON"),
     )
     .expect("simulate interrupted text update");
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let error = indexed_search::service::context(&service, &manager, &opts, None, false)
         .await
         .expect_err("unsafe text cannot degrade");
@@ -429,10 +429,16 @@ fn register_writer(
     let schema = manifest.embedding().expect("embedding");
     let model = manager
         .acquire(ModelRuntimeRequest::new(
-            schema.model.reference(),
+            schema.model().reference(),
             ModelConfig {
                 api_key: opts.api_key.clone(),
-                endpoint: opts.endpoint.clone(),
+                endpoint: Some(
+                    crate::authorization::remote_endpoint(
+                        &schema.model().reference(),
+                        opts.endpoint.as_deref(),
+                    )
+                    .expect("fixture endpoint"),
+                ),
                 cache_dir: opts.model_cache.clone(),
                 device: None,
             },

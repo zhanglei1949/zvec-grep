@@ -81,10 +81,10 @@ async fn interrupted_file_fixture() -> TestResult {
 #[tokio::test]
 async fn scoped_indexing_finishes_interrupted_updates_and_deletions_after_termination() -> TestResult
 {
-    let directory = tempfile::Builder::new()
-        .prefix("zg-storage-crash-")
-        .tempdir()?;
-    let root = directory.path().join("workspace");
+    // Native RocksDB maintenance adds temporary paths under the collection.
+    // Keep the crash fixture below Windows MAX_PATH, including those suffixes.
+    let directory = tempfile::Builder::new().prefix("zg-crash-").tempdir()?;
+    let root = directory.path().join("w");
     fs::create_dir(&root)?;
     let root = fs::canonicalize(root)?;
     let server = EmbeddingServer::start()?;
@@ -218,15 +218,6 @@ fn spawn_writer(root: &Path, log_path: &Path) -> TestResult<CrashFixtureChild> {
                 "--test-threads=1",
             ])
             .env(CRASH_FIXTURE_ROOT_ENV, root)
-            .env(
-                "ZVEC_GREP_WORKSPACE_REGISTRY",
-                std::env::var_os("ZVEC_GREP_WORKSPACE_REGISTRY").unwrap_or_else(|| {
-                    root.parent()
-                        .expect("fixture parent")
-                        .join("workspaces.json")
-                        .into_os_string()
-                }),
-            )
             .stdin(Stdio::null())
             .stdout(output)
             .stderr(errors)

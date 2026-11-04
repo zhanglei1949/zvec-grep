@@ -7,7 +7,7 @@ use super::{
 use crate::{
     EngineError, EngineResult,
     domain::{Entity, FileRecord},
-    extraction::{self, ChunkOptions, ExtractedEntity, TextSource},
+    extraction::{self, ChunkOptions, ExtractedEntity, ExtractionOutput, TextSource},
     utils::sha256_hex,
 };
 use std::{
@@ -23,7 +23,7 @@ use zg_knowledge::{
 };
 
 struct ExtractionOutcome {
-    entities: Vec<ExtractedEntity>,
+    entities: ExtractionOutput,
     facts: EngineResult<Option<FileFacts>>,
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn extract(
     context: &ProcessingContext,
 ) -> EngineResult<(Vec<ExtractedEntity>, Option<FileFacts>)> {
     let outcome = extract_outcome(source, options, raw_digest, generation, module, context)?;
-    Ok((outcome.entities, outcome.facts?))
+    Ok((outcome.entities.fragments, outcome.facts?))
 }
 
 fn extract_outcome(
@@ -97,13 +97,13 @@ fn extract_outcome(
         extraction::code::extract_with_graph_outcome(source, options, &mut facts, context)?
     };
     let facts = collected.and_then(|()| {
-        for entity in &entities {
+        for entity in &entities.fragments {
             let crate::domain::Range::Text(range) = entity.source_range else { continue; };
-            if !matches!(&entity.content, crate::domain::Content::Text(body) if source.text.get(range.start_byte_offset()..range.end_byte_offset()) == Some(body.as_str())) {
+            if !matches!(&entity.content, crate::domain::Content::Text(body) | crate::domain::Content::Code(body) if source.text.get(range.start_byte_offset()..range.end_byte_offset()) == Some(body.as_str())) {
                 return Err(EngineError::storage_failure("extracted text differs from source"));
             }
         }
-        super::bind_entity_indices(&mut facts, &entities);
+        super::bind_entity_indices(&mut facts, &entities.fragments);
         facts
             .validate(&source.text, context)
             .map_err(super::map_error)?;
@@ -180,7 +180,7 @@ pub fn inspect_bound_sources(
                 extraction::bind_entities(crate::domain::FileId::new(item.file_id), entities)?;
             let ids = entities
                 .iter()
-                .map(|e| e.id.as_str().to_owned())
+                .map(|e| e.id().as_str().to_owned())
                 .collect::<Vec<_>>();
             let record = BoundRecord {
                 path: input.path.clone(),
@@ -240,7 +240,7 @@ impl FactCapture {
         source: &TextSource,
         options: ChunkOptions,
         raw_digest: &str,
-    ) -> EngineResult<(Vec<ExtractedEntity>, Option<FileFacts>)> {
+    ) -> EngineResult<(ExtractionOutput, Option<FileFacts>)> {
         let Some(path) = source
             .relative_path
             .to_path_buf()
@@ -324,11 +324,19 @@ impl FactCapture {
         entities: &[Entity],
         facts: Option<FileFacts>,
     ) -> EngineResult<Option<BoundFileFacts>> {
-        let Some(path) = file.relative_path.to_path_buf().to_str().map(str::to_owned) else {
+        let Some(path) = file
+            .relative_path()
+            .to_path_buf()
+            .to_str()
+            .map(str::to_owned)
+        else {
             self.diagnostics
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .insert(format!("file-id:{}", file.id), "non_utf8_graph_path".into());
+                .insert(
+                    format!("file-id:{}", file.id()),
+                    "non_utf8_graph_path".into(),
+                );
             return Ok(None);
         };
         if !supported_path(&path) {
@@ -336,14 +344,14 @@ impl FactCapture {
         }
         let ids = entities
             .iter()
-            .map(|e| e.id.as_str().to_owned())
+            .map(|e| e.id().as_str().to_owned())
             .collect::<Vec<_>>();
         let record = BoundRecord {
             path,
-            file_id: file.id.get(),
+            file_id: file.id().get(),
             index_status: IndexStatus::NotIndexed,
-            content_hash: file.snapshot.content_hash.clone(),
-            size_bytes: file.snapshot.size_bytes,
+            content_hash: file.snapshot().content_hash.clone(),
+            size_bytes: file.snapshot().size_bytes,
             text_revision: self.text_revision,
             storage_generation: self.generation.clone(),
             entity_count: u64::try_from(ids.len())
@@ -406,11 +414,11 @@ impl FactCapture {
             .unwrap_or_else(PoisonError::into_inner)
             .retain(|_, bound| {
                 inventory.iter().any(|f| {
-                    f.id.get() == bound.record.file_id
-                        && f.index_status.is_indexed()
-                        && f.snapshot.content_hash == bound.record.content_hash
-                        && f.snapshot.size_bytes == bound.record.size_bytes
-                        && f.index_status.entity_count() == bound.record.entity_count
+                    f.id().get() == bound.record.file_id
+                        && f.index_status().is_indexed()
+                        && f.snapshot().content_hash == bound.record.content_hash
+                        && f.snapshot().size_bytes == bound.record.size_bytes
+                        && f.index_status().entity_count() == bound.record.entity_count
                 })
             });
         *self

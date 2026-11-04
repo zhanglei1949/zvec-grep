@@ -138,10 +138,9 @@ async fn context_inner(
         }
         wait.retry(&location.home, "context").await?;
     };
-    let mut manifest = read_workspace_manifest(&location.home)?.ok_or_else(|| {
+    let manifest = read_workspace_manifest(&location.home)?.ok_or_else(|| {
         workspace_index_unavailable(&location.root, "workspace manifest disappeared")
     })?;
-    indexing.reconcile_name(&mut manifest)?;
     if manifest.workspace.index == IndexState::Disabled {
         return Err(EngineError::unsupported(format!(
             "workspace indexing is disabled at {}",
@@ -385,7 +384,6 @@ async fn try_writer_context(
     let model_request = search_model_request(
         manifest,
         schema,
-        options.embedding_concurrency,
         options,
         &location.root,
         uses_vectors(request),
@@ -394,7 +392,7 @@ async fn try_writer_context(
         .session
         .models
         .first()
-        .is_some_and(|model| model.matches_request(&model_request))
+        .is_some_and(|model| model.matches_query_request(&model_request))
     {
         return Ok(None);
     }
@@ -446,13 +444,7 @@ fn query_models(
     if !uses_vectors(request) {
         return Ok(Vec::new());
     }
-    let model = acquire_search_model(
-        models,
-        manifest,
-        options.embedding_concurrency,
-        options,
-        root,
-    )?;
+    let model = acquire_search_model(models, manifest, options, root)?;
     assert_embedding_compatible(Some(manifest), &model)?;
     Ok(vec![model])
 }
@@ -513,52 +505,35 @@ pub(in crate::pipelines) fn refresh_options(
 pub(in crate::pipelines) fn acquire_search_model(
     models: &ModelRuntimeManager,
     manifest: &WorkspaceManifest,
-    embedding_concurrency: Option<usize>,
     options: &ContextOptions,
     root: &Path,
 ) -> Result<ModelRuntimeLease, EngineError> {
     let schema = manifest.embedding().ok_or_else(|| {
         workspace_index_unavailable(&manifest.path, "embedding model information is missing")
     })?;
-    acquire_search_model_for(
-        models,
-        manifest,
-        schema,
-        embedding_concurrency,
-        options,
-        root,
-    )
+    acquire_search_model_for(models, manifest, schema, options, root)
 }
 
 fn acquire_search_model_for(
     models: &ModelRuntimeManager,
     manifest: &WorkspaceManifest,
     schema: &crate::domain::EmbeddingModelInfo,
-    embedding_concurrency: Option<usize>,
     options: &ContextOptions,
     root: &Path,
 ) -> Result<ModelRuntimeLease, EngineError> {
     models
-        .acquire(search_model_request(
-            manifest,
-            schema,
-            embedding_concurrency,
-            options,
-            root,
-            true,
-        )?)
+        .acquire(search_model_request(manifest, schema, options, root, true)?)
         .map_err(ModelError::into_engine_error)
 }
 
 fn search_model_request(
     manifest: &WorkspaceManifest,
     schema: &crate::domain::EmbeddingModelInfo,
-    embedding_concurrency: Option<usize>,
     options: &ContextOptions,
     root: &Path,
     authorize: bool,
 ) -> Result<ModelRuntimeRequest, EngineError> {
-    let reference = schema.model.reference();
+    let reference = schema.model().reference();
     if options
         .authorization_model
         .as_ref()
@@ -574,7 +549,7 @@ fn search_model_request(
         .cloned()
         .unwrap_or_default();
     let config = crate::config::read()?;
-    let local = schema.model.provider == "local";
+    let local = schema.model().provider() == "local";
     if !local && options.device.is_some() {
         return Err(EngineError::invalid_argument(
             "--device is only supported for local embedding models",
@@ -610,7 +585,7 @@ fn search_model_request(
                         .or_else(|| {
                             crate::config::string(
                                 &config,
-                                &["providers", &schema.model.provider, "apiKey"],
+                                &["providers", schema.model().provider(), "apiKey"],
                             )
                         })
                         .or_else(environment_api_key)
@@ -628,7 +603,7 @@ fn search_model_request(
                 runtime.cache_dir.clone(),
             ),
         },
-        embedding_concurrency,
+        None,
     ))
 }
 

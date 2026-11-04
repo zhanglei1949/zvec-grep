@@ -150,6 +150,22 @@ impl EngineService {
         self.indexing.recover_text_state(options).await
     }
 
+    pub(crate) async fn paths(
+        &self,
+        options: crate::api::paths::PathsOptions,
+    ) -> crate::EngineResult<crate::api::paths::PathsResult> {
+        self.ensure_open()?;
+        crate::pipelines::path_search::search(options).await
+    }
+
+    pub(crate) async fn lookup_path(
+        &self,
+        options: crate::api::paths::PathsOptions,
+    ) -> crate::EngineResult<crate::api::paths::PathLookupResult> {
+        self.ensure_open()?;
+        crate::pipelines::path_search::lookup(&self.direct_search, options).await
+    }
+
     /// Returns workspace index metadata and status.
     ///
     /// # Errors
@@ -158,6 +174,14 @@ impl EngineService {
     pub(crate) async fn info(&self, options: InfoOptions) -> Result<InfoResult, EngineError> {
         self.ensure_open()?;
         self.indexing.info(options).await
+    }
+
+    pub(crate) async fn index_setup(
+        &self,
+        options: crate::api::index::setup::IndexSetupOptions,
+    ) -> Result<crate::api::index::setup::IndexSetup, EngineError> {
+        self.ensure_open()?;
+        crate::pipelines::indexing::setup::index_setup(options).await
     }
 
     /// Drops the persisted workspace index.

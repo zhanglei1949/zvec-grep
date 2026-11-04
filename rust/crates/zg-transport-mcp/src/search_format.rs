@@ -23,14 +23,9 @@ pub enum SearchPreview {
 
 pub(crate) fn format_search_result(reply: &ContextResult, preview: SearchPreview) -> String {
     let legacy_current_index = reply.freshness.as_deref() == Some("served_from_current_index");
-    // Reading an existing index describes provenance, not verified freshness.
-    // Preserve uncertainty from older providers even when no returned hit is stale.
-    let stale = legacy_current_index
-        || reply.freshness.as_deref() == Some("possibly_stale")
-        || reply
-            .items
-            .iter()
-            .any(|item| item.status == ContextItemStatus::PossiblyStale);
+    // Reading an existing index describes provenance, not evidence of changed files.
+    // Background refresh activity is reported independently of observed drift.
+    let stale = reply.freshness.as_deref() == Some("possibly_stale") || reply.has_stale_items();
     let mut lines = vec![format!(
         "freshness: {}",
         if stale { "possibly_stale" } else { "fresh" }
@@ -113,7 +108,7 @@ fn append_item(lines: &mut Vec<String>, item: &ContextItem, preview: SearchPrevi
         "#{}{selection} matchedBy={} {}:{}",
         item.rank,
         matched_by_label(item.matched_by),
-        item.relative_path.display(),
+        zg_cli::output_path(&item.relative_path).display(),
         range_label(header_range)
     ));
     if !item.query_groups.is_empty() {

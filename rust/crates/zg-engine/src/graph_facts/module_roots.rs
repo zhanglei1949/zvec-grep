@@ -106,6 +106,7 @@ impl ModuleRoots {
         }
         Ok(())
     }
+    #[cfg(any(test, feature = "knowledge-graph-graphdb"))]
     pub(crate) fn matches_configuration(
         &self,
         facts: &super::relations::FileFacts,

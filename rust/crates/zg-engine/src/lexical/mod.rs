@@ -1,5 +1,7 @@
 //! File scanning and matching backed by ripgrep's embedded `grep` crates.
 
+pub(crate) mod files;
+mod matches;
 pub(crate) mod types;
 
 use std::{
@@ -27,6 +29,7 @@ use ignore::{WalkBuilder, WalkState, overrides::OverrideBuilder, types::TypesBui
 use tokio::sync::Semaphore;
 use tracing::debug;
 
+use self::matches::LexicalMatchBuilder;
 use self::types::{
     LexicalCoverage, LexicalDiagnostics, LexicalMatch, LexicalSearchReply, LexicalSearchRequest,
 };
@@ -83,18 +86,36 @@ impl LexicalSearchService {
             ));
         }
 
-        let _search_slot = self.search_slots.acquire().await.map_err(|_| {
-            EngineError::internal("lexical search concurrency limiter closed unexpectedly")
-        })?;
+        let signal = request.signal.as_ref().map_or_else(
+            tokio_util::sync::CancellationToken::new,
+            tokio_util::sync::CancellationToken::child_token,
+        );
+        let _cancel_on_drop = signal.clone().drop_guard();
+        if signal.is_cancelled() {
+            return Err(EngineError::cancelled("lexical search was cancelled"));
+        }
+        let search_slot = tokio::select! {
+            biased;
+            () = signal.cancelled() => return Err(EngineError::cancelled("lexical search was cancelled")),
+            permit = Arc::clone(&self.search_slots).acquire_owned() => permit.map_err(|_| EngineError::internal("lexical search concurrency limiter closed unexpectedly"))?,
+        };
         let checked_paths = check_paths(root, &request.paths);
-        if !request.paths.is_empty() && checked_paths.existing.is_empty() {
+        if (request.paths_selected || !request.paths.is_empty())
+            && checked_paths.existing.is_empty()
+        {
             return Ok(empty_reply(root, request, &checked_paths));
         }
 
         let worker_threads = worker_threads_for_search(root, request, self.worker_threads);
         let root = root.to_path_buf();
-        let request = request.clone();
-        run_blocking(move || search_sync(&root, &request, &checked_paths, worker_threads)).await
+        let mut request = request.clone();
+        request.signal = Some(signal);
+        run_blocking(move || {
+            // A cancelled caller must not release admission while its worker is still running.
+            let _search_slot = search_slot;
+            search_sync(&root, &request, &checked_paths, worker_threads)
+        })
+        .await
     }
 }
 
@@ -147,12 +168,25 @@ where
         .map_err(|error| EngineError::internal(format!("embedded grep worker failed: {error}")))?
 }
 
+fn check_cancelled(request: &LexicalSearchRequest) -> Result<(), EngineError> {
+    if request
+        .signal
+        .as_ref()
+        .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
+    {
+        Err(EngineError::cancelled("lexical search was cancelled"))
+    } else {
+        Ok(())
+    }
+}
+
 fn search_sync(
     root: &Path,
     request: &LexicalSearchRequest,
     checked_paths: &CheckedPaths,
     worker_threads: usize,
 ) -> Result<LexicalSearchReply, EngineError> {
+    check_cancelled(request)?;
     let patterns = load_patterns(root, request)?;
     if patterns.is_empty() {
         return Ok(empty_reply(root, request, checked_paths));
@@ -172,6 +206,7 @@ fn search_sync(
         search_paths_parallel(root, request, &matcher, &walker, &count_truncated)?
     };
 
+    check_cancelled(request)?;
     expand_context(&mut lexical_matches, request);
     debug_assert!(lexical_matches.iter().all(|item| {
         Range::Text(item.range)
@@ -179,7 +214,7 @@ fn search_sync(
             .expect("text ranges have the same kind")
     }));
     lexical_matches.sort_by(|left, right| {
-        left.relative_path.cmp(&right.relative_path).then(
+        left.relative_path().cmp(right.relative_path()).then(
             left.range
                 .start_byte_offset()
                 .cmp(&right.range.start_byte_offset()),
@@ -220,6 +255,7 @@ fn search_paths_serial(
     let mut lexical_matches = Vec::new();
     let mut searcher = build_searcher(request);
     for result in walker.build() {
+        check_cancelled(request)?;
         let entry = result.map_err(|error| {
             EngineError::storage_failure(format!("failed to traverse workspace: {error}"))
         })?;
@@ -262,7 +298,12 @@ fn search_paths_parallel(
         let stopped = &stopped;
         let mut searcher = build_searcher(request);
         Box::new(move |result| {
-            if stopped.load(Ordering::Acquire) {
+            if stopped.load(Ordering::Acquire)
+                || request
+                    .signal
+                    .as_ref()
+                    .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
+            {
                 return WalkState::Quit;
             }
             let entry = match result {
@@ -534,6 +575,23 @@ fn build_file_types(request: &LexicalSearchRequest) -> Result<ignore::types::Typ
     })
 }
 
+struct CancellableReader<'a, R> {
+    reader: R,
+    signal: Option<&'a tokio_util::sync::CancellationToken>,
+}
+
+impl<R: io::Read> io::Read for CancellableReader<'_, R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if self
+            .signal
+            .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
+        {
+            return Err(io::Error::other("lexical search was cancelled"));
+        }
+        self.reader.read(buffer)
+    }
+}
+
 fn search_file(
     root: &Path,
     path: &Path,
@@ -547,8 +605,12 @@ fn search_file(
     let relative_path = absolute_path
         .strip_prefix(root)
         .map_or_else(|_| absolute_path.clone(), Path::to_path_buf);
+    let mut collected = LexicalMatchBuilder::default();
     let search_result = (|| {
-        let mut reader = io::BufReader::new(std::fs::File::open(&absolute_path)?);
+        let mut reader = io::BufReader::new(CancellableReader {
+            reader: std::fs::File::open(&absolute_path)?,
+            signal: request.signal.as_ref(),
+        });
         let header = reader.fill_buf()?;
         let encoded_unicode = header.starts_with(b"\xff\xfe")
             || header.starts_with(b"\xfe\xff")
@@ -566,9 +628,8 @@ fn search_file(
         }
         let sink = MatchSink {
             matcher,
-            absolute_path: &absolute_path,
-            relative_path: &relative_path,
-            results,
+            signal: request.signal.as_ref(),
+            results: &mut collected,
             options: &request.options.matching,
             count: 0,
             count_truncated,
@@ -578,20 +639,21 @@ fn search_file(
             None => searcher.search_reader(matcher, reader, sink),
         }
     })();
+    check_cancelled(request)?;
     if let Err(error) = search_result {
         return Err(EngineError::from_io(
             format!("failed to search {}", absolute_path.display()),
             &error,
         ));
     }
+    collected.append_to(absolute_path, relative_path, results);
     Ok(())
 }
 
 struct MatchSink<'a> {
+    signal: Option<&'a tokio_util::sync::CancellationToken>,
     matcher: &'a RegexMatcher,
-    absolute_path: &'a Path,
-    relative_path: &'a Path,
-    results: &'a mut Vec<LexicalMatch>,
+    results: &'a mut LexicalMatchBuilder,
     options: &'a crate::api::context::options::RgOptions,
     count: usize,
     count_truncated: &'a AtomicBool,
@@ -605,6 +667,12 @@ impl Sink for MatchSink<'_> {
         searcher: &grep::searcher::Searcher,
         matched: &SinkMatch<'_>,
     ) -> Result<bool, Self::Error> {
+        if self
+            .signal
+            .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
+        {
+            return Ok(false);
+        }
         let bytes = matched.bytes();
         let line_number = matched
             .line_number()
@@ -729,17 +797,54 @@ impl MatchSink<'_> {
             crate::utils::text_range_from_offsets(text, line_starts, content_start, content_end)
                 .map_err(io::Error::other)?,
         )?;
+        let match_ranges = self
+            .match_ranges(text, line_starts, content_start, content_end)?
+            .into_iter()
+            .map(map_range)
+            .collect::<io::Result<Vec<_>>>()?;
         self.count += 1;
-        self.results.push(LexicalMatch {
-            rank: 0,
-            absolute_path: self.absolute_path.to_path_buf(),
-            relative_path: self.relative_path.to_path_buf(),
+        self.results.push(
             range,
-            excerpt_range: None,
             content_range,
-            content: text[content_start..content_end].to_owned(),
-        });
+            match_ranges,
+            &text[content_start..content_end],
+        );
         Ok(true)
+    }
+
+    fn match_ranges(
+        &self,
+        text: &str,
+        line_starts: &[usize],
+        start: usize,
+        end: usize,
+    ) -> io::Result<Vec<TextRange>> {
+        if self.options.invert_match {
+            return Ok(Vec::new());
+        }
+        let mut matches = Vec::new();
+        // Keep the original haystack so anchors and word boundaries retain their search meaning.
+        self.matcher
+            .find_iter_at(text.as_bytes(), start, |found| {
+                if found.start() >= end {
+                    return false;
+                }
+                if found.start() < found.end()
+                    && text.is_char_boundary(found.start())
+                    && text.is_char_boundary(found.end())
+                {
+                    matches.push(found);
+                }
+                found.end() <= end
+            })
+            .map_err(io::Error::other)?;
+        matches
+            .into_iter()
+            .map(|found| {
+                crate::utils::text_range_from_offsets(text, line_starts, found.start(), found.end())
+                    .map_err(io::Error::other)
+            })
+            .collect()
     }
 }
 
@@ -943,7 +1048,7 @@ fn matches_modified_time(path: &Path, request: &LexicalSearchRequest) -> bool {
 }
 
 struct ContextSource {
-    text: String,
+    text: Arc<String>,
     line_starts: Vec<usize>,
 }
 
@@ -952,7 +1057,10 @@ impl ContextSource {
         let bytes = std::fs::read(path).ok()?;
         let text = decode_text(&bytes, true)?.into_owned();
         let line_starts = line_byte_offsets(&text);
-        Some(Self { text, line_starts })
+        Some(Self {
+            text: Arc::new(text),
+            line_starts,
+        })
     }
 
     fn line_end(&self, line: usize) -> usize {
@@ -972,9 +1080,13 @@ fn expand_context(matches: &mut [LexicalMatch], request: &LexicalSearchRequest) 
 
     let mut cache: HashMap<PathBuf, Option<ContextSource>> = HashMap::new();
     for item in matches {
-        let source = cache
-            .entry(item.absolute_path.clone())
-            .or_insert_with(|| ContextSource::read(&item.absolute_path));
+        if !cache.contains_key(item.absolute_path()) {
+            cache.insert(
+                item.absolute_path().to_path_buf(),
+                ContextSource::read(item.absolute_path()),
+            );
+        }
+        let source = &cache[item.absolute_path()];
         let Some(source) = source else {
             continue;
         };
@@ -1000,7 +1112,7 @@ fn expand_context(matches: &mut [LexicalMatch], request: &LexicalSearchRequest) 
         let matched_start = source.line_starts[excerpt.start_line() - 1];
         let matched_end = source.line_end(last_matched_line);
         let matched_lines = &source.text[matched_start..matched_end];
-        if trim_line_terminator(matched_lines.as_bytes()) != item.content.as_bytes() {
+        if trim_line_terminator(matched_lines.as_bytes()) != item.content().as_bytes() {
             continue;
         }
 
@@ -1022,11 +1134,10 @@ fn expand_context(matches: &mut [LexicalMatch], request: &LexicalSearchRequest) 
         ) else {
             continue;
         };
-        let content = source.text[start_byte_offset..end_byte_offset].to_owned();
         item.excerpt_range = Some(excerpt);
         item.range = range;
         item.content_range = range;
-        item.content = content;
+        item.set_content(Arc::clone(&source.text), start_byte_offset..end_byte_offset);
     }
 }
 
@@ -1122,7 +1233,7 @@ mod tests {
 
         assert_eq!(reply.diagnostics.backend, "grep");
         assert_eq!(reply.matches.len(), 1);
-        assert_eq!(reply.matches[0].relative_path, Path::new("a.txt"));
+        assert_eq!(reply.matches[0].relative_path(), Path::new("a.txt"));
         let range = reply.matches[0].range;
         assert_eq!(range.start_line(), 2);
         assert_eq!(range.start_byte_column(), 13);
@@ -1146,13 +1257,13 @@ mod tests {
             reply.matches[0].range,
             TextRange::from_coordinates(start, end, 2, 3, 0, 0).expect("half-open range")
         );
-        assert_eq!(reply.matches[0].content, "中😀");
+        assert_eq!(reply.matches[0].content(), "中😀");
         assert_eq!(
             reply.matches[1].range,
             TextRange::from_coordinates(end, end + '尾'.len_utf8(), 3, 3, 0, 3)
                 .expect("next line range")
         );
-        assert_eq!(reply.matches[1].content, "尾");
+        assert_eq!(reply.matches[1].content(), "尾");
     }
 
     #[tokio::test]
@@ -1169,7 +1280,7 @@ mod tests {
             reply.matches[0].range,
             TextRange::from_coordinates(start, start + 6, 2, 2, 0, 6).expect("complete range")
         );
-        assert_eq!(reply.matches[0].content, "needle");
+        assert_eq!(reply.matches[0].content(), "needle");
     }
 
     #[tokio::test]
@@ -1196,12 +1307,12 @@ mod tests {
                 TextRange::from_coordinates(start, end, line, line, 0, content.len())
                     .expect("valid line range")
             );
-            assert_eq!(item.content, content);
+            assert_eq!(item.content(), content);
         }
         request.options.matching.max_count = Some(1);
         let limited = search(&service, root.path(), &request).await;
         assert_eq!(limited.matches.len(), 1);
-        assert_eq!(limited.matches[0].content, "first");
+        assert_eq!(limited.matches[0].content(), "first");
         assert!(limited.diagnostics.truncated);
     }
 
@@ -1259,7 +1370,7 @@ mod tests {
         assert_eq!(reply.matches.len(), fixtures.len());
         for item in reply.matches {
             assert_eq!(
-                item.content,
+                item.content(),
                 text.strip_suffix("\r\n").expect("final newline")
             );
             assert_eq!(item.range.start_line(), 1);
@@ -1273,7 +1384,7 @@ mod tests {
                     item.range.end_byte_offset()
                 )
                 .expect("context range"),
-                item.content
+                item.content()
             );
             let excerpt = item.excerpt_range.expect("matched span");
             assert_eq!(excerpt.start_line(), 2);
@@ -1307,24 +1418,23 @@ mod tests {
         let end = text.find("尾巴").expect("following line");
         let range =
             TextRange::from_coordinates(start, end, 2, 3, 0, 0).expect("span including newline");
-        let mut items = [LexicalMatch {
-            rank: 1,
-            absolute_path: root.path().join("source-0.txt"),
-            relative_path: "source-0.txt".into(),
+        let mut items = [LexicalMatch::new(
+            root.path().join("source-0.txt"),
+            "source-0.txt".into(),
             range,
-            excerpt_range: None,
-            content_range: crate::utils::text_range_from_offsets(
+            crate::utils::text_range_from_offsets(
                 text,
                 &crate::utils::line_byte_offsets(text),
                 start,
                 start + text[start..end].trim_end_matches("\r\n").len(),
             )
             .expect("visible source range"),
-            content: text[start..end].trim_end_matches("\r\n").to_owned(),
-        }];
+            text[start..end].trim_end_matches("\r\n").to_owned(),
+        )];
+        items[0].rank = 1;
         request.options.matching.after_context = 0;
         expand_context(&mut items, &request);
-        assert_eq!(items[0].content, &text[..end]);
+        assert_eq!(items[0].content(), &text[..end]);
         assert_eq!(items[0].content_range, items[0].range);
         assert_eq!(items[0].excerpt_range, Some(range));
         assert_eq!(items[0].range.end_line(), 3);
@@ -1336,7 +1446,7 @@ mod tests {
                 items[0].range.end_byte_offset(),
             )
             .expect("context range"),
-            items[0].content
+            items[0].content()
         );
     }
 
@@ -1362,14 +1472,17 @@ mod tests {
         let paths = reply
             .matches
             .iter()
-            .map(|item| item.relative_path.as_path())
+            .map(LexicalMatch::relative_path)
             .collect::<Vec<_>>();
         assert_eq!(paths, [Path::new(".hidden/keep.rs"), Path::new("keep.rs")]);
 
         typed.options.globs = vec!["!/keep.rs".to_owned()];
         let reply = search(&LexicalSearchService::new(), root.path(), &typed).await;
         assert_eq!(reply.matches.len(), 1);
-        assert_eq!(reply.matches[0].relative_path, Path::new(".hidden/keep.rs"));
+        assert_eq!(
+            reply.matches[0].relative_path(),
+            Path::new(".hidden/keep.rs")
+        );
     }
 
     #[tokio::test]
@@ -1411,7 +1524,7 @@ mod tests {
             2
         );
         assert_eq!(
-            reply.matches[0].content,
+            reply.matches[0].content(),
             "before\nNeedle.+ exact\nneedle.+ suffix"
         );
     }
@@ -1430,7 +1543,7 @@ mod tests {
         let reply = search(&LexicalSearchService::new(), root.path(), &request).await;
         assert_eq!(reply.matches.len(), 1);
         assert_eq!(reply.matches[0].range.start_line(), 2);
-        assert_eq!(reply.matches[0].content, "foo");
+        assert_eq!(reply.matches[0].content(), "foo");
     }
 
     #[tokio::test]
@@ -1451,7 +1564,7 @@ mod tests {
         let actual = reply
             .matches
             .iter()
-            .map(|item| item.relative_path.clone())
+            .map(|item| item.relative_path().to_path_buf())
             .collect::<Vec<_>>();
         let expected = (0..32)
             .map(|index| PathBuf::from(format!("dir-{index:02}/match.txt")))
@@ -1482,5 +1595,50 @@ mod tests {
         unfiltered.options.no_ignore = true;
         let reply = search(&LexicalSearchService::new(), root.path(), &unfiltered).await;
         assert_eq!(reply.matches.len(), 3);
+    }
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+
+    #[test]
+    fn cancelled_reader_stops_before_reading_more_source() {
+        let signal = tokio_util::sync::CancellationToken::new();
+        let mut reader = CancellableReader {
+            reader: io::Cursor::new(b"source"),
+            signal: Some(&signal),
+        };
+        let mut buffer = [0; 2];
+        assert_eq!(reader.read(&mut buffer).expect("initial read"), 2);
+        signal.cancel();
+        assert!(reader.read(&mut buffer).is_err());
+        assert_eq!(reader.reader.position(), 2);
+    }
+
+    #[tokio::test]
+    async fn cancelled_search_does_not_wait_for_admission() {
+        let service = LexicalSearchService::new().with_max_searches(1);
+        let _slot = service.search_slots.acquire().await.expect("occupied slot");
+        let signal = tokio_util::sync::CancellationToken::new();
+        let request = LexicalSearchRequest {
+            patterns: vec!["needle".into()],
+            signal: Some(signal.clone()),
+            ..LexicalSearchRequest::default()
+        };
+        let search = service.search(Path::new("."), &request);
+        let cancel = async {
+            tokio::task::yield_now().await;
+            signal.cancel();
+        };
+        let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            tokio::join!(search, cancel)
+        })
+        .await
+        .expect("cancel releases waiter");
+        assert_eq!(
+            result.expect_err("cancelled").code(),
+            EngineError::CANCELLED
+        );
     }
 }

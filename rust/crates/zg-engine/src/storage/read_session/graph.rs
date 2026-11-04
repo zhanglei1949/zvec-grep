@@ -290,7 +290,7 @@ impl GraphReadSession {
         }
         let files_by_id = files
             .iter()
-            .map(|file| (file.id.get(), file))
+            .map(|file| (file.id().get(), file))
             .collect::<HashMap<_, _>>();
         if files_by_id.len() != files.len() {
             return Err(unavailable());
@@ -318,7 +318,7 @@ impl GraphReadSession {
         let expected = files
             .iter()
             .filter(|f| {
-                f.relative_path.to_path_buf().to_str().is_some_and(|p| {
+                f.relative_path().to_path_buf().to_str().is_some_and(|p| {
                     !p.contains(['\\', ':', '\0'])
                         && p.split('/').all(|c| !matches!(c, "" | "." | ".."))
                 })
@@ -376,10 +376,10 @@ fn verify_source(
     let file = files
         .get(&r.file_id)
         .copied()
-        .filter(|f| f.relative_path.as_ref() == std::path::Path::new(&r.path))
+        .filter(|f| f.relative_path().as_ref() == std::path::Path::new(&r.path))
         .ok_or_else(unavailable)?;
     let identities =
-        usize::try_from(file.index_status.entity_count()).map_err(|_| unavailable())?;
+        usize::try_from(file.index_status().entity_count()).map_err(|_| unavailable())?;
     context
         .check_output(identities)
         .map_err(crate::graph_facts::map_error)?;
@@ -390,9 +390,9 @@ fn verify_source(
     let ids = zg_knowledge::graph::profile::measure("qualification.entity_ids", || {
         storage.file_entity_ids(file)
     })?;
-    if !file.index_status.is_indexed()
-        || file.snapshot.content_hash != r.content_hash
-        || file.snapshot.size_bytes != r.size_bytes
+    if !file.index_status().is_indexed()
+        || file.snapshot().content_hash != r.content_hash
+        || file.snapshot().size_bytes != r.size_bytes
         || r.storage_generation != manifest.storage_generation.as_deref().unwrap_or_default()
         || zg_knowledge::relations::bound::entity_ids_digest(&ids)
             .map_err(crate::graph_facts::map_error)?
@@ -402,7 +402,7 @@ fn verify_source(
     }
     if code {
         let formats = crate::domain::FileFormat::from_path(
-            &manifest.workspace.source_path(&file.relative_path),
+            &manifest.workspace.source_path(file.relative_path()),
         )?;
         let expected = if formats.contains(&crate::domain::FileFormat::C)
             && formats.contains(&crate::domain::FileFormat::Cpp)

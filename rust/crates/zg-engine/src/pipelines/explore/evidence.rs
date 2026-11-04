@@ -142,15 +142,15 @@ impl<'a> Snapshots<'a> {
                 let entity = found
                     .pop()
                     .ok_or_else(|| unavailable("mapped entity unavailable"))?;
-                if EntityId::new(entity.file_id, &entity.content, entity.source_range)
+                if EntityId::new(entity.file_id(), entity.content(), entity.source_range())
                     .map_err(|_| unavailable("invalid stored content"))?
-                    != entity.id
+                    != *entity.id()
                 {
                     return Err(unavailable("stored content no longer matches identity"));
                 }
                 Cow::Owned(entity)
             };
-            if let Content::Text(content) = &entity.content {
+            if let Content::Text(content) | Content::Code(content) = entity.content() {
                 self.retain(content.len())?;
             }
             self.entities.insert(id.into(), entity);
@@ -177,7 +177,7 @@ impl<'a> Snapshots<'a> {
                     let point =
                         map.content_span.start + reference.span.start - map.source_span.start;
                     let entity = self.entity(&map.entity_id)?;
-                    if let Content::Text(body) = &entity.content {
+                    if let Content::Text(body) | Content::Code(body) = entity.content() {
                         return Ok(Some(
                             ByteSpan {
                                 start: point,
@@ -213,7 +213,7 @@ impl<'a> Snapshots<'a> {
                 continue;
             }
             let entity = self.entity(&map.entity_id)?;
-            let Content::Text(content) = &entity.content else {
+            let (Content::Text(content) | Content::Code(content)) = entity.content() else {
                 break;
             };
             let end = map.source_span.end.min(reference.span.end);

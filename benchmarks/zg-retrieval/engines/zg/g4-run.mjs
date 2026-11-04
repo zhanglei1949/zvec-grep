@@ -262,12 +262,12 @@ async function runRepo(suite, repo, candidate, options) {
     command.push("--listen", `127.0.0.1:${listenPort}`);
     await writeJson(opencode, config);
     manifest.mcp_command = command;
-    await run(candidate.cli, ["server", "off"], { env, cwd: root });
+    await run(candidate.cli, ["--server", "off"], { env, cwd: root });
     const select = repo.selection;
     const graphFile = join(output, "graph-options.json");
     await writeJson(graphFile, select.graph);
     const args = [
-      "index",
+      "--index",
       root,
       "--mode",
       "direct",
@@ -310,7 +310,7 @@ async function runRepo(suite, repo, candidate, options) {
     console.log(`${repo.repository}: graph-only publication`);
     manifest.graph_index = await measured(
       candidate.cli,
-      ["index", root, "--mode", "direct", "--graph-options", graphFile],
+      ["--index", root, "--mode", "direct", "--graph-options", graphFile],
       join(output, "graph-index.json"),
       env,
       root,
@@ -325,7 +325,7 @@ async function runRepo(suite, repo, candidate, options) {
     const reopen = await run(
       candidate.cli,
       [
-        "explore",
+        "--explore",
         "--mode",
         "direct",
         "locate",
@@ -501,7 +501,7 @@ async function runRepo(suite, repo, candidate, options) {
     }
     if (env)
       try {
-        await run(candidate.cli, ["server", "off"], {
+        await run(candidate.cli, ["--server", "off"], {
           env,
           cwd: root,
           timeout: 60_000,

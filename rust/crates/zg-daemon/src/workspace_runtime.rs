@@ -33,8 +33,8 @@ use zg_host_native::{
 };
 
 use crate::job_scheduler::{
-    IndexExecutor, IndexJobCompletion, IndexJobScheduler, IndexJobSnapshot, JobReason, JobState,
-    SchedulerConfig, SchedulerError, SchedulerSnapshot,
+    IndexExecutor, IndexJobScheduler, IndexJobSnapshot, JobReason, JobState, SchedulerConfig,
+    SchedulerError, SchedulerSnapshot,
 };
 mod lifecycle;
 use lifecycle::{RuntimeActivity, RuntimeLifecycle};
@@ -44,7 +44,7 @@ use zg_transport_mcp::{
 };
 
 mod freshness;
-use freshness::Freshness;
+use freshness::{Freshness, SearchFreshness};
 
 #[derive(Clone)]
 pub(crate) struct WorkspaceRuntimeManager {
@@ -58,7 +58,7 @@ struct RuntimeManagerInner {
     runtimes: Mutex<HashMap<PathBuf, Arc<WorkspaceRuntime>>>,
     shutdown: CancellationToken,
     closed: AtomicBool,
-    idle_ttl: std::time::Duration,
+    idle_ttl: Option<std::time::Duration>,
     maintenance: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -81,13 +81,19 @@ struct WorkspaceRuntime {
 struct CachedIndexStatus {
     epoch: u64,
     snapshot: Option<IndexStatusSnapshot>,
+    /// Full refreshes may use these counts until a mutation or completion makes them obsolete.
+    completion_baseline: Option<IndexStatusSnapshot>,
+    /// Invalidating a snapshot does not repair the unfinished files it observed.
+    needs_repair: bool,
     job: Option<(uuid::Uuid, JobState)>,
 }
 
 impl CachedIndexStatus {
     fn invalidate(&mut self) -> u64 {
         self.epoch = self.epoch.wrapping_add(1);
-        self.snapshot = None;
+        if let Some(snapshot) = self.snapshot.take() {
+            self.completion_baseline = Some(snapshot);
+        }
         self.epoch
     }
 
@@ -101,7 +107,7 @@ impl CachedIndexStatus {
             return false;
         }
         self.job = job;
-        self.snapshot = Some(IndexStatusSnapshot {
+        let snapshot = IndexStatusSnapshot {
             status: info.index_status(),
             stats: info.status.clone(),
             checked_epoch_ms: u64::try_from(
@@ -111,7 +117,14 @@ impl CachedIndexStatus {
                     .as_millis(),
             )
             .unwrap_or(u64::MAX),
-        });
+        };
+        self.needs_repair = matches!(
+            snapshot.status,
+            zg_engine::api::info::result::IndexStatus::Stale
+                | zg_engine::api::info::result::IndexStatus::Failed
+        );
+        self.completion_baseline = Some(snapshot.clone());
+        self.snapshot = Some(snapshot);
         true
     }
 }
@@ -128,6 +141,19 @@ struct WatcherHandle {
     cancellation: CancellationToken,
     session: Arc<dyn WorkspaceWatchSessionPort>,
     task: JoinHandle<()>,
+}
+
+impl WatcherHandle {
+    async fn wait_for_pending_batches(&self) -> Result<(), EngineError> {
+        let (sender, receiver) = oneshot::channel();
+        self.barrier
+            .send(sender)
+            .await
+            .map_err(|_| EngineError::resource_closed("workspace watcher has stopped"))?;
+        receiver
+            .await
+            .map_err(|_| EngineError::resource_closed("workspace watcher barrier was interrupted"))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -198,7 +224,11 @@ impl WorkspaceRuntimeManager {
         }
         let (updated, preflight) = scope_refresh_options(request, started).await?;
         request = updated;
-        let _activity = self.existing_activity(request.root.as_deref())?;
+        let activity = self.existing_activity(request.root.as_deref())?;
+        let before = activity
+            .as_ref()
+            .map(|runtime| runtime.search_freshness())
+            .unwrap_or_default();
         let policy = request.refresh.unwrap_or(if request.auto_update {
             RefreshPolicy::Background
         } else {
@@ -208,8 +238,9 @@ impl WorkspaceRuntimeManager {
         request.refresh = Some(policy);
         if policy == RefreshPolicy::Off {
             let mut reply = engine.context(remaining_context(request, started)?).await?;
-            reply.freshness = Some("served_from_current_index".to_owned());
             reply.background_refresh = Some("off".to_owned());
+            let after = self.search_freshness_for(&reply.root)?;
+            self.finalize_search_reply(&mut reply, before, after);
             return account_scope_preflight(reply, preflight);
         }
         let options = IndexOptions {
@@ -240,7 +271,7 @@ impl WorkspaceRuntimeManager {
             .max_by_key(|root| root.components().count())
             .cloned()
             .unwrap_or(requested_root);
-        let _refresh_activity = wait_for_search_refresh(&request, async {
+        let refresh_activity = wait_for_search_refresh(&request, async {
             let info = wait_for_search_admission(&request, async {
                 self.inner
                     .scheduler
@@ -272,11 +303,19 @@ impl WorkspaceRuntimeManager {
         .await?;
         // Resident Wait reconciles delivered watcher events. OS notifications
         // still in flight belong to a later refresh, not a second disk scan.
+        let before = refresh_activity
+            .as_ref()
+            .map(|runtime| runtime.search_freshness())
+            .unwrap_or_default();
         let mut reply = engine
             .context_after_refresh(remaining_context(request, started)?)
             .await?;
-        reply.freshness = Some("fresh".to_owned());
+        let after = refresh_activity
+            .as_ref()
+            .map(|runtime| runtime.search_freshness())
+            .unwrap_or_default();
         reply.background_refresh = Some("idle".to_owned());
+        self.finalize_search_reply(&mut reply, before, after);
         account_scope_preflight(reply, preflight)
     }
     async fn search_background(
@@ -288,10 +327,15 @@ impl WorkspaceRuntimeManager {
     ) -> Result<ContextResult, EngineError> {
         // Query first so our own refresh cannot lock out the current-index read.
         // A successful query also proves that this operation is not creating an index.
+        let before = self.search_freshness_for(
+            request
+                .root
+                .as_deref()
+                .unwrap_or_else(|| std::path::Path::new(".")),
+        )?;
         let mut reply = engine.context(remaining_context(request, started)?).await?;
         let mut options = options;
         options.root = Some(reply.root.clone());
-        reply.freshness = Some("served_from_current_index".to_owned());
         if reply
             .graph
             .as_ref()
@@ -309,6 +353,8 @@ impl WorkspaceRuntimeManager {
                 "failed".to_owned()
             }
         });
+        let after = self.search_freshness_for(&reply.root)?;
+        self.finalize_search_reply(&mut reply, before, after);
         Ok(reply)
     }
 }
@@ -475,20 +521,44 @@ impl WorkspaceWatcherFactoryPort for EngineWatcherFactory {
 }
 
 impl WorkspaceRuntimeManager {
+    #[cfg(test)]
     pub(crate) fn native(engine: Arc<ZvecGrep>) -> Self {
-        Self::new(
+        Self::native_with_idle_ttl(engine, Some(Self::DEFAULT_IDLE_TTL))
+    }
+
+    pub(crate) fn native_with_idle_ttl(
+        engine: Arc<ZvecGrep>,
+        idle_ttl: Option<std::time::Duration>,
+    ) -> Self {
+        Self::new_with_idle_ttl(
             Arc::new(ZvecGrepIndexExecutor {
                 engine: Arc::clone(&engine),
             }),
             Arc::new(EngineWatcherFactory { engine }),
             SchedulerConfig::default(),
+            idle_ttl,
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn new(
         executor: Arc<dyn IndexExecutor>,
         watcher_factory: Arc<dyn WorkspaceWatcherFactoryPort>,
         scheduler_config: SchedulerConfig,
+    ) -> Self {
+        Self::new_with_idle_ttl(
+            executor,
+            watcher_factory,
+            scheduler_config,
+            Some(Self::DEFAULT_IDLE_TTL),
+        )
+    }
+
+    pub(crate) fn new_with_idle_ttl(
+        executor: Arc<dyn IndexExecutor>,
+        watcher_factory: Arc<dyn WorkspaceWatcherFactoryPort>,
+        scheduler_config: SchedulerConfig,
+        idle_ttl: Option<std::time::Duration>,
     ) -> Self {
         Self {
             inner: Arc::new(RuntimeManagerInner {
@@ -498,7 +568,7 @@ impl WorkspaceRuntimeManager {
                 runtimes: Mutex::new(HashMap::new()),
                 shutdown: CancellationToken::new(),
                 closed: AtomicBool::new(false),
-                idle_ttl: Self::DEFAULT_IDLE_TTL,
+                idle_ttl,
                 maintenance: Mutex::new(None),
             }),
         }
@@ -528,7 +598,7 @@ impl WorkspaceRuntimeManager {
         }
         let canonical_root = canonical_root(options.root.as_deref())?;
         options.root = Some(canonical_root.clone());
-        let runtime = self.runtime(canonical_root.clone(), &options)?;
+        let runtime = self.runtime(canonical_root, &options)?;
         let reconfigure = options.reset_paths || options.scan != ScanRulesUpdate::default();
         let template = index_template(&options);
         runtime.require_reconciliation();
@@ -550,7 +620,7 @@ impl WorkspaceRuntimeManager {
                     let _ = manager
                         .on_index_succeeded(
                             Arc::clone(&activity),
-                            completed.job,
+                            completed.job.id,
                             target_revision,
                             template,
                             reconfigure,
@@ -577,7 +647,7 @@ impl WorkspaceRuntimeManager {
             && let Err(error) = self
                 .on_index_succeeded(
                     Arc::clone(&runtime),
-                    completed.job.clone(),
+                    completed.job.id,
                     target_revision,
                     template,
                     reconfigure,
@@ -601,7 +671,11 @@ impl WorkspaceRuntimeManager {
                 .wait_for_root_idle(&runtime.canonical_root)
                 .await;
         }
-        Ok(submission(completed, submitted.reused))
+        Ok(RuntimeIndexSubmission {
+            job: completed.job,
+            reused: submitted.reused,
+            result: completed.result,
+        })
     }
 
     /// Returns whether refresh work was scheduled or is already in flight.
@@ -628,10 +702,10 @@ impl WorkspaceRuntimeManager {
                 };
                 refresh
             };
-            let busy = self
-                .job_for_root(&root)
-                .is_some_and(|job| matches!(job.state, JobState::Queued | JobState::Running));
-            if !wait && busy {
+            if !wait
+                && let Some(job) = self.job_for_root(&root)
+                && matches!(job.state, JobState::Queued | JobState::Running)
+            {
                 return Ok(true);
             }
             self.ensure_watching(Arc::clone(&runtime))
@@ -639,9 +713,8 @@ impl WorkspaceRuntimeManager {
                 .map_err(WorkspaceRuntimeError::into_engine_error)?;
             self.flush_watcher(&runtime).await?;
             if !wait
-                && self
-                    .job_for_root(&root)
-                    .is_some_and(|job| matches!(job.state, JobState::Queued | JobState::Running))
+                && let Some(job) = self.job_for_root(&root)
+                && matches!(job.state, JobState::Queued | JobState::Running)
             {
                 return Ok(true);
             }
@@ -730,15 +803,7 @@ impl WorkspaceRuntimeManager {
             .flush_pending()
             .await
             .map_err(map_host_error)?;
-        let (sender, receiver) = oneshot::channel();
-        handle
-            .barrier
-            .send(sender)
-            .await
-            .map_err(|_| EngineError::resource_closed("workspace watcher has stopped"))?;
-        receiver
-            .await
-            .map_err(|_| EngineError::resource_closed("workspace watcher barrier was interrupted"))
+        handle.wait_for_pending_batches().await
     }
 
     /// Explicit inspection always reads disk. The runtime keeps the observation for cheap
@@ -785,9 +850,7 @@ impl WorkspaceRuntimeManager {
         let busy = current_job
             .is_some_and(|(_, state)| matches!(state, JobState::Queued | JobState::Running));
         // Never restore ready after a watcher notification, job submission or concurrent scan.
-        if busy
-            || current_job != observed_job
-            || !lock(&runtime.index_status).record(epoch, &info, current_job)
+        if busy || current_job != observed_job || !runtime.record_status(epoch, &info, current_job)
         {
             info.status = None;
         }
@@ -935,10 +998,39 @@ impl WorkspaceRuntimeManager {
             .and_then(|(_, runtime)| RuntimeActivity::begin(runtime, true)))
     }
 
+    fn search_freshness_for(&self, root: &Path) -> Result<SearchFreshness, EngineError> {
+        Ok(self
+            .existing_activity(Some(root))?
+            .as_ref()
+            .map(|runtime| runtime.search_freshness())
+            .unwrap_or_default())
+    }
+
+    fn finalize_search_reply(
+        &self,
+        reply: &mut ContextResult,
+        before: SearchFreshness,
+        after: SearchFreshness,
+    ) {
+        set_search_freshness(reply, before, after);
+        let manual_update = self.job_for_root(&reply.root).is_some_and(|job| {
+            job.reason == JobReason::Manual
+                && matches!(job.state, JobState::Queued | JobState::Running)
+        });
+        let needs_repair = lock(&self.inner.runtimes)
+            .get(&reply.root)
+            .is_some_and(|runtime| lock(&runtime.index_status).needs_repair);
+        reply.indexing = search_indexing_status(
+            reply,
+            IndexOperationProvider::runtime_snapshot(self, &reply.root).as_ref(),
+            manual_update || needs_repair,
+        );
+    }
+
     async fn on_index_succeeded(
         &self,
         runtime: Arc<WorkspaceRuntime>,
-        job: IndexJobSnapshot,
+        job_id: uuid::Uuid,
         revision: u64,
         template: IndexOptions,
         reconfigure: bool,
@@ -950,7 +1042,7 @@ impl WorkspaceRuntimeManager {
             .indexed_revision
             .fetch_max(revision, Ordering::AcqRel);
         let result = if reconfigure {
-            self.configure_watcher(Arc::clone(&runtime), Some((job.id, template)))
+            self.configure_watcher(Arc::clone(&runtime), Some((job_id, template)))
                 .await
         } else {
             *lock(&runtime.index_template) = template;
@@ -1060,7 +1152,7 @@ impl WorkspaceRuntimeManager {
             )
             .await;
         });
-        *watcher = Some(WatcherHandle {
+        let handle = watcher.insert(WatcherHandle {
             configured_job,
             barrier,
             cancellation,
@@ -1069,18 +1161,8 @@ impl WorkspaceRuntimeManager {
         });
         // Cover the interval between indexing and installing a watcher, including
         // first activation. A barrier ensures the daemon has queued the reconciliation.
-        if let Some(handle) = watcher.as_ref() {
-            handle.session.flush().await?;
-            let (acknowledge, acknowledged) = oneshot::channel();
-            handle
-                .barrier
-                .send(acknowledge)
-                .await
-                .map_err(|_| EngineError::resource_closed("workspace watcher has stopped"))?;
-            acknowledged.await.map_err(|_| {
-                EngineError::resource_closed("workspace watcher barrier was interrupted")
-            })?;
-        }
+        handle.session.flush().await?;
+        handle.wait_for_pending_batches().await?;
         Ok(())
     }
 
@@ -1113,6 +1195,9 @@ impl WorkspaceRuntimeManager {
 
 #[async_trait::async_trait]
 impl IndexOperationProvider for WorkspaceRuntimeManager {
+    fn supports_background_indexing(&self) -> bool {
+        true
+    }
     async fn submit_index(
         &self,
         options: IndexOptions,
@@ -1170,7 +1255,7 @@ impl IndexOperationProvider for WorkspaceRuntimeManager {
                     "graph_execution requires a graph query mode",
                 ));
             }
-            return self.search_workspace(engine, request).await;
+            return Box::pin(self.search_workspace(engine, request)).await;
         }
         let execution = request.graph_execution.unwrap_or_default();
         execution.validate()?;
@@ -1199,10 +1284,10 @@ impl IndexOperationProvider for WorkspaceRuntimeManager {
         let runtime = lock(&self.inner.runtimes).get(&canonical_root).cloned()?;
         let snapshot = WorkspaceRuntimeManager::runtime_snapshot(self, &canonical_root);
         let job = self.job_for_root(&canonical_root);
-        let index_status = if job
+        let active = job
             .as_ref()
-            .is_some_and(|job| matches!(job.state, JobState::Queued | JobState::Running))
-        {
+            .is_some_and(|job| matches!(job.state, JobState::Queued | JobState::Running));
+        let index_status = if active {
             None
         } else {
             let cache = lock(&runtime.index_status);
@@ -1213,6 +1298,9 @@ impl IndexOperationProvider for WorkspaceRuntimeManager {
         };
         Some(IndexRuntimeSnapshot {
             index_status,
+            completion_baseline: active
+                .then(|| lock(&runtime.index_status).completion_baseline.clone())
+                .flatten(),
             watcher_active: snapshot.watcher_active,
             dirty_revision: snapshot.dirty_revision,
             indexed_revision: snapshot.indexed_revision,
@@ -1227,6 +1315,69 @@ impl IndexOperationProvider for WorkspaceRuntimeManager {
             }),
         })
     }
+}
+
+fn set_search_freshness(
+    reply: &mut ContextResult,
+    before: SearchFreshness,
+    after: SearchFreshness,
+) {
+    let stale = after.changed_since(before) || reply.has_stale_items();
+    reply.freshness = Some(if stale { "possibly_stale" } else { "fresh" }.to_owned());
+}
+
+fn search_indexing_status(
+    reply: &ContextResult,
+    runtime: Option<&IndexRuntimeSnapshot>,
+    index_not_ready: bool,
+) -> Option<zg_engine::api::context::result::ContextIndexingStatus> {
+    use zg_engine::api::context::result::ContextIndexingStatus;
+
+    let stats = runtime
+        .and_then(|runtime| {
+            runtime
+                .index_status
+                .as_ref()
+                .or(runtime.completion_baseline.as_ref())
+        })
+        .and_then(|snapshot| snapshot.stats.as_ref());
+    if reply.freshness.as_deref() != Some("possibly_stale") && !index_not_ready {
+        return None;
+    }
+    let refresh_state = runtime.and_then(|runtime| runtime.job_state).map_or_else(
+        || match reply.background_refresh.as_deref() {
+            Some("scheduled") => "queued",
+            Some("failed") => "failed",
+            _ => "idle",
+        },
+        |state| match state {
+            IndexOperationState::Queued => "queued",
+            IndexOperationState::Running => "running",
+            IndexOperationState::Succeeded => "succeeded",
+            IndexOperationState::Failed => "failed",
+            IndexOperationState::Cancelled => "cancelled",
+        },
+    );
+    let mut completion = stats.map(|stats| (stats.files_unchanged, stats.files_scanned));
+    if refresh_state == "running"
+        && let Some(progress) = runtime.and_then(|runtime| runtime.progress.as_ref())
+    {
+        let succeeded = progress
+            .files_indexed
+            .map(|indexed| indexed.saturating_sub(progress.files_failed.unwrap_or(0)));
+        completion = match completion {
+            Some((completed, total)) => Some((
+                completed.saturating_add(succeeded.unwrap_or(0)).min(total),
+                total,
+            )),
+            None => succeeded.zip(progress.files_total),
+        };
+    }
+    Some(ContextIndexingStatus {
+        state: refresh_state.to_owned(),
+        completed: completion.map(|(completed, _)| completed),
+        total: completion.map(|(_, total)| total),
+    })
 }
 
 async fn wait_for_search_refresh<T>(
@@ -1313,17 +1464,25 @@ async fn watch_loop(
         let Some(activity) = RuntimeActivity::begin(&runtime, false) else {
             break;
         };
-        runtime.invalidate_status();
-        runtime.dirty_revision.fetch_add(1, Ordering::AcqRel);
-        let mut options = lock(&runtime.index_template).clone();
+        {
+            let mut cache = lock(&runtime.index_status);
+            cache.invalidate();
+            cache.completion_baseline = None;
+        }
+        let revision = runtime.dirty_revision.fetch_add(1, Ordering::AcqRel) + 1;
+        if batch.changes.iter().any(|change| {
+            matches!(
+                change,
+                WorkspaceChange::Upsert(_)
+                    | WorkspaceChange::Delete(_)
+                    | WorkspaceChange::DeletePrefix(_)
+            )
+        }) {
+            runtime.observe_file_changes(revision);
+        }
         // One-operation consent must never authorize later watcher jobs.
-        options.allow_remote = false;
-        options.authorized_remote.clear();
-        options.name = None;
-        options.signal = None;
-        options.on_progress = None;
+        let mut options = lock(&runtime.index_template).clone();
         options.root = Some(runtime.canonical_root.clone());
-        options.rebuild = false;
         options.changes = batch.changes.into_iter().map(map_change).collect();
         if options.changes.contains(&IndexChange::Rescan) {
             runtime.require_reconciliation();
@@ -1332,13 +1491,10 @@ async fn watch_loop(
         else {
             continue;
         };
-        let scheduler = inner.scheduler.clone();
-        let manager = WorkspaceRuntimeManager {
-            inner: Arc::clone(&inner),
-        };
+        let manager = WorkspaceRuntimeManager { inner };
         tokio::spawn(async move {
             let runtime = activity;
-            let Ok(completed) = scheduler.wait(submitted.job.id).await else {
+            let Ok(completed) = manager.inner.scheduler.wait(submitted.job.id).await else {
                 runtime.forget_job_proof(submitted.job.id);
                 return;
             };
@@ -1354,14 +1510,6 @@ async fn watch_loop(
     if let Some(runtime) = weak_runtime.upgrade() {
         runtime.require_reconciliation();
         runtime.watcher_active.store(false, Ordering::Release);
-    }
-}
-
-fn submission(completed: IndexJobCompletion, reused: bool) -> RuntimeIndexSubmission {
-    RuntimeIndexSubmission {
-        job: completed.job,
-        reused,
-        result: completed.result,
     }
 }
 
@@ -1387,7 +1535,6 @@ fn index_template(options: &IndexOptions) -> IndexOptions {
     let mut template = options.clone();
     // Saved workspace settings are authoritative for subsequent watch jobs.
     // Configuration patches and one-operation controls must never be replayed.
-    template.name = None;
     template.graph = None;
     template.signal = None;
     template.lock_timeout_ms = None;
@@ -1395,6 +1542,7 @@ fn index_template(options: &IndexOptions) -> IndexOptions {
     template.allow_remote = false;
     template.authorized_remote.clear();
     template.runtime_device = None;
+    template.embedding_concurrency = None;
     template.rebuild = false;
     template.reset_paths = false;
     template.changes.clear();
@@ -1716,6 +1864,25 @@ mod tests {
             status: Some(IndexStats::default()),
             suggestion: None,
         }
+    }
+
+    #[test]
+    fn invalidating_status_keeps_only_the_completion_baseline() {
+        let mut cached = super::CachedIndexStatus::default();
+        let mut info = inspected_info();
+        let stats = info.status.as_mut().expect("index status");
+        stats.files_scanned = 1001;
+        stats.files_unchanged = 1000;
+        let epoch = cached.invalidate();
+        assert!(cached.record(epoch, &info, None));
+        cached.invalidate();
+        assert!(cached.snapshot.is_none());
+        let stats = cached
+            .completion_baseline
+            .as_ref()
+            .and_then(|baseline| baseline.stats.as_ref())
+            .expect("completion baseline");
+        assert_eq!((stats.files_unchanged, stats.files_scanned), (1000, 1001));
     }
 
     #[test]
@@ -2136,7 +2303,7 @@ mod tests {
             .submit_index(
                 IndexOptions {
                     root: Some(workspace.path().to_path_buf()),
-                    name: Some("explicit-workspace-name".into()),
+                    embedding_concurrency: Some(8),
                     ..IndexOptions::default()
                 },
                 true,
@@ -2149,7 +2316,6 @@ mod tests {
         let runtime = manager
             .runtime(canonical_root.clone(), &IndexOptions::default())
             .expect("runtime");
-        assert!(super::lock(&runtime.index_template).name.is_none());
         assert_eq!(
             watchers
                 .watches
@@ -2169,16 +2335,13 @@ mod tests {
             .await
             .expect("watch change should be delivered");
         tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            loop {
-                if executor
-                    .calls
-                    .lock()
-                    .expect("calls should be readable")
-                    .len()
-                    == 2
-                {
-                    break;
-                }
+            while executor
+                .calls
+                .lock()
+                .expect("calls should be readable")
+                .len()
+                < 2
+            {
                 tokio::task::yield_now().await;
             }
         })
@@ -2187,8 +2350,8 @@ mod tests {
         assert!(super::lock(&runtime.index_status).snapshot.is_none());
         {
             let calls = executor.calls.lock().expect("calls should be readable");
-            assert_eq!(calls[0].name.as_deref(), Some("explicit-workspace-name"));
-            assert!(calls[1].name.is_none());
+            assert_eq!(calls[0].embedding_concurrency, Some(8));
+            assert_eq!(calls[1].embedding_concurrency, None);
             assert_eq!(
                 calls[1].changes,
                 [IndexChange::Upsert(PathBuf::from("src/lib.rs"))]
@@ -2202,25 +2365,140 @@ mod tests {
             .await
             .expect("reconcile should be delivered");
         tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            loop {
-                if executor
-                    .calls
-                    .lock()
-                    .expect("calls should be readable")
-                    .len()
-                    == 3
-                {
-                    break;
-                }
+            while executor
+                .calls
+                .lock()
+                .expect("calls should be readable")
+                .len()
+                < 3
+            {
                 tokio::task::yield_now().await;
             }
         })
         .await
         .expect("reconcile index should run");
-        assert_eq!(
-            executor.calls.lock().expect("calls should be readable")[2].changes,
-            [IndexChange::Rescan]
+        {
+            let calls = executor.calls.lock().expect("calls should be readable");
+            assert_eq!(calls[2].changes, [IndexChange::Rescan]);
+            assert_eq!(calls[2].embedding_concurrency, None);
+        }
+    }
+
+    async fn assert_nested_index_after_parent_query(rebuild: bool) {
+        use zg_engine::{
+            ZvecGrep,
+            api::{
+                context::{
+                    ContextOptions,
+                    options::{ContextRoute, ContextRouteMode, RefreshPolicy},
+                },
+                index::options::{Device, EmbeddingModelSpec, ScanRulesUpdate},
+            },
+        };
+        use zg_transport_mcp::IndexOperationProvider;
+
+        let directory = tempdir().expect("nested workspaces");
+        let root = std::fs::canonicalize(directory.path()).expect("parent root");
+        let child = root.join("sub");
+        std::fs::create_dir(root.join("docs")).expect("parent sources");
+        std::fs::create_dir_all(child.join("src")).expect("child sources");
+        let engine = Arc::new(ZvecGrep::new());
+        let mut options = IndexOptions {
+            root: Some(root.clone()),
+            embedding: Some(EmbeddingModelSpec {
+                reference: "local/potion-retrieval-32m".into(),
+                revision: None,
+                cache_dir: None,
+                endpoint: None,
+                device: Device::Cpu,
+            }),
+            scan: ScanRulesUpdate {
+                globs: Some(vec!["docs/**".into()]),
+                ..ScanRulesUpdate::default()
+            },
+            ..IndexOptions::default()
+        };
+        engine.index(options.clone()).await.expect("parent index");
+        // Isolate root routing from native events that can legitimately refresh
+        // the parent manifest's timestamp while the child index is being built.
+        let (_sender, receiver) = mpsc::channel(4);
+        let manager = WorkspaceRuntimeManager::new(
+            Arc::new(super::ZvecGrepIndexExecutor {
+                engine: Arc::clone(&engine),
+            }),
+            Arc::new(ManualWatcherFactory {
+                receiver: Arc::new(tokio::sync::Mutex::new(receiver)),
+                watches: Mutex::new(Vec::new()),
+                closes: Arc::new(AtomicUsize::new(0)),
+            }),
+            SchedulerConfig::default(),
         );
+        let result = IndexOperationProvider::search(
+            &manager,
+            &engine,
+            ContextOptions {
+                root: Some(child.clone()),
+                routes: vec![ContextRoute {
+                    mode: ContextRouteMode::Fts,
+                    query: "needle".into(),
+                }],
+                refresh: Some(RefreshPolicy::Wait),
+                auto_update: false,
+                ..ContextOptions::default()
+            },
+        )
+        .await
+        .expect("query discovers and refreshes parent index");
+        assert_eq!(result.root, root);
+        assert_eq!(manager.snapshot().active_runtimes, 1);
+        let parent_manifest = root.join(".zvec-grep/manifest.json");
+        let before = std::fs::read(&parent_manifest).expect("parent manifest");
+
+        options.root = Some(child.clone());
+        options.embedding.as_mut().expect("child model").reference =
+            "local/potion-code-16m-v2".into();
+        options.scan.globs = Some(vec!["src/**".into()]);
+        options.rebuild = rebuild;
+        let indexed = manager
+            .submit_index(options, true)
+            .await
+            .expect("child submission");
+        assert_eq!(
+            indexed.job.state,
+            super::JobState::Succeeded,
+            "{:?}",
+            indexed.job.error
+        );
+        assert_eq!(indexed.job.canonical_root, child);
+        assert!(child.join(".zvec-grep/manifest.json").is_file());
+        assert_eq!(
+            std::fs::read(parent_manifest).expect("parent manifest unchanged"),
+            before
+        );
+        assert_eq!(
+            engine
+                .info(InfoOptions {
+                    root: Some(child.clone()),
+                    include_status: false
+                })
+                .await
+                .expect("child info")
+                .root,
+            child
+        );
+        assert_eq!(manager.snapshot().active_runtimes, 2);
+        manager.shutdown_all().await.expect("runtime shutdown");
+        engine.close();
+    }
+
+    #[tokio::test]
+    async fn nested_index_after_parent_query_uses_child_root() {
+        assert_nested_index_after_parent_query(false).await;
+    }
+
+    #[tokio::test]
+    async fn nested_index_rebuild_after_parent_query_keeps_parent() {
+        assert_nested_index_after_parent_query(true).await;
     }
 
     #[tokio::test]
@@ -2366,6 +2644,7 @@ mod tests {
                     rebuild: true,
                     reset_paths: true,
                     allow_remote: true,
+                    embedding_concurrency: Some(8),
                     authorized_remote: vec![zg_engine::authorization::IndexAuthorization {
                         root: root.clone(),
                         workspace_roots: vec![root.clone()],
@@ -2375,7 +2654,7 @@ mod tests {
                     }],
                     scan: ScanRulesUpdate {
                         globs: Some(vec!["*.rs".into()]),
-                        hidden: Some(false),
+                        include_hidden: Some(false),
                         max_depth: Some(None),
                         ..ScanRulesUpdate::default()
                     },
@@ -2403,7 +2682,9 @@ mod tests {
         manager.inner.scheduler.wait_for_root_idle(&root).await;
         {
             let calls = executor.calls.lock().expect("calls");
+            assert_eq!(calls[1].embedding_concurrency, Some(8));
             let watched = &calls[2];
+            assert_eq!(watched.embedding_concurrency, None);
             assert_eq!(watched.scan, ScanRulesUpdate::default());
             assert!(!watched.rebuild);
             assert!(!watched.reset_paths);
@@ -2461,7 +2742,7 @@ mod tests {
                     root: Some(root.clone()),
                     embedding_concurrency: Some(5),
                     scan: ScanRulesUpdate {
-                        hidden: Some(true),
+                        include_hidden: Some(true),
                         ..ScanRulesUpdate::default()
                     },
                     ..IndexOptions::default()
@@ -2511,7 +2792,7 @@ mod tests {
         assert_eq!(watchers.inner.closes.load(Ordering::Acquire), 1);
         assert_eq!(
             super::lock(&runtime.index_template).embedding_concurrency,
-            Some(5)
+            None
         );
         assert!(super::lock(&runtime.pending_watcher_configuration).is_none());
         manager.shutdown_all().await.expect("shutdown");
@@ -2552,7 +2833,7 @@ mod tests {
                     root: Some(root.clone()),
                     embedding_concurrency: Some(99),
                     scan: ScanRulesUpdate {
-                        hidden: Some(true),
+                        include_hidden: Some(true),
                         ..ScanRulesUpdate::default()
                     },
                     ..IndexOptions::default()
@@ -2569,9 +2850,14 @@ mod tests {
             .expect("runtime");
         assert_eq!(
             super::lock(&runtime.index_template).embedding_concurrency,
-            Some(2)
+            None
         );
         assert!(manager.runtime_snapshot(&root).watcher_active);
+        {
+            let calls = executor.calls.lock().expect("calls");
+            assert_eq!(calls[0].embedding_concurrency, Some(2));
+            assert_eq!(calls[1].embedding_concurrency, Some(99));
+        }
         manager.shutdown_all().await.expect("shutdown");
     }
 

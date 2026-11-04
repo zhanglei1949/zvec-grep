@@ -7,8 +7,20 @@ const workflow = await readFile(
   new URL(".github/workflows/retrieval-only.yml", repository),
   "utf8",
 );
+const prWorkflow = await readFile(
+  new URL(".github/workflows/retrieval-pr.yml", repository),
+  "utf8",
+);
 const action = await readFile(
   new URL(".github/actions/retrieval-authorize/action.yml", repository),
+  "utf8",
+);
+const comparisonWorkflow = await readFile(
+  new URL(".github/workflows/retrieval-comparison.yml", repository),
+  "utf8",
+);
+const rustAction = await readFile(
+  new URL(".github/actions/rust-candidate-package/action.yml", repository),
   "utf8",
 );
 
@@ -41,35 +53,154 @@ function steps(job) {
   );
 }
 
-test("Retrieval-only is one manual workflow with one candidate source input", async () => {
+test("Retrieval-only retains its reusable and manual candidate/embedding inputs", async () => {
   assert.deepEqual(
     [...block(workflow, "on", 0).matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     ),
-    ["workflow_dispatch"],
+    ["workflow_call", "workflow_dispatch"],
   );
   const dispatch = block(workflow, "workflow_dispatch", 2);
   assert.match(dispatch, /^ {4}inputs:$/m);
   assert.match(dispatch, /^ {6}candidate_ref:$/m);
   assert.match(dispatch, /^ {8}default: main$/m);
-  assert.equal((dispatch.match(/^ {6}[a-z_]+:$/gm) ?? []).length, 1);
+  assert.match(dispatch, /^ {6}embedding:$/m);
+  assert.match(dispatch, /^ {8}default: local$/m);
+  assert.match(dispatch, /^ {8}type: choice$/m);
+  assert.match(dispatch, /^ {10}- local$/m);
+  assert.match(dispatch, /^ {10}- remote$/m);
+  assert.equal((dispatch.match(/^ {6}[a-z_]+:$/gm) ?? []).length, 2);
   const files = await readdir(new URL(".github/workflows/", repository));
   assert.deepEqual(
-    files.filter((file) => /^retrieval.*\.ya?ml$/.test(file)),
-    ["retrieval-only.yml"],
+    files.filter((file) => /^retrieval.*\.ya?ml$/.test(file)).sort(),
+    [
+      "retrieval-comparison.yml",
+      "retrieval-only.yml",
+      "retrieval-pr-comment.yml",
+      "retrieval-pr.yml",
+    ],
   );
   assert.deepEqual(Object.keys(jobs), [
     "authorize",
     "quality-contract",
     "package-candidate",
-    "retrieval",
-    "zg-report",
+    "sweqa",
+    "beir",
+    "duretrieval",
+    "quarry",
     "results",
   ]);
   assert.doesNotMatch(workflow, /setup-node|node-version|NODE_VERSION/);
 });
 
-test("every repository runs the fixed three ZG modes through Rust MCP, yielding 16 jobs", async () => {
+test("PR updates run Retrieval-only at the fork head SHA with local embedding and no forwarded secrets", () => {
+  assert.deepEqual(
+    [...block(prWorkflow, "on", 0).matchAll(/^ {2}([\w-]+):$/gm)].map(
+      (match) => match[1],
+    ),
+    ["pull_request", "workflow_dispatch"],
+  );
+  assert.match(
+    block(prWorkflow, "pull_request", 2),
+    /types: \[opened, synchronize, reopened\]/,
+  );
+  assert.match(prWorkflow, /^permissions: \{\}$/m);
+  const job = block(prWorkflow, "retrieval", 2);
+  assert.equal(
+    [...block(prWorkflow, "jobs", 0).matchAll(/^ {2}([\w-]+):$/gm)].length,
+    2,
+  );
+  assert.match(job, /uses: \.\/\.github\/workflows\/retrieval-comparison\.yml/);
+  assert.equal(block(prWorkflow, "permissions", 4).trim(), "contents: read");
+  assert.match(
+    job,
+    /candidate_ref: \$\{\{ inputs\.candidate_sha \|\| github\.event\.pull_request\.head\.sha \}\}/,
+  );
+  assert.match(
+    job,
+    /candidate_repository: \$\{\{ inputs\.candidate_repository \|\| github\.event\.pull_request\.head\.repo\.full_name \}\}/,
+  );
+  assert.match(
+    job,
+    /baseline_ref: \$\{\{ inputs\.baseline_sha \|\| github\.event\.pull_request\.base\.sha \}\}/,
+  );
+  assert.match(
+    job,
+    /baseline_repository: \$\{\{ inputs\.baseline_repository \|\| github\.event\.pull_request\.base\.repo\.full_name \}\}/,
+  );
+  assert.doesNotMatch(
+    prWorkflow,
+    /secrets:|secrets\.|inherit|: write|swe-qa-bench\.yml/,
+  );
+  assert.match(
+    block(workflow, "env", 0),
+    /RETRIEVAL_EMBEDDING: \$\{\{ inputs\.embedding \}\}/,
+  );
+});
+
+test("automatic PR concurrency cancels older commits without cancelling manual benchmark runs", () => {
+  const concurrency = block(prWorkflow, "concurrency", 0);
+  assert.match(
+    concurrency,
+    /group: retrieval-pr-\$\{\{ github\.event\.pull_request\.number \|\| github\.run_id \}\}/,
+  );
+  assert.match(concurrency, /cancel-in-progress: true/);
+  assert.doesNotMatch(concurrency, /head\.sha/);
+  assert.match(block(workflow, "concurrency", 0), /group: retrieval-only-/);
+});
+
+test("version comparison keeps artifact namespaces separate and uses local models without secrets", () => {
+  for (const [job, prefix] of [
+    ["baseline", "retrieval-base"],
+    ["candidate", "retrieval-head"],
+  ]) {
+    const source = block(comparisonWorkflow, job, 2);
+    assert.match(source, /uses: \.\/\.github\/workflows\/retrieval-only\.yml/);
+    assert.match(source, /embedding: local/);
+    assert.ok(source.includes(`artifact_prefix: ${prefix}`));
+  }
+  assert.doesNotMatch(
+    comparisonWorkflow,
+    /secrets:|secrets\.|: write|swe-qa-bench/,
+  );
+  const compare = block(comparisonWorkflow, "compare", 2);
+  assert.match(compare, /if: always\(\) && !cancelled\(\)/);
+  assert.match(compare, /name: retrieval-base-results/);
+  assert.match(compare, /name: retrieval-head-results/);
+  assert.match(compare, /name: retrieval-comparison/);
+  assert.match(workflow, /retrieval-results\/reports\//);
+});
+
+test("local embedding is the default and remote Qwen credentials stay scoped to execution", () => {
+  assert.match(jobs.authorize, /Check remote embedding configuration/);
+  assert.match(jobs.authorize, /if: inputs\.embedding == 'remote'/);
+  assert.match(jobs.authorize, /secrets\.QWEN_EMBEDDING_API_KEY/);
+  assert.match(jobs.authorize, /vars\.QWEN_EMBEDDING_ENDPOINT/);
+  for (const suite of ["sweqa", "beir", "duretrieval", "quarry"]) {
+    assert.match(
+      jobs[suite],
+      /RETRIEVAL_EMBEDDING: \$\{\{ inputs\.embedding \}\}/,
+    );
+    assert.match(
+      jobs[suite],
+      /if: inputs\.embedding == 'local'[\s\S]*uses: actions\/cache@/,
+      `${suite}: local model cache`,
+    );
+    const run = steps(jobs[suite]).find((entry) =>
+      /node benchmarks\/zg-retrieval\/(?:expansion\/)?run\.mjs/.test(entry),
+    );
+    assert.ok(run, suite);
+    assert.match(run, /secrets\.QWEN_EMBEDDING_API_KEY/);
+    assert.match(run, /vars\.QWEN_EMBEDDING_ENDPOINT/);
+  }
+  assert.match(
+    jobs.results,
+    /RETRIEVAL_EMBEDDING: \$\{\{ inputs\.embedding \}\}/,
+  );
+  assert.doesNotMatch(jobs["quality-contract"], /RETRIEVAL_EMBEDDING/);
+});
+
+test("the four suites run in independent jobs using one candidate package", async () => {
   const protocol = JSON.parse(
     await readFile(
       new URL("benchmarks/zg-retrieval/configs/protocol.json", repository),
@@ -89,24 +220,32 @@ test("every repository runs the fixed three ZG modes through Rust MCP, yielding 
     new Set(lock.repositories.map((repo) => repo.repository)).size,
     11,
   );
-  assert.equal(Object.keys(jobs).length - 1 + lock.repositories.length, 16);
-  assert.match(jobs["package-candidate"], /lock\.repositories\.map/);
-  assert.match(
-    jobs.retrieval,
-    /matrix: \$\{\{ fromJSON\(needs\.package-candidate\.outputs\.matrix\) \}\}/,
-  );
-  const runner = steps(jobs.retrieval).find((entry) =>
+  assert.equal(Object.keys(jobs).length, 8);
+  assert.doesNotMatch(workflow, /strategy:|fromJSON\(/);
+  const runner = steps(jobs.sweqa).find((entry) =>
     entry.includes("node benchmarks/zg-retrieval/run.mjs"),
   );
   assert.ok(runner);
   assert.doesNotMatch(runner, /--(?:modes|preview)\b|RETRIEVAL_MODES|inputs\./);
-  assert.match(runner, /--repository "\$RETRIEVAL_REPOSITORY"/);
+  assert.doesNotMatch(runner, /--repository\b/);
   assert.match(jobs["quality-contract"], /uses: actions\/setup-python@/);
+  assert.match(jobs.sweqa, /needs: \[authorize, package-candidate\]/);
+  assert.match(jobs.sweqa, /ci-report\.mjs/);
+  assert.match(jobs.sweqa, /name:.*-zg-report/);
+  assert.match(jobs.sweqa, /\$GITHUB_STEP_SUMMARY/);
+  for (const suite of ["beir", "duretrieval", "quarry"]) {
+    assert.match(jobs[suite], /needs: \[authorize, package-candidate\]/);
+    assert.match(jobs[suite], new RegExp(`--suite ${suite}`));
+    assert.match(jobs[suite], new RegExp(`name:.*-${suite}-report`));
+    assert.match(jobs[suite], /\$GITHUB_STEP_SUMMARY/);
+  }
   assert.match(
     jobs["quality-contract"],
     /node --test benchmarks\/zg-retrieval\/test\/\*\.test\.mjs/,
   );
-  assert.doesNotMatch(workflow, /pip install|python -m venv|SDK parity/);
+  assert.match(jobs.duretrieval, /pyarrow|requirements-duretrieval\.txt/);
+  assert.match(jobs.beir, /requirements-beir\.txt/);
+  assert.doesNotMatch(jobs.quarry, /pip install|python -m venv|SDK parity/);
 });
 
 test("the selected workflow ref is frozen once for every downstream job", () => {
@@ -119,8 +258,10 @@ test("the selected workflow ref is frozen once for every downstream job", () => 
   for (const name of [
     "quality-contract",
     "package-candidate",
-    "retrieval",
-    "zg-report",
+    "sweqa",
+    "beir",
+    "duretrieval",
+    "quarry",
     "results",
   ])
     assert.match(
@@ -132,35 +273,53 @@ test("the selected workflow ref is frozen once for every downstream job", () => 
 
 test("the selected source is built from rust/ and exact-commit package caching bypasses recompilation", () => {
   const job = jobs["package-candidate"];
-  assert.match(job, /ref: \$\{\{ inputs\.candidate_ref \}\}/);
-  assert.match(job, /path: candidate/);
-  assert.match(job, /working-directory: candidate\/rust/);
-  assert.match(job, /candidate\/rust\/target\//);
-  assert.match(job, /candidate\/rust\/Cargo\.lock/);
+  assert.match(job, /uses: \.\/\.github\/actions\/rust-candidate-package/);
   assert.match(
     job,
-    /retrieval-rust-package-v1-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.source\.outputs\.commit \}\}/,
+    /candidate_repository: \$\{\{ inputs\.candidate_repository \|\| \(inputs\.candidate_ref == 'main' && 'zvec-ai\/zvec-grep' \|\| github\.repository\) \}\}/,
+  );
+  assert.match(job, /candidate_ref: \$\{\{ inputs\.candidate_ref \}\}/);
+  assert.match(job, /cache_namespace: retrieval-rust/);
+  assert.match(
+    job,
+    /candidate-commit: \$\{\{ steps\.rust-candidate\.outputs\.commit \}\}/,
   );
   assert.match(
-    job,
+    rustAction,
+    /repository: \$\{\{ inputs\.candidate_repository \}\}/,
+  );
+  assert.match(rustAction, /ref: \$\{\{ inputs\.candidate_ref \}\}/);
+  assert.match(rustAction, /path: candidate/);
+  assert.match(rustAction, /working-directory: candidate\/rust/);
+  // PR-scoped Cargo caches are never restored by other PRs, so only the
+  // commit-bound package is cached.
+  assert.doesNotMatch(rustAction, /candidate\/rust\/target\//);
+  assert.match(
+    rustAction,
+    /\$\{\{ inputs\.cache_namespace \}\}-package-v1-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ steps\.source\.outputs\.commit \}\}/,
+  );
+  assert.match(
+    rustAction,
     /if: steps\.rust-package-cache\.outputs\.cache-hit != 'true'/,
   );
-  assert.match(job, /npm run pack:local/);
-  assert.match(job, /--source \.\./);
+  assert.match(rustAction, /npm run pack:local/);
+  assert.match(rustAction, /--source \.\./);
   assert.doesNotMatch(
     job,
     /node-version[^\n]*\$\{\{|NODE_VERSION|node.*cache.*key/i,
   );
-  assert.match(jobs.retrieval, /Verify the candidate package identity/);
-  assert.match(
-    jobs.retrieval,
-    /--commit "\$\{\{ needs\.package-candidate\.outputs\.candidate-commit \}\}"/,
-  );
+  for (const suite of ["sweqa", "beir", "duretrieval", "quarry"]) {
+    assert.match(jobs[suite], /Verify the candidate package identity/);
+    assert.match(
+      jobs[suite],
+      /--commit "\$\{\{ needs\.package-candidate\.outputs\.candidate-commit \}\}"/,
+    );
+  }
 });
 
-test("every independently rerunnable job checks both actors before doing benchmark work", () => {
-  assert.equal(Object.keys(jobs).length, 6);
-  assert.ok(jobs.results && jobs.retrieval && jobs.authorize);
+test("every independently rerunnable job checks benchmark access before doing work", () => {
+  assert.equal(Object.keys(jobs).length, 8);
+  assert.ok(jobs.results && jobs.sweqa && jobs.authorize);
   for (const [name, job] of Object.entries(jobs)) {
     const entries = steps(job);
     assert.match(entries[0], /uses: actions\/checkout@/, `${name}: checkout`);
@@ -191,7 +350,7 @@ test("every independently rerunnable job checks both actors before doing benchma
   assert.match(action, /RERUN_ACTOR: \$\{\{ github\.triggering_actor \}\}/);
 });
 
-test("one final ZG summary runs after successful or failed upstream jobs without optional arms", () => {
+test("one final page combines all suite reports after successful or failed jobs", () => {
   assert.match(jobs.results, /^ {4}if:.*always\(\)/m);
   const dependencies = /needs:\s*\[([\s\S]*?)\]/.exec(jobs.results);
   assert.ok(dependencies);
@@ -204,28 +363,37 @@ test("one final ZG summary runs after successful or failed upstream jobs without
       "authorize",
       "quality-contract",
       "package-candidate",
-      "retrieval",
-      "zg-report",
+      "sweqa",
+      "beir",
+      "duretrieval",
+      "quarry",
     ],
   );
   const finalSteps = steps(jobs.results);
   const downloads = finalSteps.filter((entry) =>
     entry.includes("uses: actions/download-artifact@"),
   );
-  assert.equal(downloads.length, 1);
-  assert.match(downloads[0], /name: retrieval-zg-report/);
+  assert.equal(downloads.length, 4);
+  assert.match(downloads[0], /name:.*-zg-report/);
   assert.match(downloads[0], /continue-on-error: true/);
-  const builder = finalSteps.find((entry) => entry.includes("ci-report.mjs"));
+  assert.match(downloads[1], /name:.*-beir-report/);
+  assert.match(downloads[2], /name:.*-duretrieval-report/);
+  assert.match(downloads[3], /name:.*-quarry-report/);
+  const builder = finalSteps.find((entry) =>
+    entry.includes("expansion/combined.mjs"),
+  );
   assert.ok(builder);
   assert.match(builder, /if:.*always\(\)/);
   assert.match(builder, /RETRIEVAL_JOB_RESULTS: \$\{\{ toJSON\(needs\) \}\}/);
   assert.deepEqual(
     [...builder.matchAll(/^\s+--([\w-]+)/gm)].map((match) => match[1]),
-    ["zg", "output"],
+    ["zg", "beir", "duretrieval", "quarry", "output"],
   );
   assert.doesNotMatch(builder, /comparison|baseline|preview|modes/);
-  const overviewArtifact = finalSteps.find((entry) =>
-    entry.includes("name: retrieval-results"),
+  const overviewArtifact = finalSteps.find(
+    (entry) =>
+      entry.includes("-results") &&
+      entry.includes("uses: actions/upload-artifact@"),
   );
   assert.ok(overviewArtifact);
   assert.match(overviewArtifact, /retrieval-results\/summary\.md/);
@@ -236,11 +404,16 @@ test("one final ZG summary runs after successful or failed upstream jobs without
       .filter((entry) => entry.includes("$GITHUB_STEP_SUMMARY"))
       .map((entry) => ({ name, entry })),
   );
-  assert.equal(publishers.length, 1);
-  assert.equal(publishers[0].name, "results");
-  assert.match(publishers[0].entry, /if:.*always\(\)/);
+  assert.equal(publishers.length, 5);
+  assert.deepEqual(
+    publishers.map((entry) => entry.name),
+    ["sweqa", "beir", "duretrieval", "quarry", "results"],
+  );
+  for (const publisher of publishers)
+    assert.match(publisher.entry, /if:.*always\(\)/);
   assert.match(publishers[0].entry, /summary\.md/);
-  assert.match(publishers[0].entry, /missing results are not zero scores/);
+  assert.match(publishers[4].entry, /summary\.md/);
+  assert.match(publishers[4].entry, /missing results are not zero scores/);
 });
 
 const scriptStart = action.indexOf("        script: |\n");
@@ -274,6 +447,8 @@ function attempt({
   rerun = dispatch,
   roles = { maintainer: maintain },
   apiError,
+  payload = {},
+  embedding = "local",
 } = {}) {
   const calls = [],
     messages = [],
@@ -319,8 +494,14 @@ function attempt({
       authorize(
         github,
         { info: (message) => messages.push(message), summary },
-        { eventName, repo: { owner: "owner", repo: "repo" } },
-        { env: { DISPATCH_ACTOR: dispatch, RERUN_ACTOR: rerun } },
+        { eventName, payload, repo: { owner: "owner", repo: "repo" } },
+        {
+          env: {
+            DISPATCH_ACTOR: dispatch,
+            RERUN_ACTOR: rerun,
+            RETRIEVAL_EMBEDDING: embedding,
+          },
+        },
       ),
   };
 }
@@ -402,9 +583,12 @@ test("missing actors, nonmanual events and permission API failures are denied ra
     await assert.rejects(result.run(), /Missing workflow actor/);
     assertDeniedSummary(result);
   }
-  for (const eventName of ["push", "pull_request", "workflow_run"]) {
+  for (const eventName of ["push", "workflow_run", "pull_request_target"]) {
     const result = attempt({ eventName });
-    await assert.rejects(result.run(), /manual workflow_dispatch only/);
+    await assert.rejects(
+      result.run(),
+      /pull_request, workflow_dispatch or a PR comment caller/,
+    );
     assert.equal(result.calls.length, 0);
     assertDeniedSummary(result);
   }
@@ -412,4 +596,64 @@ test("missing actors, nonmanual events and permission API failures are denied ra
   const result = attempt({ apiError });
   await assert.rejects(result.run(), (error) => error === apiError);
   assertDeniedSummary(result);
+});
+
+test("automatic local PR runs and partial reruns do not require collaborator permissions", async () => {
+  for (const action of ["opened", "synchronize", "reopened"]) {
+    const result = attempt({
+      eventName: "pull_request",
+      dispatch: "contributor",
+      rerun: "writer",
+      apiError: new Error("fork token cannot read collaborator permissions"),
+      payload: { action, pull_request: { head: { sha: "a".repeat(40) } } },
+    });
+    await result.run();
+    assert.equal(result.calls.length, 0);
+    assert.match(
+      result.messages[0],
+      /automatic PR retrieval with local embedding/,
+    );
+    assert.deepEqual(result.summaryCalls, []);
+  }
+});
+
+test("PR authorization rejects remote or missing embedding and unsupported PR events", async () => {
+  for (const embedding of ["remote", "", undefined]) {
+    const result = attempt({
+      eventName: "pull_request",
+      embedding: embedding ?? "",
+      payload: { action: "opened", pull_request: {} },
+    });
+    await assert.rejects(result.run(), /requires local embedding/);
+    assert.equal(result.calls.length, 0);
+    assertDeniedSummary(result);
+  }
+  for (const payload of [
+    {},
+    { action: "opened" },
+    { action: "edited", pull_request: {} },
+    { action: "closed", pull_request: {} },
+  ]) {
+    const result = attempt({ eventName: "pull_request", payload });
+    await assert.rejects(result.run(), /Unsupported pull_request event/);
+    assert.equal(result.calls.length, 0);
+    assertDeniedSummary(result);
+  }
+});
+
+test("reusable retrieval accepts created PR comments with maintainer permission", async () => {
+  const result = attempt({
+    eventName: "issue_comment",
+    payload: { action: "created", issue: { pull_request: {} } },
+  });
+  await result.run();
+  assert.equal(result.calls.length, 1);
+  for (const payload of [
+    { action: "created", issue: {} },
+    { action: "edited", issue: { pull_request: {} } },
+  ]) {
+    const denied = attempt({ eventName: "issue_comment", payload });
+    await assert.rejects(denied.run(), /PR comment caller/);
+    assert.equal(denied.calls.length, 0);
+  }
 });

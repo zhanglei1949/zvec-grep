@@ -4,26 +4,58 @@ use std::{
 };
 
 use thiserror::Error;
-use zg_engine::api::{
-    context::{
-        ContextResult,
-        result::{
-            CodeMetadata, ContentRange, ContextItem, ContextItemStatus, EntityMetadata,
-            MarkdownMetadata,
-        },
+use zg_engine::api::context::{
+    ContextResult,
+    result::{
+        CodeMetadata, ContentRange, ContextItem, ContextItemStatus, EntityMetadata,
+        MarkdownMetadata,
     },
-    index::IndexResult,
-    info::{InfoResult, result::IndexCompatibility},
 };
+
+use crate::{
+    highlight::{QueryHighlighter, highlight_ranges},
+    output_path,
+};
+
+/// Writes only native file paths, separated by newlines or NUL bytes.
+///
+/// # Errors
+/// Returns the underlying writer error.
+pub fn write_file_paths(
+    mut writer: impl Write,
+    paths: &[std::path::PathBuf],
+    null: bool,
+) -> io::Result<()> {
+    for path in paths {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            writer.write_all(path.as_os_str().as_bytes())?;
+        }
+        #[cfg(not(unix))]
+        writer.write_all(path.to_string_lossy().as_bytes())?;
+        writer.write_all(if null { b"\0" } else { b"\n" })?;
+    }
+    writer.flush()
+}
 
 /// Writes a context reply in the stable CLI text layout.
 ///
 /// # Errors
 ///
 /// Returns the underlying writer error.
-pub fn write_context_result(mut writer: impl Write, result: &ContextResult) -> io::Result<()> {
+pub fn write_context_result(writer: impl Write, result: &ContextResult) -> io::Result<()> {
+    write_rg_context_result(writer, result, false, |value| value)
+}
+
+fn write_rg_context_result(
+    mut writer: impl Write,
+    result: &ContextResult,
+    color: bool,
+    heading: impl Fn(String) -> String,
+) -> io::Result<()> {
     if result.items.is_empty() {
-        writeln!(writer, "No matches.")?;
+        writeln!(writer, "{}", heading("No matches.".into()))?;
         return write_graph(&mut writer, result);
     }
     let mut previous_path: Option<&Path> = None;
@@ -32,13 +64,23 @@ pub fn write_context_result(mut writer: impl Write, result: &ContextResult) -> i
             if previous_path.is_some() {
                 writeln!(writer)?;
             }
-            writeln!(writer, "{}", item.relative_path.display())?;
+            writeln!(
+                writer,
+                "{}",
+                heading(output_path(&item.relative_path).display().to_string())
+            )?;
             previous_path = Some(item.relative_path.as_path());
         }
-        if let Some(first) = item.content_range.start_line() {
-            writeln!(writer, "  {first}: {}", item.content.trim_end())?;
+        let content = item.content.trim_end();
+        let content = if color {
+            highlight_ranges(content, lexical_content_ranges(item))
         } else {
-            writeln!(writer, "  {}", item.content.trim_end())?;
+            content.into()
+        };
+        if let Some(first) = item.content_range.start_line() {
+            writeln!(writer, "  {first}: {content}")?;
+        } else {
+            writeln!(writer, "  {content}")?;
         }
     }
     write_graph(&mut writer, result)
@@ -55,6 +97,69 @@ fn write_graph(mut writer: impl Write, result: &ContextResult) -> io::Result<()>
     Ok(())
 }
 
+fn lexical_content_ranges(item: &ContextItem) -> impl Iterator<Item = (usize, usize)> + '_ {
+    item.match_ranges.iter().filter_map(|range| {
+        let ContentRange::Text {
+            start_byte_offset: content_start,
+            ..
+        } = item.content_range
+        else {
+            return None;
+        };
+        let ContentRange::Text {
+            start_byte_offset,
+            end_byte_offset,
+            ..
+        } = range
+        else {
+            return None;
+        };
+        Some((
+            start_byte_offset.checked_sub(content_start)?,
+            end_byte_offset.checked_sub(content_start)?,
+        ))
+    })
+}
+
+/// Writes Node-compatible indexed-search status to the caller's diagnostic stream.
+/// # Errors
+/// Returns the underlying writer error.
+pub fn write_context_status(mut writer: impl Write, result: &ContextResult) -> io::Result<()> {
+    use zg_engine::api::context::result::ContextSource;
+    if result.source != ContextSource::Index {
+        return Ok(());
+    }
+    let has_drift =
+        result.freshness.as_deref() == Some("possibly_stale") || result.has_stale_items();
+    if !has_drift && result.indexing.is_none() {
+        return Ok(());
+    }
+    writeln!(writer, "status: possibly_stale")?;
+    let Some(state) = result
+        .indexing
+        .as_ref()
+        .map(|indexing| indexing.state.as_str())
+        .or(result.background_refresh.as_deref())
+    else {
+        return Ok(());
+    };
+    writeln!(writer, "results: served_from_current_index")?;
+    write!(
+        writer,
+        "background_refresh: {}",
+        if state == "off" { "idle" } else { state }
+    )?;
+    if let Some((completed, total)) = result
+        .indexing
+        .as_ref()
+        .and_then(|indexing| indexing.completed.zip(indexing.total))
+    {
+        write!(writer, " ({completed}/{total})")?;
+    }
+    writeln!(writer)?;
+    Ok(())
+}
+
 /// Writes context using the selected terminal presentation.
 /// # Errors
 /// Returns the underlying writer error.
@@ -68,6 +173,7 @@ pub fn write_context_with_options(
     use zg_engine::api::context::result::ContextSource;
     let color = options.color == ColorMode::Always
         || (options.color == ColorMode::Auto && terminal && std::env::var_os("NO_COLOR").is_none());
+    let highlighter = QueryHighlighter::new(&result.query, color);
     let heading = |value: String| {
         if color {
             format!("\x1b[1;36m{value}\x1b[0m")
@@ -77,27 +183,11 @@ pub fn write_context_with_options(
     };
     if options.human {
         writeln!(writer, "{}: {:?}", heading("Context".into()), result.source)?;
-        writeln!(writer, "Query: {}", result.query)?;
+        writeln!(writer, "Query: {}", highlighter.highlight(&result.query))?;
         writeln!(writer, "Hits: {}", result.items.len())?;
     }
     if result.source == ContextSource::Rg {
-        if color {
-            let mut buffer = Vec::new();
-            write_context_result(&mut buffer, result)?;
-            for line in String::from_utf8_lossy(&buffer).lines() {
-                writeln!(
-                    writer,
-                    "{}",
-                    if line.starts_with("  ") {
-                        line.to_owned()
-                    } else {
-                        heading(line.to_owned())
-                    }
-                )?;
-            }
-            return Ok(());
-        }
-        return write_context_result(writer, result);
+        return write_rg_context_result(writer, result, color, heading);
     }
     if result.items.is_empty() {
         writeln!(writer, "No matches.")?;
@@ -110,18 +200,23 @@ pub fn write_context_with_options(
         let range = range_label(&item.range);
         let matched_by = serde_json::to_value(item.matched_by).map_err(io::Error::other)?;
         let label = if options.human {
-            format!("{}. {}:{}", item.rank, item.relative_path.display(), range)
+            format!(
+                "{}. {}:{}",
+                item.rank,
+                output_path(&item.relative_path).display(),
+                range
+            )
         } else {
             format!(
                 "#{} matchedBy={} {}:{}",
                 item.rank,
                 matched_by.as_str().unwrap_or_default(),
-                item.relative_path.display(),
+                output_path(&item.relative_path).display(),
                 range
             )
         };
         writeln!(writer, "{}", heading(label))?;
-        write_item_preview(&mut writer, item, options)?;
+        write_item_preview(&mut writer, item, options, &highlighter)?;
         if options.trace {
             if let Some(score) = item.score {
                 writeln!(writer, "score: {score:.4}")?;
@@ -142,6 +237,7 @@ fn write_item_preview(
     mut writer: impl Write,
     item: &ContextItem,
     options: crate::OutputOptions,
+    highlighter: &QueryHighlighter,
 ) -> io::Result<()> {
     use crate::PreviewMode;
     if item.status == ContextItemStatus::PossiblyStale {
@@ -214,6 +310,7 @@ fn write_item_preview(
                 .take(if options.human { 120 } else { 160 })
                 .collect()
         };
+        let line = highlighter.highlight(&line);
         if let Some(first) = first {
             writeln!(writer, "  {}: {line}", first + offset)?;
         } else {
@@ -240,170 +337,11 @@ fn range_label(range: &ContentRange) -> String {
     "file".to_owned()
 }
 
-/// Writes workspace status with the requested presentation and color policy.
-/// # Errors
-/// Returns the underlying writer error.
-pub fn write_info_with_options(
-    mut writer: impl Write,
-    result: &InfoResult,
-    options: crate::OutputOptions,
-    terminal: bool,
-) -> io::Result<()> {
-    let mut buffer = Vec::new();
-    write_info_result(&mut buffer, result)?;
-    let color = options.color == crate::ColorMode::Always
-        || (options.color == crate::ColorMode::Auto
-            && terminal
-            && std::env::var_os("NO_COLOR").is_none());
-    for line in String::from_utf8_lossy(&buffer).lines() {
-        if color && let Some((key, value)) = line.split_once(':') {
-            writeln!(writer, "\x1b[1;36m{key}\x1b[0m:{value}")?;
-            continue;
-        }
-        if options.human {
-            writeln!(writer, "  {line}")?;
-        } else {
-            writeln!(writer, "{line}")?;
-        }
-    }
-    Ok(())
-}
-
-/// Writes a completed index reply.
-///
-/// # Errors
-///
-/// Returns the underlying writer error.
-pub fn write_index_result(
-    mut writer: impl Write,
-    root: &Path,
-    result: &IndexResult,
-) -> io::Result<()> {
-    writeln!(writer, "Workspace index: ready")?;
-    writeln!(writer, "Root: {}", root.display())?;
-    writeln!(
-        writer,
-        "Files: scanned={} added={} modified={} deleted={} unchanged={} failed={}",
-        result.files_scanned,
-        result.files_added,
-        result.files_modified,
-        result.files_deleted,
-        result.files_unchanged,
-        result.files_failed
-    )?;
-    for file in &result.failed_files {
-        writeln!(writer, "Failed: {}: {}", file.path.display(), file.reason)?;
-    }
-    writeln!(writer, "Entities: {}", result.entities_created)?;
-    if let Some(graph) = &result.graph {
-        writeln!(
-            writer,
-            "Graph: selected={} committed={}",
-            graph.graph_selected, graph.graph_candidate_committed
-        )?;
-        for (domain, status) in &graph.domains {
-            writeln!(
-                writer,
-                "  {domain}: {:?}, sources={}/{}",
-                status.ready,
-                status.coverage,
-                status
-                    .expected_coverage
-                    .map_or_else(|| "unknown".into(), |n| n.to_string())
-            )?;
-        }
-        for diagnostic in &graph.diagnostics {
-            writeln!(writer, "  diagnostic: {diagnostic}")?;
-        }
-    }
-    Ok(())
-}
-
-/// Writes workspace index status.
-///
-/// # Errors
-///
-/// Returns the underlying writer error.
-pub fn write_info_result(mut writer: impl Write, result: &InfoResult) -> io::Result<()> {
-    let state = result.index_status().as_str();
-    writeln!(writer, "Workspace index: {state}")?;
-    writeln!(writer, "Root: {}", result.root.display())?;
-    writeln!(writer, "Index path: {}", result.index_path.display())?;
-    match &result.compatibility {
-        IndexCompatibility::Unbuilt => {}
-        IndexCompatibility::Compatible { version } => {
-            writeln!(writer, "Index version: {version}")?;
-        }
-        IndexCompatibility::RebuildRequired {
-            actual_version,
-            expected_version,
-            reason,
-        } => {
-            let actual =
-                actual_version.map_or_else(|| "unknown".to_owned(), |version| version.to_string());
-            writeln!(
-                writer,
-                "Index version: {actual} (expected {expected_version})"
-            )?;
-            writeln!(writer, "Reason: {reason}")?;
-            if result.suggestion.is_none() {
-                writeln!(writer, "Suggestion: zg index --rebuild")?;
-            }
-        }
-    }
-    if let Some(index) = &result.workspace_index {
-        writeln!(
-            writer,
-            "Nested Git repositories: {}",
-            if index.scan.nested_git {
-                "included"
-            } else {
-                "excluded"
-            }
-        )?;
-        if let Some(embedding) = &index.embedding {
-            writeln!(
-                writer,
-                "Embedding: {}/{}",
-                embedding.provider, embedding.model
-            )?;
-        }
-        if let Some(fts) = &index.fts {
-            writeln!(
-                writer,
-                "FTS: tokenizer={} filters={}",
-                fts.tokenizer,
-                fts.filters.join(", ")
-            )?;
-        }
-    }
-    if let Some(status) = &result.status {
-        writeln!(
-            writer,
-            "Files: scanned={} indexed={} pending={} failed={}",
-            status.files_scanned, status.files_indexed, status.files_pending, status.files_failed
-        )?;
-        for file in &status.failed_files {
-            writeln!(writer, "Failed: {}: {}", file.path.display(), file.reason)?;
-        }
-        writeln!(writer, "Entities: {}", status.entities_indexed)?;
-        writeln!(
-            writer,
-            "Indexed source size: {} bytes",
-            status.indexed_size_bytes
-        )?;
-    }
-    if let Some(suggestion) = &result.suggestion {
-        writeln!(writer, "Suggestion: {suggestion}")?;
-    }
-    Ok(())
-}
-
 #[derive(Debug, Error)]
 #[error("Unknown help topic: {0}")]
 pub struct HelpTopicError(String);
 
-/// Returns the stable TS-compatible help text for a command or topic.
+/// Returns the stable CLI help text for a command or topic.
 ///
 /// # Errors
 ///
@@ -412,7 +350,7 @@ pub fn help_text(topic: Option<&str>) -> Result<String, HelpTopicError> {
     let text = match topic {
         None => return Ok(main_help()),
         Some("explore") => EXPLORE_HELP,
-        Some("query") => QUERY_HELP,
+        Some("search") => SEARCH_HELP,
         Some("index") => INDEX_HELP,
         Some("status") => STATUS_HELP,
         Some("config") => CONFIG_HELP,
@@ -430,13 +368,14 @@ pub fn help_text(topic: Option<&str>) -> Result<String, HelpTopicError> {
     Ok(text.to_owned())
 }
 
-/// Prints the stable TS-compatible help text.
+/// Prints the stable CLI help text.
 ///
 /// # Errors
 ///
-/// Returns an error when `topic` is not part of the public help surface.
-pub fn print_help(topic: Option<&str>) -> Result<(), HelpTopicError> {
-    println!("{}", help_text(topic)?);
+/// Returns an error when `topic` is not part of the public help surface or
+/// stdout fails for a reason other than a closed pipe.
+pub fn print_help(topic: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    writeln!(crate::stdout(), "{}", help_text(topic)?)?;
     Ok(())
 }
 
@@ -448,31 +387,41 @@ fn main_help() -> String {
 }
 
 const MAIN_HELP_BODY: &str = r#"Usage:
-  zg <command> [options]
+  zg <query> [options]
+  zg --<management-command> [options]
 
-Commands:
-  explore        Read published code relationships without refreshing or loading models
-  query          Search indexed context or run managed ripgrep
-  index          Build, rebuild, or drop the workspace index
-  status         Show workspace and index status
-  config         Configure provider credentials and embedding model defaults
-  auth           Manage Workspace Remote Embedding authorization
-  server         Start, stop, inspect, or run the shared MCP server
-  install        Install agent integrations
-  uninstall      Remove agent integrations
-  help           Show help for a command or topic
-  version        Print the installed version
+Search:
+  <query>        Search indexed context (no command prefix)
+  --rg           Run managed ripgrep
+
+Management:
+  --explore      Read published code relationships
+  --index        Build, rebuild, or drop the workspace index
+  --status       Show workspace and index status
+  --config       Configure provider credentials and embedding model defaults
+  --auth         Manage Workspace Remote Embedding authorization
+  --server       Start, stop, inspect, or run the shared MCP server
+  --install      Install agent integrations
+  --uninstall    Remove agent integrations
+  --help [topic] Show help for search, a management command, or a topic
+  --version      Print the installed version
+
+Bare words such as query, index, and help are literal search text.
+Positional words are joined into one query; repeat --hybrid for separate queries.
+Terminal searches use human-readable output and full previews; pipes use compact
+output. Use --compact to force compact output.
 
 Examples:
-  zg query "where authentication is validated"
-  zg query --fts "AuthService"
-  zg query --rg -F "AuthService" src
-  zg index --embedding local/potion-code-16m-v2
-  zg status
-  zg auth status
-  zg server on
-  zg config model set local/potion-code-16m-v2 --device metal
-  zg install
+  zg "where authentication is validated"
+  zg --fts "AuthService"
+  zg --rg -F "AuthService" src
+  zg --rg --files src -g '*.ts'
+  zg --index --embedding local/potion-code-16m-v2
+  zg --status
+  zg --auth status
+  zg --server on
+  zg --config model set local/potion-code-16m-v2 --device metal
+  zg --install
 
 Environment:
   ZVEC_GREP_HOME        Runtime and daemon state directory; Workspace indexes stay under <root>/.zvec-grep
@@ -481,14 +430,14 @@ Environment:
   ZVEC_GREP_API_KEY     Embedding provider credential fallback
   ZVEC_GREP_SERVER_URL  MCP server URL used by CLI clients
 
-Run zg help models or zg help file-types for supported indexing capabilities.
-Run zg help environment for all variables, scopes, aliases, and precedence.
-Run zg help <command> or zg <command> --help for command-specific help.
+Run zg --help models or zg --help file-types for supported indexing capabilities.
+Run zg --help environment for all variables, scopes, aliases, and precedence.
+Run zg --help search or zg --help <topic> for specific help.
 Use zg -h/--help for this page and zg -v/--version for the version."#;
 
 const EXPLORE_HELP: &str = r"Usage:
-  zg explore <locate|callers|callees|neighbors|expand|path|references> [options]
-  zg explore --request <ExploreRequest.json> [options]
+  zg --explore <locate|callers|callees|neighbors|expand|path|references> [options]
+  zg --explore --request <ExploreRequest.json> [options]
 
 Read compatible published Rust/Python graphs. Requires a graph-enabled binary
 and a ready code domain. No refresh, indexing, repair or model loading.
@@ -517,23 +466,42 @@ Options:
 --request is exclusive with subcommands. JSON supports boundaries, result filters
 and view-bound reference IDs. Results include view, completion, evidence and usage.";
 
-const QUERY_HELP: &str = r#"Usage:
-  zg query <query> [options]
-  zg query --hybrid <query> --fts <query> --vector <query> [--fuse]
-  zg query --rg [rg-options] <pattern> [path...]
+const SEARCH_HELP: &str = r#"Usage:
+  zg <query> [options]
+  zg --hybrid <query> --fts <query> --vector <query> [--fuse]
+  zg --rg [rg-options] <pattern> [path...]
+  zg --rg --files [discovery-options] [path...]
 
 Search routes:
-  positional query                  Hybrid FTS and vector search
+  positional words                  File paths use current files and literal text; other words form one hybrid query
   --hybrid <query>                  Add an explicit hybrid query
   --fts <query>                     Add an exact/lexical query
   --vector <query>                  Add a semantic/vector query
   --fuse                            Fuse all query groups into one ranked list
   --rg                              Run exhaustive managed ripgrep
 
+Positional arguments are joined with spaces, even if separately quoted:
+  zg connection pool timeout                 One query: connection pool timeout
+  zg "connection pool" "timeout"             The same query, with a warning
+  zg "connection pool" "socket timeout"      One query, with a warning
+  zg --hybrid "connection pool" --hybrid "socket timeout"
+                                            Two explicit queries
+The warning is written to stderr when multiple nonempty positional arguments
+include one with internal whitespace. Shell quote characters are not available.
+--hybrid, --fts, and --vector remain separate, repeatable queries.
+Managed --rg keeps its pattern and path arguments separate.
+An ordinary single path-shaped query such as auth.ts first matches current file
+names without reading contents. If no name matches, current source is searched
+literally. A complete miss returns No matches., including with a warm index.
+Automatic path lookup prints a warning on stderr; use --hybrid to force
+hybrid search. Explicit query routes, trace, refresh and symbol options bypass it.
+With --files, every positional argument is an input file or directory; no pattern
+is required. Use -g 'auth.ts' to select files by name.
+
 Result options:
   --limit <n>                       Maximum results per group (default: 7)
-  --human                           Human-readable output (default: agent markdown)
-  --preview <none|short|full>       Indexed preview size (default: none; --human: full)
+  --compact                         Force compact output (default for pipes)
+  --preview <none|short|full>       Indexed preview size (default: full on TTY, none in compact mode)
   --debug                           Print diagnostics to stderr
   --trace                           Include per-hit indexed search trace
   --refresh <background|wait|off>   Refresh policy (defaults: server=background, direct=off)
@@ -572,6 +540,12 @@ Managed --rg uses the embedded Rust regex engine (--engine default).
 Matching: -F, -i/-s/-S, -w/-x, -v, -U, --multiline-dotall, --crlf, -a.
 Bounds: -A/-B/-C, -m/--max-count (per file), -j/--threads (0 = automatic).
 Discovery: -u/-uu/-uuu, --no-ignore-*, --one-file-system, globs and types.
+File listing: --files prints all selected paths without reading their contents;
+-0/--null uses NUL separators. No index or daemon is needed in any client mode.
+The list is sorted and has no headings or result limit. Recursive discovery
+skips .git and .zvec-grep; explicit file inputs are still listed.
+--limit is rejected with --files.
+Exit status for --files: 0 = files found, 1 = no files, 2 = discovery error.
 Patterns preserve whitespace; -e accepts empty patterns and leading "-".
 Unicode BOM decoding is automatic. PCRE2, compressed search, explicit encoding,
 and options that replace rg's output format are not supported.
@@ -583,15 +557,14 @@ Environment:
   ZVEC_GREP_MODEL_CACHE  Local embedding model cache directory
   ZVEC_GREP_DEVICE       Local embedding device: auto, cpu, metal, vulkan, or cuda
 
-See zg help environment for precedence and Server-mode scope."#;
+See zg --help environment for precedence and Server-mode scope."#;
 
 const INDEX_HELP: &str = r"Usage:
-  zg index [root] [options]
-  zg index [root] --rebuild [options]
-  zg index [root] --drop [--yes]
+  zg --index [root] [options]
+  zg --index [root] --rebuild [options]
+  zg --index [root] --drop [--yes]
 
 Index options:
-  --name <NAME>                     Set or rename the unique workspace name
   --rebuild                         Rebuild the existing index
   --graph-options <JSON>             GraphOptions file (scope and module_roots)
   --drop                            Permanently remove the workspace index
@@ -605,12 +578,30 @@ Embedding options:
   --endpoint <url>                  Embedding provider endpoint
   --model-cache <path>              Local model cache directory
   --device <device>                 auto, cpu, metal, vulkan, cuda
-  --embedding-concurrency <n>       Embedding task concurrency
+  --index-embedding-concurrency <n>  Positive index embedding concurrency
   --allow-remote                    Allow Remote Embedding for this command only
+
+Index embedding concurrency:
+  Applies only to index construction and updates, including automatic indexing
+  and refresh; query-vector inference keeps its own defaults. The CLI option
+  is accepted only with --index and is never saved in workspace settings.
+  llama.cpp: context limit capped at 8, with serialized batches; defaults to 1.
+  Transformers/ORT: in-flight batch limit capped at 8; defaults to 1. Native
+    sessions honor that budget; CoreML uses one physical session.
+  Potion/model2vec: concurrent batch tasks; defaults to 2, with an independent
+    CPU worker-pool capacity. No cap of 8 is applied.
+  Remote: concurrent requests; adaptive scheduling may reduce the limit after
+    failures or rate limits. No cap of 8 is applied.
+  Precedence: CLI/API override, ZVEC_GREP_INDEX_EMBEDDING_CONCURRENCY, legacy
+    ZVEC_GREP_LLAMA_CONTEXT_PARALLELISM for llama.cpp indexing, then defaults.
+  Explicit CLI overrides work without restarting the Server. Environment
+    changes require restarting the Server so it inherits the new value.
 
 Scan rules:
   -g, --glob <glob>                 Include paths; prefix with ! to exclude; repeatable
   --iglob <glob>                    Case-insensitive path glob; repeatable
+  -t, --type <format>               Include an engine format, e.g. rust or markdown; repeatable
+  -T, --type-not <format>           Exclude an engine format; repeatable
   --hidden[=true|false]              Include hidden paths except .git and .zvec-grep
   --no-ignore[=true|false]           Do not apply default or .gitignore rules
   --nested-git[=true|false]          Scan nested Git repositories and submodules
@@ -620,15 +611,23 @@ Scan rules:
   -L, --follow[=true|false]          Follow symbolic links safely
   --reset-paths                     Clear inherited scanning settings
 
+Type filters use the same file-name rules as indexed queries and intersect
+with path globs. Scan rules are saved; omitted options keep their saved values.
+
 Interactive remote indexing asks to allow once, allow for this workspace, or
 cancel. Non-interactive indexing requires --allow-remote or a workspace grant.
 
-A new workspace name defaults to root directory name; use --name if it is taken.
-Names are case-sensitive and unique within the per-user registry. Naming an
-existing workspace renames it while preserving file IDs and active storage.
+Workspaces are identified by their root paths; different roots may share a directory name.
 
 This version indexes text only with one embedding model per workspace.
-New indexes require --embedding, ZVEC_GREP_EMBEDDING, or a configured default.
+Explicit zg --index requires --embedding, ZVEC_GREP_EMBEDDING, or a configured
+default when creating a new index.
+Interactive searches prompt to select an embedding model before creating a
+missing index. Local and remote models have separate tabs; downloaded local
+models and configured remote models appear first. Use arrows or Tab to switch,
+Enter to confirm, and Esc to exit. Remote models require data authorization.
+CLI searches wait for the complete index, including in --mode server.
+Non-interactive searches never create an index; run zg --index first.
 Model changes require --rebuild. Failed files are recorded; successful files
 remain searchable after a rebuild. Compatible indexes reuse their stored model.
 Rebuilding an incompatible index uses --embedding or the configured default;
@@ -642,10 +641,17 @@ Environment:
   ZVEC_GREP_MODEL_CACHE  Local embedding model cache directory
   ZVEC_GREP_DEVICE       Local embedding device: auto, cpu, metal, vulkan, or cuda
 
-See zg help environment for precedence and Server-mode scope.";
+Index-only embedding concurrency:
+  ZVEC_GREP_INDEX_EMBEDDING_CONCURRENCY  Positive index/update concurrency override
+  Applies to automatic indexing and refresh, never query-vector inference.
+  Explicit CLI/API index settings take precedence. Invalid values warn and use
+  automatic selection. Server mode reads the Server process environment;
+  restart the Server after changing it. Overrides are not persisted.
+
+See zg --help environment for precedence and Server-mode scope.";
 
 const STATUS_HELP: &str = r"Usage:
-  zg status [root] [--mode <direct|server|auto>] [--check-ready]
+  zg --status [root] [--mode <direct|server|auto>] [--check-ready]
 
 Shows the nearest workspace root, index policy, index state, embedding model,
 stored paths, refresh status, and suggested next action.
@@ -654,8 +660,8 @@ stored paths, refresh status, and suggested next action.
 Workspace index is ready.";
 
 const CONFIG_HELP: &str = r"Usage:
-  zg config provider set <provider> --api-key <key>
-  zg config model set <model> [--endpoint <url> | --device <device>] [--default]
+  zg --config provider set <provider> --api-key <key>
+  zg --config model set <model> [--endpoint <url> | --device <device>] [--default]
 
 Provider options:
   --api-key <key>                   Default API key for the provider
@@ -673,9 +679,9 @@ use their stored model.
 Global configuration is stored in ~/.zvec-grep/config.json.";
 
 const AUTH_HELP: &str = r"Usage:
-  zg auth grant [root] --capability embedding --scope workspace [--embedding <model>]
-  zg auth status [root]
-  zg auth revoke [root]
+  zg --auth grant [root] --capability embedding --scope workspace [--embedding <model>]
+  zg --auth status [root]
+  zg --auth revoke [root]
 
 Manage the signed Remote Embedding grant stored in the Workspace under
 .zvec-grep/authorization.json. Workspace grants are shared by zg CLI and zg MCP.
@@ -688,11 +694,15 @@ ZVEC_GREP_EMBEDDING.
 index endpoint, ZVEC_GREP_ENDPOINT, or provider default is used. Grants bind the
 canonical workspace root, model, and endpoint. Granting sends no remote data.
 
+Output:
+  --color <auto|always|never>       Color output (default: auto)
+  --no-color                        Disable color output
+
 Scopes used during operations:
   once                              Current CLI command or Agent tool call only
   workspace                         Persisted in this Workspace
 
-Use --allow-remote on zg query or zg index to authorize Remote Embedding for
+Use --allow-remote on zg <query> or zg --index to authorize Remote Embedding for
 that command only. This authorization is not persisted. API credentials
 configure a provider but do not grant permission.
 
@@ -703,11 +713,11 @@ Environment used by auth grant:
   ZVEC_GREP_AUTHORIZATION_KEY_FILE  Workspace grant signing-key file (advanced)";
 
 const SERVER_HELP: &str = r"Usage:
-  zg server --stdio [--token-file <path>] [--mcp-toolset <agent|full>]
-  zg server on [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full>]
-  zg server off [--token-file <path>]
-  zg server status [--check-ready]
-  zg server run [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full>]
+  zg --server --stdio [--token-file <path>] [--mcp-toolset <agent|full>]
+  zg --server on [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full>]
+  zg --server off [--token-file <path>]
+  zg --server status [--check-ready]
+  zg --server run [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full>]
 
 --stdio is the MCP client bootstrap transport. It safely starts or reuses the
 shared daemon, proxies MCP over stdin/stdout, and leaves the daemon running
@@ -728,13 +738,13 @@ Environment:
   ZVEC_GREP_SERVER_TOKEN_FILE  File containing the Server/client Bearer token
   ZVEC_GREP_MCP_TOOLSET        Server MCP surface: agent or full
 
-See zg help environment for daemon startup scope.";
+See zg --help environment for daemon startup scope.";
 
 const INSTALL_HELP: &str = r"Usage:
-  zg install [--target codex|claude|qwen|qoder|opencode|cursor|all|auto] [--mcp-transport stdio|http] [--mcp-toolset agent|full] [--yes] [--force]
+  zg --install [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|grok|pi|all|auto] [--mcp-transport stdio|http] [--mcp-toolset agent|full] [--yes] [--force]
 
 Options:
-  --target <agent>                  codex, claude, qwen, qoder, opencode, cursor, auto, or all; repeatable
+  --target <agent>                  codex, claude, qwen, qoder, opencode, cursor, copilot, vscode, grok, pi, auto, or all; repeatable
   --mcp-transport <stdio|http>      MCP connection mode (default: stdio)
   --mcp-toolset <agent|full>        Daemon MCP toolset (default: agent)
   --mcp-tool-timeout <seconds>      MCP tool timeout where supported (default: 600)
@@ -743,44 +753,59 @@ Options:
   --force                           Replace conflicting unmanaged configuration
 
 The qoder target configures Qoder CLI and Qoder IDE together.
+The copilot target configures GitHub Copilot CLI and Agent Host. The vscode
+target configures detected VS Code profiles and shared Copilot instructions.
+The grok target configures Grok Build's user-level config.toml, global
+rules file, and tool pre-approval.
+The pi target configures built-in MCP in ~/.pi/agent/mcp.json and the active
+global context file. PI_CODING_AGENT_DIR overrides this directory; use native
+filesystem paths (file:// and Windows shell drive paths are unsupported).
+New servers use direct exposure and a timeout in seconds. Reinstall preserves
+user exposure/enabled settings and existing HTTP authentication when no token
+option is supplied. Use /reload or a new session; replacement MCP extensions
+must be disabled separately. Remote Embedding may require the user to run
+zg --auth grant in their terminal before retrying.
 
 Interactive setup detects supported agents, configures stdio by default, and
 starts the shared daemon. In stdio mode an agent reconnect also starts the
 daemon automatically after a reboot. HTTP users manage later daemon restarts.
-Codex, Claude Code, Qwen Code, Qoder CLI, and OpenCode also receive managed
-guidance. Qoder IDE has no supported global Rules file, so only its MCP
-configuration is managed.
-Codex and Claude Code receive local tool pre-approval. Remote Embedding
+Codex, Claude Code, Qwen Code, Qoder CLI, OpenCode, Copilot, VS Code, and
+Grok Build and Pi receive managed guidance. Qoder IDE has no supported global Rules
+file, so only its MCP configuration is managed.
+Codex and Claude Code receive local tool pre-approval. Grok Build receives
+pre-approval through its permission rules unless the configuration already
+defines a [permission] table. Remote Embedding
 authorization remains separate and is requested by zvec-grep on first remote
 use. Restart the agent or open a new session after installation. This does not
 install the npm package.";
 
 const UNINSTALL_HELP: &str = r"Usage:
-  zg uninstall [--target codex|claude|qwen|qoder|opencode|cursor|all|auto] [--yes]
+  zg --uninstall [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|grok|pi|all|auto] [--yes]
 
 Removes zvec-grep-managed MCP configuration, agent-specific approval, and
 guidance. The qoder target removes the managed Qoder CLI and IDE integration
-together.";
+together. The pi target removes its managed server and guidance blocks from
+the effective agent directory; unrelated configuration and context are kept.";
 
 const HELP_HELP: &str = r"Usage:
-  zg help [command|topic]
-  zg <command> --help
-  zg -h
-  zg --help
+  zg --help [topic]
+  zg -h [topic]
 
 Topics:
+  search                             Indexed search and managed ripgrep
+  index, status, config, auth         Workspace management
+  server, install, uninstall          Server and agent integrations
+  help, version                      Help and version output
   models                             Supported embedding models
   file-types                         Supported file types and structural parsing
   environment, env                   Environment variables and precedence";
 
 const VERSION_HELP: &str = r"Usage:
-  zg version
-  zg version -v
   zg -v
   zg --version";
 
 const MODELS_HELP: &str = r"Usage:
-  zg help models
+  zg --help models
 
 Supported text embedding models (one per workspace):
   MODEL                               RUNTIME  INPUT       DIMS  TOKENS  BACKEND
@@ -804,11 +829,11 @@ Local models are downloaded to the model cache on first use. Remote models
 require provider credentials plus --allow-remote or a Workspace authorization.
 This version uses text input only, including for models with image capabilities.
 
-Existing indexes keep their stored model. See zg help environment for
+Existing indexes keep their stored model. See zg --help environment for
 new-index model selection and runtime precedence.";
 
 const FILE_TYPES_HELP: &str = r"Usage:
-  zg help file-types
+  zg --help file-types
 
 Structured code (symbols and scopes):
   TYPE        FILES
@@ -889,8 +914,8 @@ Indexing rules:
   ignored by default. .git and .zvec-grep are always skipped.";
 
 const ENVIRONMENT_HELP: &str = r"Usage:
-  zg help environment
-  zg help env
+  zg --help environment
+  zg --help env
 
 Client and Server:
   ZVEC_GREP_MODE               Default client mode: direct, server, or auto
@@ -906,6 +931,14 @@ Embedding:
   ZVEC_GREP_MODEL_CACHE  Local embedding model cache directory
   ZVEC_GREP_DEVICE       Local embedding device: auto, cpu, metal, vulkan, or cuda
 
+Index-only embedding concurrency:
+  ZVEC_GREP_INDEX_EMBEDDING_CONCURRENCY  Positive index/update concurrency override
+  Applies to automatic indexing and refresh, never query-vector inference.
+  Precedence: explicit CLI/API index setting, this variable, legacy llama.cpp
+  index setting, then backend defaults. Invalid values warn and use defaults.
+  Server mode reads the Server process environment; restart it after changes.
+  These overrides are not persisted in workspace settings.
+
 Qwen credential aliases:
   DASHSCOPE_API_KEY  Qwen credential fallback after ZVEC_GREP_API_KEY
   QWEN_API_KEY       Qwen credential fallback after DASHSCOPE_API_KEY
@@ -916,18 +949,24 @@ State and authorization:
 
 Advanced:
   ZVEC_GREP_METAL_KEEP_RESIDENCY       Set to 1 to keep llama.cpp Metal residency enabled (advanced)
-  ZVEC_GREP_LLAMA_CONTEXT_PARALLELISM  Positive llama.cpp context parallelism override (advanced)
+  ZVEC_GREP_LLAMA_CONTEXT_PARALLELISM  Legacy index-only llama.cpp fallback after the index concurrency variable
   NO_COLOR                             Disable terminal colors
 
 Agent integration paths:
-  CODEX_HOME            Codex configuration directory used by zg install
-  CLAUDE_CONFIG_DIR     Claude configuration directory used by zg install
-  QWEN_HOME             Qwen Code configuration directory used by zg install
-  QODER_CONFIG_DIR      Qoder CLI configuration directory used by zg install
-  QODER_IDE_MCP_PATH    Full Qoder IDE SharedClientCache/mcp.json path used by zg install
+  CODEX_HOME            Codex configuration directory used by zg --install
+  CLAUDE_CONFIG_DIR     Claude configuration directory used by zg --install
+  GROK_HOME             Grok Build configuration directory used by zg --install
+  PI_CODING_AGENT_DIR   Pi agent directory used by zg --install/--uninstall
+  QWEN_HOME             Qwen Code configuration directory used by zg --install
+  QODER_CONFIG_DIR      Qoder CLI configuration directory used by zg --install
+  QODER_IDE_MCP_PATH    Full Qoder IDE SharedClientCache/mcp.json path used by zg --install
   QODER_IDE_EXECUTABLE  Qoder IDE executable used by automatic install-target detection
-  OPENCODE_CONFIG       OpenCode configuration file used by zg install
-  CURSOR_CONFIG_DIR     Cursor configuration directory used by zg install
+  OPENCODE_CONFIG       OpenCode configuration file used by zg --install
+  CURSOR_CONFIG_DIR     Cursor configuration directory used by zg --install
+  COPILOT_HOME          GitHub Copilot configuration and instructions directory
+  VSCODE_USER_DIR       Complete VS Code User profile directory override
+  VSCODE_PORTABLE       VS Code portable installation directory
+  VSCODE_APPDATA        Base directory for VS Code release channels
 
 Precedence:
   Embedding runtime                 CLI > Workspace snapshot > Global config > Environment
@@ -936,7 +975,7 @@ Precedence:
   Qwen environment credential      ZVEC_GREP_API_KEY > DASHSCOPE_API_KEY > QWEN_API_KEY
 
 Server scope:
-  zg index forwards its ZVEC_GREP_EMBEDDING default to Server and auto modes.
+  zg --index forwards its ZVEC_GREP_EMBEDDING default to Server and auto modes.
   Direct MCP calls use the embedding environment inherited by the daemon.
   Restart the daemon after changing its embedding runtime environment.
 
@@ -952,34 +991,14 @@ mod output_tests {
         MatchedBy,
     };
 
+    #[cfg(unix)]
     #[test]
-    fn incompatible_status_shows_versions_reason_and_rebuild_guidance() {
-        use zg_engine::api::info::result::{InfoSource, WorkspaceIndexPolicy};
-        for (actual_version, actual_label) in [(Some(1), "1"), (None, "unknown")] {
-            let result = InfoResult {
-                root: "/workspace".into(),
-                indexed: false,
-                compatibility: IndexCompatibility::RebuildRequired {
-                    actual_version,
-                    expected_version: 2,
-                    reason: "unsupported persisted index".into(),
-                },
-                index_policy: WorkspaceIndexPolicy::Enabled,
-                home: "/workspace/.zvec-grep".into(),
-                index_path: "/workspace/.zvec-grep/storage".into(),
-                source: InfoSource::Unindexed,
-                workspace_index: None,
-                status: None,
-                suggestion: None,
-            };
-            let mut output = Vec::new();
-            write_info_result(&mut output, &result).expect("status output");
-            let output = String::from_utf8(output).expect("UTF-8");
-            assert!(output.contains("Workspace index: rebuild_required"));
-            assert!(output.contains(&format!("Index version: {actual_label} (expected 2)")));
-            assert!(output.contains("unsupported persisted index"));
-            assert!(output.contains("zg index --rebuild"));
-        }
+    fn file_output_preserves_non_utf8_path_bytes() {
+        use std::os::unix::ffi::OsStringExt;
+        let path = std::path::PathBuf::from(std::ffi::OsString::from_vec(b"file-\xff.ts".to_vec()));
+        let mut output = Vec::new();
+        write_file_paths(&mut output, &[path], true).expect("file output");
+        assert_eq!(output, b"file-\xff.ts\0");
     }
 
     fn indexed_item() -> ContextItem {
@@ -1005,6 +1024,7 @@ mod output_tests {
                 end_byte_column: 6,
             },
             excerpt_range: None,
+            match_ranges: Vec::new(),
             outline: None,
             content: (1..=20)
                 .map(|n| format!("line{n}"))
@@ -1022,6 +1042,164 @@ mod output_tests {
             selection_reason: None,
             coverage_group: None,
         }
+    }
+
+    fn indexed_result() -> ContextResult {
+        ContextResult {
+            graph: None,
+            query: "needle".into(),
+            freshness: None,
+            background_refresh: None,
+            indexing: None,
+            root: std::env::temp_dir(),
+            source: ContextSource::Index,
+            coverage: ContextCoverage::RankedSample,
+            workspace_index: None,
+            group_results: vec![],
+            diagnostics: ContextDiagnostics::default(),
+            items: vec![indexed_item()],
+        }
+    }
+
+    #[test]
+    fn context_output_highlights_query_terms_in_source() {
+        let mut result = indexed_result();
+        result.query = "find ImportantSymbol".into();
+        result.items[0].relative_path = "ImportantSymbol.rs".into();
+        result.items[0].content = "İ 中文 ImportantSymbol here".into();
+        for source in [ContextSource::Index, ContextSource::Rg] {
+            result.source = source;
+            result.items[0].match_ranges = if source == ContextSource::Rg {
+                let start = "İ 中文 ".len();
+                let end = start + "ImportantSymbol".len();
+                vec![ContentRange::Text {
+                    start_line: 1,
+                    end_line: 1,
+                    start_byte_offset: start,
+                    end_byte_offset: end,
+                    start_byte_column: start,
+                    end_byte_column: end,
+                }]
+            } else {
+                Vec::new()
+            };
+            let original = result.clone();
+            for human in [false, true] {
+                for preview in [PreviewMode::None, PreviewMode::Short, PreviewMode::Full] {
+                    for (color, terminal, styled) in [
+                        (crate::ColorMode::Always, false, true),
+                        (crate::ColorMode::Never, true, false),
+                        (crate::ColorMode::Auto, false, false),
+                        (
+                            crate::ColorMode::Auto,
+                            true,
+                            std::env::var_os("NO_COLOR").is_none(),
+                        ),
+                    ] {
+                        let mut output = Vec::new();
+                        write_context_with_options(
+                            &mut output,
+                            &result,
+                            OutputOptions {
+                                human,
+                                preview,
+                                color,
+                                ..OutputOptions::default()
+                            },
+                            terminal,
+                        )
+                        .expect("context output");
+                        let output = String::from_utf8(output).expect("UTF-8");
+                        let expected = if styled {
+                            "  1: İ 中文 \x1b[1;33mImportantSymbol\x1b[0m here"
+                        } else {
+                            "  1: İ 中文 ImportantSymbol here"
+                        };
+                        assert!(
+                            output.contains(expected),
+                            "{source:?} {color:?}: {output:?}"
+                        );
+                        assert_eq!(output.contains('\x1b'), styled);
+                        assert!(output.contains("ImportantSymbol.rs"));
+                        if human && styled {
+                            assert!(
+                                output.contains("Query: \x1b[1;33mfind ImportantSymbol\x1b[0m")
+                            );
+                        }
+                        assert_eq!(result, original);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn context_highlighting_follows_visible_preview_without_coloring_metadata() {
+        let mut result = indexed_result();
+        result.query = "needle".into();
+        result.items[0].content = format!("{}needle\nneedle", "x".repeat(160));
+        result.items[0].metadata = Some(EntityMetadata::Markdown(MarkdownMetadata {
+            heading: Some("needle".into()),
+            level: Some(1),
+            scope: None,
+        }));
+        for (preview, expected_matches) in [
+            (PreviewMode::None, 0),
+            (PreviewMode::Short, 1),
+            (PreviewMode::Full, 2),
+        ] {
+            let mut output = Vec::new();
+            write_context_with_options(
+                &mut output,
+                &result,
+                OutputOptions {
+                    preview,
+                    color: crate::ColorMode::Always,
+                    ..OutputOptions::default()
+                },
+                false,
+            )
+            .expect("context preview output");
+            let output = String::from_utf8(output).expect("UTF-8");
+            assert_eq!(
+                output.matches("\x1b[1;33mneedle\x1b[0m").count(),
+                expected_matches
+            );
+            assert!(output.contains("heading: needle\n"));
+        }
+    }
+
+    #[test]
+    fn context_formats_paths_without_rewriting_source_content() {
+        let path = r"\\?\D:\workspace\sample.rs";
+        let expected = if cfg!(windows) {
+            r"D:\workspace\sample.rs"
+        } else {
+            path
+        };
+        let mut result = indexed_result();
+        result.items[0].relative_path = path.into();
+        result.items[0].content = path.into();
+        let original = result.clone();
+        for source in [ContextSource::Index, ContextSource::Rg] {
+            result.source = source;
+            let mut bytes = Vec::new();
+            write_context_with_options(
+                &mut bytes,
+                &result,
+                OutputOptions {
+                    preview: PreviewMode::Full,
+                    ..OutputOptions::default()
+                },
+                false,
+            )
+            .expect("context output");
+            let text = String::from_utf8(bytes).expect("UTF-8");
+            assert!(text.contains(expected));
+            assert!(text.contains(&format!("1: {path}")));
+        }
+        result.source = original.source;
+        assert_eq!(result, original);
     }
 
     #[test]
@@ -1073,6 +1251,7 @@ mod output_tests {
                             preview,
                             ..OutputOptions::default()
                         },
+                        &QueryHighlighter::default(),
                     )
                     .expect("source preview");
                     let expected = if whole_entity {
@@ -1087,20 +1266,53 @@ mod output_tests {
     }
 
     #[test]
-    fn preview_modes_and_trace_preserve_indexed_result_information() {
-        let mut result = ContextResult {
-            graph: None,
-            query: "needle".into(),
-            freshness: None,
-            background_refresh: None,
-            root: std::env::temp_dir(),
-            source: ContextSource::Index,
-            coverage: ContextCoverage::RankedSample,
-            workspace_index: None,
-            group_results: vec![],
-            diagnostics: ContextDiagnostics::default(),
-            items: vec![indexed_item()],
+    fn context_status_is_independent_of_results_and_reports_index_progress() {
+        use zg_engine::api::context::result::ContextIndexingStatus;
+        let mut result = indexed_result();
+        result.freshness = Some("fresh".into());
+        result.background_refresh = Some("idle".into());
+        result.items.clear();
+        let render = |result: &ContextResult| {
+            let mut output = Vec::new();
+            super::write_context_status(&mut output, result).expect("status");
+            String::from_utf8(output).expect("UTF-8")
         };
+        assert_eq!(render(&result), "");
+        result.indexing = Some(ContextIndexingStatus {
+            state: "idle".into(),
+            completed: Some(2),
+            total: Some(3),
+        });
+        assert_eq!(
+            render(&result),
+            "status: possibly_stale\nresults: served_from_current_index\nbackground_refresh: idle (2/3)\n"
+        );
+        for state in ["queued", "running", "failed", "cancelled", "succeeded"] {
+            result.indexing = Some(ContextIndexingStatus {
+                state: state.into(),
+                completed: None,
+                total: Some(3),
+            });
+            assert_eq!(
+                render(&result),
+                format!(
+                    "status: possibly_stale\nresults: served_from_current_index\nbackground_refresh: {state}\n"
+                )
+            );
+        }
+        result.indexing = None;
+        result.freshness = Some("served_from_current_index".into());
+        assert_eq!(render(&result), "");
+        result.freshness = Some("possibly_stale".into());
+        result.background_refresh = None;
+        assert_eq!(render(&result), "status: possibly_stale\n");
+        result.source = ContextSource::Rg;
+        assert_eq!(render(&result), "");
+    }
+
+    #[test]
+    fn preview_modes_and_trace_preserve_indexed_result_information() {
+        let mut result = indexed_result();
         let render = |preview, trace| {
             let mut buffer = Vec::new();
             write_context_with_options(
@@ -1160,11 +1372,18 @@ mod output_tests {
                 symbol_name: Some("User".into()),
                 scope: Some("app".into()),
                 signature: None,
+                visibility: None,
+                language: None,
                 documentation: None,
             }));
             let mut buffer = Vec::new();
-            write_item_preview(&mut buffer, &item, OutputOptions::default())
-                .expect("render symbol metadata");
+            write_item_preview(
+                &mut buffer,
+                &item,
+                OutputOptions::default(),
+                &QueryHighlighter::default(),
+            )
+            .expect("render symbol metadata");
             let rendered = String::from_utf8(buffer).expect("UTF-8");
             assert_eq!(rendered.lines().next(), Some(expected));
         }

@@ -7,6 +7,17 @@ use crate::{
     workspace::graph_policy::GraphPolicy,
 };
 
+#[test]
+fn graph_fingerprints_sort_nested_keys_independently_of_json_presentation() {
+    let input: serde_json::Value =
+        serde_json::from_str(r#"{"z":[{"y":2,"a":1}],"a":{"z":3,"b":4}}"#).expect("configuration");
+    let canonical = r#"{"a":{"b":4,"z":3},"z":[{"a":1,"y":2}]}"#;
+    assert_eq!(
+        fingerprint(&input).expect("fingerprint"),
+        crate::utils::sha256_hex(canonical.as_bytes())
+    );
+}
+
 fn head(state: &TextState, policy: &GraphPolicy) -> GraphHead {
     GraphHead {
         format_version: 1,
@@ -155,24 +166,21 @@ fn catalog_digest_cost_probe() -> Result<(), Box<dyn std::error::Error>> {
     let files = inputs
         .into_iter()
         .map(|input| {
-            Ok(FileRecord {
-                id: FileId::new(input.id),
-                relative_path: SourcePath::new(input.path)?,
-                snapshot: FileSnapshot {
+            FileRecord::new(
+                FileId::new(input.id),
+                SourcePath::new(input.path)?,
+                FileSnapshot {
                     size_bytes: input.size_bytes,
                     modified_epoch_ms: None,
                     content_hash: Some(input.content_hash),
                 },
-                index_status: FileIndexStatus::Indexed {
+                FileIndexStatus::Indexed {
                     indexed_epoch_ms: 0,
                     entity_count: 0,
                 },
-            })
+            )
         })
         .collect::<EngineResult<Vec<_>>>()?;
-    for file in &files {
-        file.validate()?;
-    }
     let started = std::time::Instant::now();
     let digest = catalog_digest(&files);
     let duration_micros = started.elapsed().as_micros();
@@ -193,36 +201,53 @@ fn catalog_digest_cost_probe() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn graph_catalog_digest_ignores_mtime_but_keeps_native_paths_and_status() {
     use crate::domain::{FileId, FileSnapshot, SourcePath};
-    let mut file = FileRecord {
-        id: FileId::new(1),
-        relative_path: SourcePath::new("中文.md").expect("path"),
-        snapshot: FileSnapshot {
+    let mut file = FileRecord::new(
+        FileId::new(1),
+        SourcePath::new("中文.md").expect("path"),
+        FileSnapshot {
             size_bytes: 3,
             modified_epoch_ms: Some(1),
             content_hash: Some("a".repeat(64)),
         },
-        index_status: FileIndexStatus::Indexed {
+        FileIndexStatus::Indexed {
             indexed_epoch_ms: 1,
             entity_count: 1,
         },
-    };
+    )
+    .expect("file");
     let before = catalog_digest(&[file.clone()]);
-    file.snapshot.modified_epoch_ms = Some(2);
+    let mut snapshot = file.snapshot().clone();
+    snapshot.modified_epoch_ms = Some(2);
+    file.set_snapshot(snapshot).expect("snapshot");
     assert_eq!(before, catalog_digest(&[file.clone()]));
-    file.index_status = FileIndexStatus::Failed {
+    file.set_index_status(FileIndexStatus::Failed {
         error: "test".into(),
-    };
+    })
+    .expect("status");
     assert_ne!(before, catalog_digest(&[file.clone()]));
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStringExt;
-        file.relative_path = SourcePath::new(PathBuf::from(std::ffi::OsString::from_vec(vec![
+        let native_path = SourcePath::new(PathBuf::from(std::ffi::OsString::from_vec(vec![
             0xff, b'.', b'm', b'd',
         ])))
         .expect("native path");
+        file = FileRecord::new(
+            file.id(),
+            native_path,
+            file.snapshot().clone(),
+            file.index_status().clone(),
+        )
+        .expect("native file");
         let native = catalog_digest(&[file.clone()]);
         assert_ne!(native, catalog_digest(&[]));
-        file.relative_path = SourcePath::new("�.md").expect("replacement character");
+        file = FileRecord::new(
+            file.id(),
+            SourcePath::new("�.md").expect("replacement character"),
+            file.snapshot().clone(),
+            file.index_status().clone(),
+        )
+        .expect("replacement file");
         assert_ne!(native, catalog_digest(&[file]));
     }
 }

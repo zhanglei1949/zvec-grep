@@ -11,7 +11,7 @@ pub(super) fn map_hits(
     let mut skipped = Vec::new();
     for hit in hits {
         context.check().map_err(query_error)?;
-        let path = hit.file.relative_path.to_path_buf();
+        let path = hit.file.relative_path().to_path_buf();
         let Some(source_id) = path.to_str().filter(|p| {
             !p.contains(['\\', ':', '\0']) && p.split('/').all(|c| !matches!(c, "" | "." | ".."))
         }) else {
@@ -32,8 +32,8 @@ pub(super) fn map_hits(
             skipped.push(skip(hit, "unsupported_domain"));
             continue;
         }
-        if source.record.file_id != hit.file.id.get()
-            || source.record.content_hash != hit.file.snapshot.content_hash
+        if source.record.file_id != hit.file.id().get()
+            || source.record.content_hash != hit.file.snapshot().content_hash
         {
             return Err(EngineError::storage_failure(
                 "retrieved source binding changed",

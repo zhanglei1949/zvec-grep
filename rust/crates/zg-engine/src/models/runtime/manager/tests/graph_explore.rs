@@ -45,7 +45,7 @@ async fn nested_bare_import_publishes_and_reopens_two_hop_path_without_models() 
         std::fs::write(dir.path().join(path), text).expect("source");
     }
     let manager = models(&Arc::new(AtomicUsize::new(0)));
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     service
         .index(&manager, options(dir.path()))
         .await
@@ -114,7 +114,7 @@ async fn explore_real_published_view_preserves_occurrences_and_avoids_models() {
     std::fs::write(dir.path().join("src/lib.rs"),"fn target() {}\r\nfn caller() { target(); target(); caller(); }\r\nfn root() { caller(); }\r\n").expect("code");
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     let built = service.index(&manager, opts).await.expect("publish");
@@ -198,7 +198,7 @@ async fn explore_locators_boundaries_budgets_and_stale_ids_are_explicit() {
     std::fs::write(dir.path().join("src/a.rs"),"// 中文😀\r\nfn target() {}\r\nfn caller() { target(); target(); missing(); }\r\nfn root() { caller(); }\r\n").expect("a");
     std::fs::write(dir.path().join("src/b.rs"), "fn target() {}\n").expect("b");
     let calls = Arc::new(AtomicUsize::new(0));
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     service.index(&models(&calls), opts).await.expect("index");
@@ -416,7 +416,7 @@ async fn explore_python_references_follow_target_removal_and_restore() {
     std::fs::write(&target, "def target(): pass\n").expect("b");
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(crate::api::index::graph::GraphOptions {
         scope: crate::api::index::graph::GraphScope::Code,
@@ -503,7 +503,7 @@ async fn explore_is_readonly_and_never_bypasses_incomplete_code_coverage() {
     std::fs::write(&source, "fn target() {}\nfn caller() { target(); }\n").expect("source");
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     service
@@ -538,7 +538,7 @@ async fn explore_is_readonly_and_never_bypasses_incomplete_code_coverage() {
         "macro_rules! bind { ($x:ident) => { $x }; }\nfn target() {}\nfn caller() { let bind!(target) = || {}; target(); }\n",
     )
     .expect("unsupported binding");
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let result = service
         .index(&manager, opts)
         .await
@@ -578,7 +578,7 @@ fn replace_fragment_structure(root: &std::path::Path) {
             .expect("schema JSON");
     let embeddings: Vec<crate::domain::model::EmbeddingModelInfo> =
         serde_json::from_value(schema["embeddings"].clone()).expect("embeddings");
-    let model = embeddings[0].model.reference();
+    let model = embeddings[0].model().reference();
     let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadWrite {
         storage_path: home,
         embeddings,
@@ -588,16 +588,26 @@ fn replace_fragment_structure(root: &std::path::Path) {
     let ids = storage.file_entity_ids(&file).expect("IDs");
     let mut entities = storage.graph_entities(&ids).expect("entities");
     let entity = &mut entities[0];
-    let ordinal = u32::try_from(entity.fragments.len()).expect("ordinal");
-    entity.fragments.push(EntityFragment {
-        id: FragmentId::new(&entity.id, ordinal),
+    let ordinal = u32::try_from(entity.fragments().len()).expect("ordinal");
+    let mut fragments = entity.fragments().to_vec();
+    fragments.push(EntityFragment {
+        id: FragmentId::new(entity.id(), ordinal),
         range: Range::Byte(ByteRange::new(0, 2).expect("fragment")),
     });
+    *entity = crate::domain::Entity::new(
+        entity.id().clone(),
+        entity.file_id(),
+        entity.source_range(),
+        entity.content().clone(),
+        entity.metadata().cloned(),
+        fragments,
+    )
+    .expect("entity");
     let entries = entities
         .iter()
         .flat_map(|entity| {
-            entity.fragments.iter().map(|fragment| IndexedFragment {
-                entity_id: entity.id.clone(),
+            entity.fragments().iter().map(|fragment| IndexedFragment {
+                entity_id: entity.id().clone(),
                 fragment_id: fragment.id.clone(),
                 model: model.clone(),
                 vector: vec![1.0, 0.0],
@@ -622,7 +632,7 @@ async fn graph_only_fragment_mismatch_preserves_the_explicit_rebuild_hint() {
     )
     .expect("code");
     let calls = Arc::new(AtomicUsize::new(0));
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut opts = options(dir.path());
     opts.graph = Some(policy());
     service.index(&models(&calls), opts).await.expect("publish");
@@ -683,7 +693,7 @@ async fn code_bindings_and_globs_publish_reopen_and_recompute_without_relaxing_r
     .expect("dotted import");
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let opts = options(dir.path());
     service
         .index(&manager, opts.clone())
@@ -726,7 +736,7 @@ async fn code_bindings_and_globs_publish_reopen_and_recompute_without_relaxing_r
         (rust.into(), 2),
     ] {
         std::fs::write(dir.path().join("src/lib.rs"), source).expect("change export");
-        let service = WorkspaceIndexService::with_test_registry();
+        let service = WorkspaceIndexService::new();
         let result = service
             .index(&manager, update.clone())
             .await
@@ -883,7 +893,7 @@ async fn m3_semantic_operations_publish_reopen_and_keep_predecessors_retired() {
     std::fs::create_dir(dir.path().join("src")).expect("src");
     std::fs::write(dir.path().join("src/a.rs"), "fn entry() {}\n").expect("source");
     let calls = Arc::new(AtomicUsize::new(0));
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(policy());
     service
@@ -1068,7 +1078,7 @@ async fn m3_type_relations_publish_with_real_endpoints_and_declaration_positions
         layout: crate::api::index::graph::PackageLayout::Flat,
     }];
     let calls = Arc::new(AtomicUsize::new(0));
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let mut initial = options(dir.path());
     initial.graph = Some(configuration);
     service
@@ -1154,7 +1164,7 @@ async fn m3_python_base_updates_publish_missing_and_ambiguous_references() {
         module_prefix: vec![],
         layout: crate::api::index::graph::PackageLayout::Flat,
     }];
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let manager = models(&Arc::new(AtomicUsize::new(0)));
     for (source, expected) in [
         (

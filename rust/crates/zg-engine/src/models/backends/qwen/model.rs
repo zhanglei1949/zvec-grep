@@ -63,18 +63,31 @@ impl QwenEmbeddingModel {
         }
         Ok(Self {
             entry,
-            info: EmbeddingModelInfo {
-                model: ModelInfo {
-                    provider: entry.provider.to_owned(),
-                    name: entry.model.to_owned(),
-                    endpoint: Some(endpoint.clone()),
-                },
-                dimension: entry.dimension,
-                metric: entry.metric,
-                max_batch_size: entry.max_batch_size,
-                max_input_tokens: Some(entry.max_input_tokens),
-                max_image_bytes: entry.max_image_bytes,
-            },
+            info: EmbeddingModelInfo::new(
+                ModelInfo::new(
+                    entry.provider.to_owned(),
+                    entry.model.to_owned(),
+                    if entry.kind == "multimodal" {
+                        vec![
+                            crate::domain::ContentKind::Text,
+                            crate::domain::ContentKind::Code,
+                            crate::domain::ContentKind::Image,
+                        ]
+                    } else {
+                        vec![
+                            crate::domain::ContentKind::Text,
+                            crate::domain::ContentKind::Code,
+                        ]
+                    },
+                    entry.max_batch_size,
+                )
+                .expect("valid model metadata"),
+                entry.dimension,
+                entry.metric,
+                Some(entry.max_input_tokens),
+                entry.max_image_bytes,
+            )
+            .expect("valid embedding metadata"),
             api_key,
             endpoint,
             http,
@@ -94,7 +107,7 @@ impl QwenEmbeddingModel {
         let request = json!({
             "model": self.entry.model,
             "input": texts,
-            "dimensions": self.info.dimension,
+            "dimensions": self.info.dimension(),
             "encoding_format": "float",
         });
         let response = self.send(request, signal, trace_headers).await?;
@@ -142,7 +155,7 @@ impl QwenEmbeddingModel {
         let request_contents = inputs
             .iter()
             .map(|input| match input.as_slice() {
-                [Content::Text(text)] => Ok(json!({ "text": text })),
+                [Content::Text(text) | Content::Code(text)] => Ok(json!({ "text": text })),
                 [Content::Image(image)] => Ok(json!({ "image": bytes_to_base64(image.data()) })),
                 _ => Err(ModelError::unsupported(
                     "Qwen multimodal embedding requires one text or image content per input",
@@ -152,7 +165,7 @@ impl QwenEmbeddingModel {
         let request = json!({
             "model": self.entry.model,
             "input": { "contents": request_contents },
-            "parameters": { "dimension": self.info.dimension },
+            "parameters": { "dimension": self.info.dimension() },
         });
         let response = self.send(request, signal, trace_headers).await?;
         let body = parse_response_body(&response, self.entry)?;
@@ -250,11 +263,7 @@ impl EmbeddingModel for QwenEmbeddingModel {
         inputs: &[Vec<Content>],
         options: EmbeddingOptions,
     ) -> Result<EmbeddingResult, ModelError> {
-        validate_inputs(&self.info, inputs, |content| match content {
-            Content::Text(_) => true,
-            Content::Image(_) => self.entry.kind == "multimodal",
-            Content::Table(_) => false,
-        })?;
+        validate_inputs(&self.info, inputs)?;
         let EmbeddingOptions {
             signal,
             trace_headers,
@@ -401,16 +410,29 @@ fn parse_response_body(
         } else {
             provider_error_code(response.status)
         };
-        classify_provider_failure(
-            ModelError::new(
-                code,
-                format!("{} response was not valid JSON", model_name(entry)),
-                Some(format!(
-                    "model={} status={}",
-                    entry.reference, response.status
-                )),
+        let message = if response.success() {
+            format!("{} response was not valid JSON", model_name(entry))
+        } else {
+            format!(
+                "{} request returned HTTP {} with a non-JSON response",
+                model_name(entry),
+                response.status
             )
-            .with_cause(error),
+        };
+        let context = format!(
+            "model={} status={}{}",
+            entry.reference,
+            response.status,
+            provider_error_hint(response.status)
+        );
+        let failure = ModelError::new(code, message, Some(context));
+        let failure = if response.success() {
+            failure.with_cause(error)
+        } else {
+            failure
+        };
+        classify_provider_failure(
+            failure,
             response.status,
             response.retry_after.as_deref().and_then(retry_after_millis),
             None,
@@ -461,8 +483,14 @@ fn provider_error(entry: QwenConfig, response: &QwenHttpResponse, body: &Value) 
             provider_error_code(response.status),
             format!("{} request returned an error", model_name(entry)),
             Some(format!(
-                "model={} status={}{} providerCode={} providerType={} providerMessage={}",
-                entry.model, response.status, retry_after, code, error_type, message
+                "model={} status={}{} providerCode={} providerType={} providerMessage={}{}",
+                entry.model,
+                response.status,
+                retry_after,
+                code,
+                error_type,
+                message,
+                provider_error_hint(response.status)
             )),
         ),
         response.status,
@@ -470,6 +498,14 @@ fn provider_error(entry: QwenConfig, response: &QwenHttpResponse, body: &Value) 
         Some(code),
         Some(message),
     )
+}
+
+fn provider_error_hint(status: u16) -> &'static str {
+    if status == 404 {
+        "\nhint=Check --endpoint or ZVEC_GREP_ENDPOINT and model availability at the configured service."
+    } else {
+        ""
+    }
 }
 
 fn classify_provider_failure(

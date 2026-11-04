@@ -552,19 +552,19 @@ impl<'a> Candidate<'a> {
         let same_configuration = self.configuration_matches()?;
         for file in &self.files {
             check_context(&self.ctx)?;
-            let path = file.relative_path.to_path_buf();
+            let path = file.relative_path().to_path_buf();
             let Some(name) = path.to_str().filter(|p| {
                 !p.contains(['\\', ':', '\0'])
                     && !p.split('/').any(|c| matches!(c, "" | "." | ".."))
             }) else {
                 continue;
             };
-            if !file.index_status.is_indexed() {
+            if !file.index_status().is_indexed() {
                 return Err(EngineError::resource_busy("text contains unfinished files"));
             }
             self.ctx
                 .check_output(
-                    usize::try_from(file.index_status.entity_count()).unwrap_or(usize::MAX),
+                    usize::try_from(file.index_status().entity_count()).unwrap_or(usize::MAX),
                 )
                 .map_err(crate::graph_facts::map_error)?;
             let ids = profile::measure("host.entity_ids", || self.storage.file_entity_ids(file))?;
@@ -579,8 +579,8 @@ impl<'a> Candidate<'a> {
                 .and_then(|c| {
                     c.files.iter().find(|b| {
                         b.record.path == name
-                            && b.record.content_hash == file.snapshot.content_hash
-                            && b.record.file_id == file.id.get()
+                            && b.record.content_hash == file.snapshot().content_hash
+                            && b.record.file_id == file.id().get()
                             && b.record.entity_ids_digest == digest
                             && b.record.storage_generation == collector.generation
                     })
@@ -637,7 +637,7 @@ impl<'a> Candidate<'a> {
         digest: &str,
         generation: &str,
     ) -> EngineResult<()> {
-        if bound.record.content_hash != file.snapshot.content_hash
+        if bound.record.content_hash != file.snapshot().content_hash
             || bound.record.entity_ids_digest != digest
             || bound.record.storage_generation != generation
         {
@@ -728,9 +728,9 @@ impl<'a> Candidate<'a> {
         ids: &[String],
         ids_digest: &str,
     ) -> EngineResult<BoundFileFacts> {
-        let path = file.relative_path.to_path_buf();
+        let path = file.relative_path().to_path_buf();
         let formats =
-            FileFormat::from_path(&self.manifest.workspace.source_path(&file.relative_path))?;
+            FileFormat::from_path(&self.manifest.workspace.source_path(file.relative_path()))?;
         let enabled = (self.policy.configuration.scope.code()
             && formats.iter().any(|f| {
                 matches!(
@@ -749,7 +749,7 @@ impl<'a> Candidate<'a> {
             let bytes = inputs
                 .get(&path)
                 .ok_or_else(|| EngineError::resource_busy("graph source snapshot unavailable"))?;
-            if Some(crate::utils::sha256_hex(bytes)) != file.snapshot.content_hash {
+            if Some(crate::utils::sha256_hex(bytes)) != file.snapshot().content_hash {
                 return Err(EngineError::resource_busy("graph source revision changed"));
             }
             let decoded = crate::utils::decode_index_text(&formats, bytes)
@@ -758,26 +758,29 @@ impl<'a> Candidate<'a> {
                 EngineError::storage_failure("graph build requires text descriptor")
             })?;
             let max_tokens = descriptor
-                .model_for(crate::domain::ContentKind::Text)?
-                .max_input_tokens;
+                .model_for(crate::domain::ContentKind::Text)
+                .ok_or_else(|| {
+                    EngineError::storage_failure("graph source has no text embedding model")
+                })?
+                .max_input_tokens();
             let chunks = super::input_budget::index_chunk_options(max_tokens, Some(&decoded));
             let source = TextSource {
-                relative_path: file.relative_path.clone(),
+                relative_path: file.relative_path().clone(),
                 formats,
                 text: decoded.into_owned(),
             };
             let (entities, facts) = collector.extract(
                 &source,
                 chunks,
-                file.snapshot
+                file.snapshot()
                     .content_hash
                     .as_deref()
                     .ok_or_else(|| EngineError::storage_failure("missing source digest"))?,
             )?;
-            let entities = extraction::bind_entities(file.id, entities)?;
+            let entities = extraction::bind_entities(file.id(), entities.fragments)?;
             let mut expected = entities
                 .iter()
-                .map(|e| e.id.as_str().to_owned())
+                .map(|e| e.id().as_str().to_owned())
                 .collect::<Vec<_>>();
             expected.sort();
             if expected != ids {
@@ -795,10 +798,10 @@ impl<'a> Candidate<'a> {
                     .to_str()
                     .ok_or_else(|| EngineError::unsupported("non UTF-8 graph path"))?
                     .into(),
-                file_id: file.id.get(),
+                file_id: file.id().get(),
                 index_status: IndexStatus::Indexed,
-                content_hash: file.snapshot.content_hash.clone(),
-                size_bytes: file.snapshot.size_bytes,
+                content_hash: file.snapshot().content_hash.clone(),
+                size_bytes: file.snapshot().size_bytes,
                 text_revision: self.state.text_revision,
                 storage_generation: collector.generation.clone(),
                 entity_count: ids.len() as u64,

@@ -12,11 +12,11 @@ fn initial() -> EngineResult<String> {
 fn feed(digest: &mut String, entities: &[Entity]) -> EngineResult<()> {
     for entity in entities {
         let row = (
-            entity.id.as_str(),
-            entity.source_range,
-            &entity.content,
+            entity.id().as_str(),
+            entity.source_range(),
+            &entity.content(),
             entity
-                .fragments
+                .fragments()
                 .iter()
                 .map(|f| (f.id.as_str(), f.range))
                 .collect::<Vec<_>>(),
@@ -28,7 +28,7 @@ fn feed(digest: &mut String, entities: &[Entity]) -> EngineResult<()> {
 }
 pub(crate) fn digest(entities: &[Entity]) -> EngineResult<String> {
     let mut sorted = entities.iter().collect::<Vec<_>>();
-    sorted.sort_by(|a, b| a.id.cmp(&b.id));
+    sorted.sort_by(|a, b| a.id().cmp(b.id()));
     let mut digest = initial()?;
     for entity in sorted {
         feed(&mut digest, std::slice::from_ref(entity))?;
@@ -64,15 +64,15 @@ pub(crate) fn verify(
         zg_knowledge::graph::profile::count("qualification.text_entities", entities.len() as u64);
         zg_knowledge::graph::profile::count(
             "qualification.text_fragments",
-            entities.iter().map(|e| e.fragments.len() as u64).sum(),
+            entities.iter().map(|e| e.fragments().len() as u64).sum(),
         );
         zg_knowledge::graph::profile::count(
             "qualification.text_bytes",
             entities
                 .iter()
-                .map(|e| match &e.content {
-                    Content::Text(text) => text.len() as u64,
-                    _ => 0,
+                .map(|e| match &e.content() {
+                    Content::Text(text) | Content::Code(text) => text.len() as u64,
+                    Content::Image(_) => 0,
                 })
                 .sum(),
         );
@@ -90,14 +90,14 @@ pub(crate) fn maps(source: &str, entities: &[Entity]) -> EngineResult<Vec<TextMa
     let mut maps = entities
         .iter()
         .filter_map(|entity| {
-            let Content::Text(text) = &entity.content else {
+            let (Content::Text(text) | Content::Code(text)) = entity.content() else {
                 return None;
             };
             if text.is_empty() {
                 return None;
             }
             Some((|| {
-                let Range::Text(range) = entity.source_range else {
+                let Range::Text(range) = entity.source_range() else {
                     return Err(EngineError::storage_failure(
                         "graph text lacks source mapping",
                     ));
@@ -108,7 +108,7 @@ pub(crate) fn maps(source: &str, entities: &[Entity]) -> EngineResult<Vec<TextMa
                         start: range.start_byte_offset() as u64,
                         end: range.end_byte_offset() as u64,
                     },
-                    entity_id: entity.id.as_str().into(),
+                    entity_id: entity.id().as_str().into(),
                     content_span: ByteSpan {
                         start: 0,
                         end: text.len() as u64,

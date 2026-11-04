@@ -64,7 +64,7 @@ fn database_files(
 )]
 async fn graph_leases_follow_head_and_reject_stale_state_without_poisoning_later_reads() {
     let dir = tempfile::tempdir().expect("root");
-    let service = WorkspaceIndexService::with_test_registry();
+    let service = WorkspaceIndexService::new();
     let models = ModelRuntimeManager::new();
     let index = |scope| IndexOptions {
         root: Some(dir.path().into()),
