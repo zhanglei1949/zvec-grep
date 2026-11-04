@@ -50,6 +50,17 @@ pub(super) fn units<R: GraphReader, T: ScopeTextProvider>(
             }
         }
         let mut covered = Vec::new();
+        let mapped = normalize(needed.clone());
+        if allowed
+            .iter()
+            .any(|span| span.start != span.end && !contained(&mapped, *span))
+        {
+            return Err(QueryError::new(
+                QueryErrorKind::ViewMismatch,
+                "scope",
+                "scope_mapping_incomplete",
+            ));
+        }
         for batch in ids.into_iter().collect::<Vec<_>>().chunks(256) {
             let entities = text.text_entities(batch, ctx)?;
             if entities.len() != batch.len() || entities.iter().any(|e| !batch.contains(&e.id)) {

@@ -194,6 +194,9 @@ pub struct SourceFile {
 /// Discovery must not read complete file contents. Callers compare the source
 /// fingerprints with indexed file state, then request bytes only for files
 /// that need extraction.
+/// Successful discovery is complete within the requested scope and selection
+/// policy. Inspection errors must be returned, since absent files may be removed
+/// from the index; an incomplete scan cannot establish deletion.
 #[async_trait]
 pub trait WorkspaceScannerPort: Send + Sync {
     async fn discover(

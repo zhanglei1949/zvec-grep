@@ -119,6 +119,7 @@ impl From<crate::Error> for GraphError {
             crate::Error::Deadline => GraphErrorKind::Deadline,
             crate::Error::ResourceExhausted => GraphErrorKind::ResourceExhausted,
             crate::Error::IncompatibleFormat => GraphErrorKind::IncompatibleFormat,
+            crate::Error::Conflict(_) => GraphErrorKind::Conflict,
             _ => GraphErrorKind::InvalidInput,
         })
     }

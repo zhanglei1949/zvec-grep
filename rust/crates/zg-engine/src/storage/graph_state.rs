@@ -4,7 +4,7 @@
 mod build_record;
 pub(crate) mod discard;
 #[cfg(feature = "knowledge-graph-graphdb")]
-pub(crate) use build_record::{BuildRecord, bound_matches, rules_fingerprint};
+pub(crate) use build_record::{BuildRecord, SemanticBuildInput, bound_matches, rules_fingerprint};
 
 use crate::api::index::graph::GraphDomainResult;
 use crate::{
@@ -144,20 +144,36 @@ pub(crate) struct GraphHead {
 impl GraphHead {
     pub fn read(home: &Path) -> EngineResult<Option<Self>> {
         let head: Option<Self> = read_record(&home.join("graph/HEAD.json"))?;
-        if head.as_ref().is_some_and(|h| {
-            !valid_uuid(&h.graph_build_id)
-                || ![
-                    &h.catalog_digest,
-                    &h.schema_fingerprint,
-                    &h.policy_fingerprint,
-                ]
-                .into_iter()
-                .all(|s| valid_digest(s))
-                || h.contract_version != "zg-relations-v1"
-        }) {
-            return Err(invalid());
+        if let Some(head) = &head {
+            head.validate_lifecycle()?;
         }
         Ok(head)
+    }
+    #[cfg(any(test, feature = "knowledge-graph-graphdb"))]
+    pub(crate) fn validate(&self) -> EngineResult<()> {
+        self.validate_lifecycle()?;
+        if self.contract_version != zg_knowledge::relations::FACT_CONTRACT_VERSION {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub(crate) fn validate_lifecycle(&self) -> EngineResult<()> {
+        if !valid_uuid(&self.graph_build_id)
+            || ![
+                &self.catalog_digest,
+                &self.schema_fingerprint,
+                &self.policy_fingerprint,
+            ]
+            .into_iter()
+            .all(|value| valid_digest(value))
+            || !matches!(
+                self.contract_version.as_str(),
+                "zg-relations-v2" | "zg-relations-v3"
+            )
+        {
+            return Err(invalid());
+        }
+        Ok(())
     }
     #[cfg(any(test, feature = "knowledge-graph-graphdb"))]
     pub fn select(
@@ -167,6 +183,7 @@ impl GraphHead {
         policy: &str,
         head: &Self,
     ) -> EngineResult<()> {
+        head.validate()?;
         if TextState::read(home)?.as_ref() != Some(expected_state)
             || expected_state.state != TextPhase::Stable
             || Self::read(home)?
@@ -182,7 +199,7 @@ impl GraphHead {
         let path = home.join("graph/HEAD.json");
         if let Err(e) = write_record(&path, head) {
             // Preserve ambiguous selection; callers must not delete this build.
-            return Err(EngineError::storage_failure(format!(
+            return Err(EngineError::recovery_required(format!(
                 "graph selection requires recovery_required: {}",
                 e.code()
             )));
@@ -197,10 +214,9 @@ impl GraphHead {
         match fs::remove_file(home.join("graph/HEAD.json")) {
             Ok(()) => sync_directory(&home.join("graph")),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(EngineError::from_io(
-                "revoke graph selection; recovery_required",
-                &e,
-            )),
+            Err(e) => Err(EngineError::recovery_required(format!(
+                "revoke graph selection; recovery_required: {e}"
+            ))),
         }
     }
 }
@@ -359,7 +375,7 @@ pub(crate) fn ensure_cleanup_safe(home: &Path) -> EngineResult<()> {
             ) || !matches!(committed, "not_applied" | "committed")
                 || !matches!(selection, "not_selected" | "selected")
         }) {
-            return Err(EngineError::storage_failure(
+            return Err(EngineError::recovery_required(
                 "graph candidate recovery_required; cleanup refused",
             ));
         }

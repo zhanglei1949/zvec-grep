@@ -57,16 +57,37 @@ async fn default_build_rejects_explore_before_workspace_access() {
     assert_eq!(engine.runtime_snapshot().loaded_models, 0);
     engine.close();
 }
-#[cfg(feature = "knowledge-graph")]
 #[test]
 fn public_request_schema_matches_the_neutral_kg_contract() {
-    let wire = serde_json::to_value(options()).expect("wire");
-    let request: zg_knowledge::query::ExploreRequest =
-        serde_json::from_value(wire["request"].clone()).expect("neutral request");
+    let options = options();
+    let request: &zg_knowledge::query::ExploreRequest = &options.request;
     request.validate().expect("valid");
-    let execution: zg_knowledge::query::ExecutionOptions =
-        serde_json::from_value(wire["execution"].clone()).expect("neutral limits");
-    execution
-        .validate_within(zg_knowledge::query::ExecutionOptions::default())
-        .expect("same ceilings");
+    let execution: zg_knowledge::query::ExecutionOptions = options.execution;
+    execution.validate().expect("same ceilings");
+}
+
+#[test]
+fn graph_api_schemas_match_m4_m6_and_preserve_unchanged_contracts() {
+    use zg_engine::api::{context, explore, index};
+    let actual = serde_json::json!({
+        "explore_request": schemars::schema_for!(explore::ExploreRequest),
+        "explore_result": schemars::schema_for!(explore::ExploreResult),
+        "execution": schemars::schema_for!(explore::ExecutionOptions),
+        "query_mode": schemars::schema_for!(context::graph::GraphQueryMode),
+        "index_options": schemars::schema_for!(index::graph::GraphOptions),
+    });
+    let expected: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/graph-api-schema-m4-m6.json"))
+            .expect("frozen public schemas");
+    assert_eq!(actual, expected);
+    let previous: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/graph-api-schema-m3.json"))
+            .expect("M3 historical schema");
+    for key in ["execution", "query_mode"] {
+        assert_eq!(actual[key], previous[key], "{key}");
+    }
+    let mut previous_index = actual["index_options"].clone();
+    previous_index["$defs"]["GraphLanguage"]["enum"] =
+        previous["index_options"]["$defs"]["GraphLanguage"]["enum"].clone();
+    assert_eq!(previous_index, previous["index_options"]);
 }

@@ -45,7 +45,7 @@ fn discard_refuses_a_head_selected_after_registration() {
         graph_build_id: id.clone(),
         text_revision: 0,
         catalog_digest: "a".repeat(64),
-        contract_version: "zg-relations-v1".into(),
+        contract_version: zg_knowledge::relations::FACT_CONTRACT_VERSION.into(),
         schema_fingerprint: "b".repeat(64),
         policy_fingerprint: "c".repeat(64),
         domains: std::collections::BTreeMap::new(),
@@ -83,8 +83,7 @@ fn discard_partial_filesystem_failure_keeps_external_identity_for_retry() {
     assert!(
         result
             .expect_err("real removal refusal")
-            .message()
-            .contains("recovery_required")
+            .is_recovery_required()
     );
     assert!(
         ensure_cleanup_safe(dir.path()).is_err(),

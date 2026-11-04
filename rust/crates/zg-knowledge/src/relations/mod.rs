@@ -14,13 +14,17 @@ use crate::{
     processing::{ProcessingContext, stable_digest},
 };
 
-pub const FACT_CONTRACT_VERSION: &str = "zg-relations-v1";
+pub const FACT_CONTRACT_VERSION: &str = "zg-relations-v3";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Language {
     Rust,
     Python,
+    Go,
+    Java,
+    C,
+    Cpp,
     Markdown,
 }
 
@@ -96,7 +100,7 @@ pub enum NodeKind {
     Symbol,
     Section,
 }
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityKind {
     File,
@@ -109,6 +113,11 @@ pub enum EntityKind {
     Section,
     Type,
     Constant,
+}
+impl EntityKind {
+    pub(crate) const fn is_type(self) -> bool {
+        matches!(self, Self::Class | Self::Interface | Self::Type)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,10 +160,22 @@ pub struct Scope {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BindingTarget {
-    Node { id: String },
-    Import { path: Vec<String> },
-    GlobImport { path: Vec<String> },
-    Redirect { scope: usize },
+    Node {
+        id: String,
+    },
+    Import {
+        path: Vec<String>,
+    },
+    GlobImport {
+        path: Vec<String>,
+    },
+    PackageImport {
+        path: Vec<String>,
+        alias: Option<String>,
+    },
+    Redirect {
+        scope: usize,
+    },
     Dynamic,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -174,13 +195,31 @@ pub enum RelationKind {
     Call,
     Import,
     DocumentLink,
+    Extends,
+    Implements,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Lookup {
-    Name { parts: Vec<String> },
-    Import { path: Vec<String> },
-    Document { destination: String },
+    Include {
+        path: String,
+        system: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
+    },
+    TypeRelation {
+        owner: Vec<String>,
+        target: Vec<String>,
+    },
+    Name {
+        parts: Vec<String>,
+    },
+    Import {
+        path: Vec<String>,
+    },
+    Document {
+        destination: String,
+    },
     Dynamic,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,6 +256,7 @@ pub struct FileFacts {
     pub anchors: Vec<Anchor>,
     pub diagnostics: Vec<FactDiagnostic>,
 }
+
 impl FileFacts {
     pub fn new(
         version: SourceVersion,
@@ -346,12 +386,56 @@ impl FileFacts {
                 }
             }
         }
+        self.validate_references(&ids)?;
+        Ok(())
+    }
+    fn validate_references(&self, ids: &std::collections::HashSet<&String>) -> Result<()> {
         for r in &self.references {
             if r.scope >= self.scopes.len() || !ids.contains(&r.owner) {
                 return Err(Error::Provider("invalid reference"));
             }
+            if (r.kind == RelationKind::Extends
+                || (r.kind == RelationKind::Implements
+                    && !matches!(r.lookup, Lookup::TypeRelation { .. } | Lookup::Dynamic)))
+                && self
+                    .nodes
+                    .iter()
+                    .find(|node| node.id == r.owner)
+                    .is_none_or(|node| !node.entity_kind.is_type())
+            {
+                return Err(Error::Provider("type relation requires a type owner"));
+            }
+            if let Lookup::TypeRelation { owner, target } = &r.lookup
+                && (r.kind != RelationKind::Implements
+                    || owner.is_empty()
+                    || target.is_empty()
+                    || owner.iter().chain(target).any(String::is_empty))
+            {
+                return Err(Error::Provider("invalid explicit type relation"));
+            }
+            if let Lookup::Include { path, target, .. } = &r.lookup {
+                if !matches!(self.language, Language::C | Language::Cpp)
+                    || r.kind != RelationKind::Import
+                    || path.is_empty()
+                {
+                    return Err(Error::Provider("invalid include reference"));
+                }
+                if let Some(target) = target {
+                    validate_path(target)?;
+                }
+            }
         }
         for b in &self.bindings {
+            if let BindingTarget::PackageImport { path, alias } = &b.target
+                && (self.language != Language::Go
+                    || path.is_empty()
+                    || path
+                        .iter()
+                        .any(|p| p.is_empty() || matches!(p.as_str(), "." | ".."))
+                    || alias.as_ref().is_some_and(String::is_empty))
+            {
+                return Err(Error::Provider("invalid package import"));
+            }
             if b.scope >= self.scopes.len()
                 || matches!(&b.target, BindingTarget::Node {id} if !ids.contains(id))
                 || matches!(&b.target, BindingTarget::Redirect {scope} if !self.redirect_ancestor(b.scope, *scope))
@@ -466,8 +550,9 @@ pub fn node_id(
     qualified: &[String],
     discriminator: usize,
 ) -> Result<String> {
+    // The identity encoding stays stable when the fact contract gains fields or relations.
     stable_digest(&(
-        FACT_CONTRACT_VERSION,
+        "zg-relations-v1",
         path,
         language,
         kind,
@@ -476,7 +561,7 @@ pub fn node_id(
     ))
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ResolutionStatus {
     Resolved,
@@ -494,6 +579,8 @@ pub struct Target {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedReference {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation_source: Option<Target>,
     pub source: SourceVersion,
     pub reference: Reference,
     pub status: ResolutionStatus,
@@ -518,7 +605,6 @@ pub(crate) fn resolved(
     candidates: Vec<Target>,
     missing: ResolutionStatus,
     reason: &str,
-    dependencies: Vec<SourceVersion>,
 ) -> ResolvedReference {
     let status = match candidates.len() {
         0 => missing,
@@ -526,6 +612,7 @@ pub(crate) fn resolved(
         _ => ResolutionStatus::Ambiguous,
     };
     ResolvedReference {
+        relation_source: None,
         source: source.version.clone(),
         reference: r.clone(),
         status,
@@ -535,6 +622,6 @@ pub(crate) fn resolved(
             reason.into()
         },
         candidates,
-        dependencies,
+        dependencies: Vec::new(),
     }
 }

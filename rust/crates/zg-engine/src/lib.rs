@@ -95,6 +95,17 @@ impl ZvecGrep {
             .map_err(|error| error.report_here())
     }
 
+    /// Apply one explicit semantic operation to the selected, unchanged text view.
+    pub async fn apply_semantics(
+        &self,
+        options: api::index::graph::SemanticBuildOptions,
+    ) -> EngineResult<api::index::graph::GraphIndexResult> {
+        self.service
+            .apply_semantics(options)
+            .await
+            .map_err(|error| error.report_here())
+    }
+
     /// Inspect or explicitly reconcile a graph candidate after interruption.
     /// This does not expose graph querying or implicitly recover during open.
     pub async fn recover_graph(

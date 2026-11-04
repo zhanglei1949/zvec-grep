@@ -22,6 +22,31 @@ use crate::{
 
 pub use zg_knowledge::relations;
 
+pub(crate) const fn format(language: Language) -> FileFormat {
+    match language {
+        Language::Rust => FileFormat::Rust,
+        Language::Python => FileFormat::Python,
+        Language::Go => FileFormat::Go,
+        Language::Java => FileFormat::Java,
+        Language::C => FileFormat::C,
+        Language::Cpp => FileFormat::Cpp,
+        Language::Markdown => FileFormat::Markdown,
+    }
+}
+pub(crate) fn language(formats: &[FileFormat]) -> Option<Language> {
+    [
+        Language::Markdown,
+        Language::Rust,
+        Language::Python,
+        Language::Go,
+        Language::Java,
+        Language::Cpp,
+        Language::C,
+    ]
+    .into_iter()
+    .find(|language| formats.contains(&format(*language)))
+}
+
 /// Module identity is supplied by the host, never guessed from unrelated roots.
 #[derive(Clone, Debug)]
 pub struct FactInput {
@@ -59,11 +84,7 @@ pub fn inspect_sources(
         if !paths.insert(&input.path) {
             return Err(EngineError::invalid_argument("duplicate graph source path"));
         }
-        let format = match input.language {
-            Language::Rust => FileFormat::Rust,
-            Language::Python => FileFormat::Python,
-            Language::Markdown => FileFormat::Markdown,
-        };
+        let format = format(input.language);
         let text = decode_index_text(&[format], &input.bytes)
             .ok_or_else(|| EngineError::invalid_argument("cannot decode graph input"))?;
         let version = SourceVersion {
@@ -167,6 +188,9 @@ pub(crate) fn map_error(error: zg_knowledge::Error) -> EngineError {
         zg_knowledge::Error::Cancelled => EngineError::cancelled("graph inspection cancelled"),
         zg_knowledge::Error::Deadline => {
             EngineError::deadline_exceeded("graph inspection deadline exceeded")
+        }
+        zg_knowledge::Error::Conflict(_) => {
+            EngineError::resource_busy("graph facts conflict with current state")
         }
         zg_knowledge::Error::ResourceExhausted => {
             EngineError::invalid_argument("graph inspection budget exhausted")

@@ -3,6 +3,19 @@ use crate::{EngineError, EngineResult};
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
 
+/// Rust host entry point for one immutable semantic attempt. The operation UUID
+/// is also its candidate UUID; interrupted attempts use existing graph recovery.
+#[derive(Clone, Debug)]
+pub struct SemanticBuildOptions {
+    pub root: Option<PathBuf>,
+    pub generation: String,
+    pub operation_id: String,
+    pub expected_graph_build_id: String,
+    pub input: zg_knowledge::semantic::SemanticInput,
+    pub lock_timeout_ms: Option<u64>,
+    pub signal: Option<tokio_util::sync::CancellationToken>,
+}
+
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema,
 )]
@@ -32,6 +45,23 @@ impl GraphScope {
 pub enum GraphLanguage {
     Rust,
     Python,
+    Go,
+    Java,
+    C,
+    Cpp,
+}
+impl GraphLanguage {
+    pub(crate) const fn fact_language(self) -> zg_knowledge::relations::Language {
+        use zg_knowledge::relations::Language;
+        match self {
+            Self::Rust => Language::Rust,
+            Self::Python => Language::Python,
+            Self::Go => Language::Go,
+            Self::Java => Language::Java,
+            Self::C => Language::C,
+            Self::Cpp => Language::Cpp,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -39,6 +69,32 @@ pub enum PackageLayout {
     Flat,
     Src,
     ModRs,
+}
+
+pub(crate) fn valid_module_root(
+    root: &Path,
+    language: zg_knowledge::relations::Language,
+    namespace: &str,
+    module_prefix: &[String],
+    layout: PackageLayout,
+) -> bool {
+    use zg_knowledge::relations::Language;
+    !namespace.trim().is_empty()
+        && !root.is_absolute()
+        && root
+            .to_str()
+            .is_some_and(|p| !p.contains(['\\', ':', '\0']))
+        && root.components().all(|c| matches!(c, Component::Normal(_)))
+        && module_prefix.iter().all(|p| !p.is_empty())
+        && language != Language::Markdown
+        && !(matches!(
+            language,
+            Language::Go | Language::Java | Language::C | Language::Cpp
+        ) && layout != PackageLayout::Flat)
+        && !matches!(
+            (language, layout),
+            (Language::Rust, PackageLayout::Src) | (Language::Python, PackageLayout::ModRs)
+        )
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -69,7 +125,7 @@ impl GraphOptions {
         if self
             .rules
             .as_ref()
-            .is_some_and(|r| r.version != "zg-relations-v1")
+            .is_some_and(|r| r.version != zg_knowledge::relations::FACT_CONTRACT_VERSION)
         {
             return Err(EngineError::unsupported("unsupported graph rules version"));
         }
@@ -77,21 +133,14 @@ impl GraphOptions {
         let mut namespaces = std::collections::BTreeSet::new();
         let workspace = workspace.canonicalize().map_err(|_| invalid())?;
         for r in &self.module_roots {
-            if r.root.is_absolute()
-                || r.root.to_str().is_none()
-                || r.root.to_string_lossy().contains(['\\', ':', '\0'])
-                || r.root
-                    .components()
-                    .any(|c| !matches!(c, Component::Normal(_)))
-                || r.namespace.trim().is_empty()
-                || !roots.insert(r.root.clone())
+            if !valid_module_root(
+                &r.root,
+                r.language.fact_language(),
+                &r.namespace,
+                &r.module_prefix,
+                r.layout,
+            ) || !roots.insert(r.root.clone())
                 || !namespaces.insert(r.namespace.clone())
-                || r.module_prefix.iter().any(String::is_empty)
-                || matches!(
-                    (r.language, r.layout),
-                    (GraphLanguage::Rust, PackageLayout::Src)
-                        | (GraphLanguage::Python, PackageLayout::ModRs)
-                )
             {
                 return Err(invalid());
             }

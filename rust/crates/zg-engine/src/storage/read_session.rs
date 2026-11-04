@@ -364,12 +364,13 @@ impl ReadSessionLease {
         manifest: &crate::workspace::manifest::WorkspaceManifest,
         limits: zg_knowledge::graph::GraphLimits,
         context: &zg_knowledge::processing::ProcessingContext,
+        code: bool,
     ) -> EngineResult<()> {
         self.session
             .graph
             .as_ref()
             .ok_or_else(|| EngineError::resource_busy("graph view missing"))?
-            .validate_query(manifest, self.storage(), limits, context, true)
+            .validate_query(manifest, self.storage(), limits, context, code)
     }
     #[cfg(feature = "knowledge-graph-graphdb")]
     pub(crate) fn graph_reader(

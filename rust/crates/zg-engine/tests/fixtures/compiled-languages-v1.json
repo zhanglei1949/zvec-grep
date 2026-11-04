@@ -1,0 +1,248 @@
+{
+  "version": "compiled-languages-v1",
+  "graph": {
+    "scope": "code",
+    "module_roots": [
+      {
+        "root": "go",
+        "language": "go",
+        "namespace": "fixture-go",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "java",
+        "language": "java",
+        "namespace": "fixture-java",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "c",
+        "language": "c",
+        "namespace": "fixture-c",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "cpp",
+        "language": "cpp",
+        "namespace": "fixture-cpp",
+        "module_prefix": [],
+        "layout": "flat"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "path": "go/go.mod",
+      "text": "module example.test/project\n\ngo 1.24\n",
+      "sha256": "65cf169d0d631694b5a540281bb57a2dbc338d7385eae64bf6a31c014b28d864"
+    },
+    {
+      "path": "go/main.go",
+      "text": "﻿package project\r\nimport util \"example.test/project/util\"\r\n// 中文\r\nfunc GoEntry(){GoStep()}\r\nfunc GoStep(){util.GoLeaf()}\r\n",
+      "sha256": "a34f1fe09c84ef45f9aa118237b43a452dbbeee8c05e4d6541e3ee0233453b7c"
+    },
+    {
+      "path": "go/util/leaf.go",
+      "text": "package util\ntype GoCounter struct { Value int }\nfunc GoLeaf(){ /* go_scope */ }\n",
+      "sha256": "e106cee2a32299d04ac258b7409ec5605fe9120fe815d932f2546214609d1595"
+    },
+    {
+      "path": "java/a/JavaEntry.java",
+      "text": "package a;import b.JavaBase;import b.JavaStore;public class JavaEntry extends JavaBase implements JavaStore {public static void start(){JavaBase.javaStep();}}\n",
+      "sha256": "9643c79cf3d938e1cc3274e35b0c3212db6651ccd36c5e9eda5454320ca8c204"
+    },
+    {
+      "path": "java/b/JavaBase.java",
+      "text": "package b;public class JavaBase {public static void javaStep(){javaLeaf();}public static void javaLeaf(){ /* java_scope */ }}\n",
+      "sha256": "d4543ca3e56b3fbc6e111c903e117e0acd7e1736f3a82bb28262747829db5936"
+    },
+    {
+      "path": "java/b/JavaStore.java",
+      "text": "package b;public interface JavaStore {}\n",
+      "sha256": "564545be600d6e97dd21aca9edd383eacf1d0c56f5e57fb34f68a181e57ecb68"
+    },
+    {
+      "path": "c/main.c",
+      "text": "#include \"helpers.h\"\nstatic void cStep(void){cLeaf();}\nvoid cEntry(void){cStep();cForeign();}\n",
+      "sha256": "7e3e3b1b9607f328b3f92b7d420ecebbab4fd81843c78c7de49b454770f8bcb3"
+    },
+    {
+      "path": "c/helpers.h",
+      "text": "static inline void cLeaf(void){ /* c_scope */ }\n",
+      "sha256": "2a2e8b77cdcfcb3508355a6fcdd4a066fceabcd92c8baab0f8ecbeb636a5cb5d"
+    },
+    {
+      "path": "c/unrelated.c",
+      "text": "void cForeign(void){}\n",
+      "sha256": "c1496231d68c813019109ffbf42ffe84d19f1ed481f9579eaee81f1183a6cbf6"
+    },
+    {
+      "path": "cpp/main.C",
+      "text": "#include \"types.hpp\"\nvoid cppEntry(){demo::cppStep();}\n",
+      "sha256": "9247f3d7bd52dee230dd43795069201f9cafbf04c6390f644d4f8382dac9052b"
+    },
+    {
+      "path": "cpp/types.hpp",
+      "text": "namespace demo {struct CppBase {};struct CppExtra {};struct CppChild: CppBase, CppExtra {static void cppLeaf(){ /* cpp_scope */ }};inline void cppStep(){CppChild::cppLeaf();}}\n",
+      "sha256": "aa95693f5a73809484d56b493c7864a6f2aec80c1eb4e300a32b7c9ca05bf9a3"
+    },
+    {
+      "path": "cpp/overload.cpp",
+      "text": "void overloaded(){} void overloaded(int x){} void cppUnknown(){overloaded();}\n",
+      "sha256": "40c1fac8ffbc474fba8f6b0dc46ee4e9f69c4cf0cdfdc59816185bd44dc41e28"
+    },
+    {
+      "path": "compile_commands.json",
+      "text": "[\n  {\n    \"directory\": \".\",\n    \"file\": \"c/main.c\",\n    \"arguments\": [\n      \"cc\",\n      \"-Ic\",\n      \"-x\",\n      \"c\",\n      \"-c\",\n      \"c/main.c\"\n    ]\n  },\n  {\n    \"directory\": \".\",\n    \"file\": \"cpp/main.C\",\n    \"arguments\": [\n      \"c++\",\n      \"-Icpp\",\n      \"-x\",\n      \"c++\",\n      \"-c\",\n      \"cpp/main.C\"\n    ]\n  }\n]\n",
+      "sha256": "1f34895ee4afcf45fb0c25bd4f511843cada31cd01c092a8312901e09e6a3c76"
+    }
+  ],
+  "paths": [
+    {
+      "language": "go",
+      "anchor": "GoEntry",
+      "target": "GoLeaf",
+      "marker": "go_scope"
+    },
+    {
+      "language": "java",
+      "anchor": "start",
+      "target": "javaLeaf",
+      "marker": "java_scope"
+    },
+    {
+      "language": "c",
+      "anchor": "cEntry",
+      "target": "cLeaf",
+      "marker": "c_scope"
+    },
+    {
+      "language": "cpp",
+      "anchor": "cppEntry",
+      "target": "cppLeaf",
+      "marker": "cpp_scope"
+    }
+  ],
+  "calls": [
+    {
+      "source": "go/main.go",
+      "span": {
+        "start": 84,
+        "end": 90
+      },
+      "text": "GoStep",
+      "target": "GoStep",
+      "target_source": "go/main.go"
+    },
+    {
+      "source": "go/main.go",
+      "span": {
+        "start": 109,
+        "end": 120
+      },
+      "text": "util.GoLeaf",
+      "target": "GoLeaf",
+      "target_source": "go/util/leaf.go"
+    },
+    {
+      "source": "java/a/JavaEntry.java",
+      "span": {
+        "start": 136,
+        "end": 155
+      },
+      "text": "JavaBase.javaStep()",
+      "target": "javaStep",
+      "target_source": "java/b/JavaBase.java"
+    },
+    {
+      "source": "java/b/JavaBase.java",
+      "span": {
+        "start": 63,
+        "end": 73
+      },
+      "text": "javaLeaf()",
+      "target": "javaLeaf",
+      "target_source": "java/b/JavaBase.java"
+    },
+    {
+      "source": "c/main.c",
+      "span": {
+        "start": 45,
+        "end": 50
+      },
+      "text": "cLeaf",
+      "target": "cLeaf",
+      "target_source": "c/helpers.h"
+    },
+    {
+      "source": "c/main.c",
+      "span": {
+        "start": 73,
+        "end": 78
+      },
+      "text": "cStep",
+      "target": "cStep",
+      "target_source": "c/main.c"
+    },
+    {
+      "source": "cpp/main.C",
+      "span": {
+        "start": 37,
+        "end": 50
+      },
+      "text": "demo::cppStep",
+      "target": "cppStep",
+      "target_source": "cpp/types.hpp"
+    },
+    {
+      "source": "cpp/types.hpp",
+      "span": {
+        "start": 153,
+        "end": 170
+      },
+      "text": "CppChild::cppLeaf",
+      "target": "cppLeaf",
+      "target_source": "cpp/types.hpp"
+    }
+  ],
+  "negative_cases": [
+    {
+      "source": "c/main.c",
+      "text": "cForeign",
+      "status": "unresolved",
+      "reason": "different translation unit"
+    },
+    {
+      "source": "cpp/overload.cpp",
+      "text": "overloaded",
+      "status": "ambiguous",
+      "reason": "overload selection is unsupported"
+    }
+  ],
+  "type_relations": [
+    {
+      "anchor": "JavaEntry",
+      "relations": [
+        "extends",
+        "implements"
+      ],
+      "targets": [
+        "JavaBase",
+        "JavaStore"
+      ]
+    },
+    {
+      "anchor": "CppChild",
+      "relations": [
+        "extends"
+      ],
+      "targets": [
+        "CppBase",
+        "CppExtra"
+      ]
+    }
+  ]
+}

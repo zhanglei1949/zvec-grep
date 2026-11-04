@@ -7,6 +7,8 @@ pub enum Error {
     InvalidInput(&'static str),
     #[error("invalid provider output: {0}")]
     Provider(&'static str),
+    #[error("operation conflicts: {0}")]
+    Conflict(&'static str),
     #[error("operation cancelled")]
     Cancelled,
     #[error("operation deadline exceeded")]

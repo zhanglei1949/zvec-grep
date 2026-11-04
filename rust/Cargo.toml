@@ -4,7 +4,7 @@ members = ["crates/*", "crates/zg-engine/macros"]
 # graphdb keeps its own workspace at thirdparty/graphdb/rust. Without this
 # exclusion Cargo would auto-member it as an in-tree path dependency and its
 # `version.workspace = true` inheritance would resolve against two roots.
-exclude = ["thirdparty/graphdb"]
+exclude = ["thirdparty/graphdb", "thirdparty/tree-sitter-c", "thirdparty/tree-sitter-cpp"]
 default-members = ["crates/zg"]
 
 [workspace.package]
@@ -47,8 +47,8 @@ tokio-util = "0.7.16"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
 tree-sitter = "0.27.0"
-tree-sitter-c = "0.24.2"
-tree-sitter-cpp = "0.23.4"
+tree-sitter-c = { path = "thirdparty/tree-sitter-c" }
+tree-sitter-cpp = { path = "thirdparty/tree-sitter-cpp" }
 tree-sitter-go = "0.25.0"
 tree-sitter-java = "0.23.5"
 tree-sitter-javascript = "0.25.0"

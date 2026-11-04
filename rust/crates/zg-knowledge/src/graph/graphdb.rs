@@ -2,10 +2,7 @@ use super::{
     GraphError, GraphErrorKind, GraphOutcome, GraphResult, QueryControl,
     schema::{self, MetadataRow},
 };
-use crate::{
-    processing::{ProcessingContext, stable_digest},
-    relations::bound::FactCatalog,
-};
+use crate::{processing::ProcessingContext, relations::bound::FactCatalog};
 use ::graphdb::{AccessMode, Database, QueryOptions, StorageMode, Transaction, TransactionMode};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,13 +16,10 @@ use std::{
     time::Duration,
 };
 
-#[path = "codec.rs"]
 mod codec;
-#[path = "read.rs"]
 mod read;
 use codec::FactRows;
 
-#[path = "import.rs"]
 mod import;
 pub use import::{ImportBudget, ImportProgress};
 
@@ -209,6 +203,14 @@ impl GraphDbStore {
             match operation(&mut tx, &self.options()) {
                 Ok(output) => {
                     super::profile::measure("native.commit", || tx.commit())?;
+                    super::profile::count(
+                        if write {
+                            "native.write_commits"
+                        } else {
+                            "native.read_commits"
+                        },
+                        1,
+                    );
                     Ok(output)
                 }
                 Err(mut error) => {
@@ -273,8 +275,8 @@ impl GraphDbStore {
         }
         context.check_output(rows.cost())?;
         self.with_write(|tx, options| {
-            if !schema::FileRow::read(tx, options)?.is_empty()
-                || !MetadataRow::read(tx, options)?.is_empty()
+            if !MetadataRow::read(tx, options)?.is_empty()
+                || FactRows::read(tx, options)?.cost() != 0
             {
                 return Err(GraphError::local(GraphErrorKind::Conflict));
             }
@@ -286,7 +288,7 @@ impl GraphDbStore {
                 facts_format_version: crate::relations::bound::FACTS_FORMAT_VERSION,
                 config_fingerprint: catalog.config_fingerprint.clone(),
                 selection_fingerprint: catalog.selection_fingerprint.clone(),
-                content_digest: stable_digest(catalog)?,
+                content_digest: codec::catalog_digest(catalog)?,
                 rows_digest: rows.digest()?,
             }
             .insert(tx, options)?;
@@ -320,6 +322,20 @@ impl GraphDbStore {
     }
 
     pub fn read_facts(&self, context: &ProcessingContext) -> GraphResult<FactCatalog> {
+        self.with_verified_facts(context, |catalog, _, _, _| Ok(catalog))
+    }
+    // Consume verified values before this read transaction exits. Commit and
+    // recovery still open their own fresh reads; no proof is retained in a store.
+    pub(super) fn with_verified_facts<T>(
+        &self,
+        context: &ProcessingContext,
+        consume: impl FnOnce(
+            FactCatalog,
+            &MetadataRow,
+            &mut Transaction<'_>,
+            &QueryOptions,
+        ) -> GraphResult<T>,
+    ) -> GraphResult<T> {
         let _stage = super::profile::stage("graph.read_facts");
         context.check()?;
         self.with_read(|tx, options| {
@@ -328,12 +344,12 @@ impl GraphDbStore {
             let rows = FactRows::read(tx, options)?;
             context.check_output(rows.cost())?;
             let catalog = rows.decode(&metadata[0], context)?;
-            if stable_digest(&catalog)? != metadata[0].content_digest
+            if codec::catalog_digest(&catalog)? != metadata[0].content_digest
                 || rows.digest()? != metadata[0].rows_digest
             {
                 return Err(GraphError::local(GraphErrorKind::IncompatibleFormat));
             }
-            Ok(catalog)
+            consume(catalog, &metadata[0], tx, options)
         })
     }
     pub fn counts(&self) -> GraphResult<StoreCounts> {
@@ -368,5 +384,10 @@ fn check_metadata(rows: &[MetadataRow]) -> GraphResult<()> {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
+mod semantic_query_tests;
+#[cfg(test)]
+mod semantic_tests;
+#[cfg(test)]
+mod source_tests;
+#[cfg(test)]
 mod tests;

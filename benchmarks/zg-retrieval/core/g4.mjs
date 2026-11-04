@@ -3,27 +3,108 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { suiteDirectory } from "./suite.mjs";
 import { readJson, objectHash, sha256 } from "./io.mjs";
+import {
+  COMPILED_PROFILES,
+  COMPILED_REVISION,
+  compiledFixtures,
+  verifyCompiledFreeze,
+} from "./g4-compiled.mjs";
 
 export const G4_PROFILE = "g4-code-v7";
+export const G4_PROFILES = [
+  G4_PROFILE,
+  "g4-code-v8",
+  "g4-code-v9",
+  ...COMPILED_PROFILES,
+];
 
-export async function loadG4Suite() {
+export async function loadG4Suite(profile = G4_PROFILE) {
+  assert.ok(G4_PROFILES.includes(profile), "unknown G4 profile");
   const protocol = await readJson(
-    join(suiteDirectory, "configs/g4-code-v7.json"),
+    join(suiteDirectory, `configs/${profile}.json`),
   );
   assert.equal(protocol.schema_version, 7);
   assert.equal(protocol.repetitions, 5);
   assert.equal(protocol.quality_repetition, 5);
   const inputs = await readJson(join(suiteDirectory, protocol.inputs));
+  const compiled = COMPILED_PROFILES.includes(profile);
+  if (compiled) {
+    await verifyCompiledFreeze(profile);
+    assert.equal(
+      inputs.id,
+      profile === COMPILED_REVISION
+        ? "g4-compiled-source-v2"
+        : "g4-compiled-source-v1",
+    );
+    if (profile === COMPILED_REVISION) {
+      const original = await readJson(
+        join(suiteDirectory, "data/g4-compiled-v1.json"),
+      );
+      const expected = structuredClone(original);
+      expected.id = "g4-compiled-source-v2";
+      const java = expected.repositories.find((r) => r.language === "java");
+      java.selection.graph.module_roots = [
+        { ...java.selection.graph.module_roots[0], root: "tools/java_api/src" },
+      ];
+      assert.deepEqual(
+        inputs,
+        expected,
+        "revision changed frozen questions, answers or source",
+      );
+      const previous = await readJson(
+        join(suiteDirectory, "configs/g4-compiled-v1.json"),
+      );
+      assert.deepEqual(
+        protocol,
+        {
+          ...previous,
+          id: "zg-code-graph-four-languages-v2",
+          inputs: "data/g4-compiled-v2.json",
+          parser_conformance: { "cpp:B-02": "ready_locate" },
+        },
+        "revision changed model, scoring or budgets",
+      );
+    }
+    assert.equal(inputs.boundary_cases.length, 8);
+    assert.ok(inputs.tasks.every((t) => t.case_role === "normal"));
+    const spec = await readFile(
+      join(suiteDirectory, "gold/g4-compiled-v1-spec.json"),
+    );
+    assert.equal(sha256(spec), inputs.annotation_spec_sha256);
+  } else if (profile !== G4_PROFILE) {
+    assert.equal(inputs.id, "g4-code-source-v2");
+    assert.equal(
+      inputs.tasks.filter((t) => t.case_role === "normal").length,
+      43,
+    );
+    assert.equal(
+      inputs.tasks.filter((t) => t.case_role === "budget_boundary").length,
+      5,
+    );
+    assert.ok(
+      inputs.tasks
+        .filter((t) => t.case_role === "budget_boundary")
+        .every((t) => t.budget_expectation),
+    );
+  }
+  if (profile === "g4-code-v9" || compiled)
+    assert.equal(protocol.evidence_scoring, "visible-bytes-v2");
   assert.equal(inputs.tasks.length, 48);
-  assert.equal(inputs.repositories.length, 2);
-  assert.equal(inputs.tasks.filter((t) => t.retrieval).length, 24);
-  assert.equal(inputs.tasks.filter((t) => t.retrieval?.constrain).length, 16);
+  assert.equal(inputs.repositories.length, compiled ? 4 : 2);
+  assert.equal(
+    inputs.tasks.filter((t) => t.retrieval).length,
+    compiled ? 48 : 24,
+  );
+  assert.equal(
+    inputs.tasks.filter((t) => t.retrieval?.constrain).length,
+    compiled ? 32 : 16,
+  );
   assert.equal(new Set(inputs.tasks.map((t) => t.task_id)).size, 48);
   for (const repo of inputs.repositories) {
     assert.match(repo.commit, /^[a-f0-9]{40}$/);
     assert.equal(
       inputs.tasks.filter((t) => t.repository === repo.repository).length,
-      24,
+      compiled ? 12 : 24,
     );
   }
   for (const t of inputs.tasks) {
@@ -33,13 +114,53 @@ export async function loadG4Suite() {
     if (t.retrieval)
       assert.equal(sha256(t.retrieval.query), t.retrieval.query_sha256);
     for (const e of t.truth.required_evidence) validateRange(e);
+    if (compiled && t.retrieval.constrain) {
+      for (const e of t.retrieval.allowed_regions) validateRange(e);
+      for (const e of t.retrieval.scope_required_evidence) validateRange(e);
+    }
   }
-  const tool = await readFile(join(suiteDirectory, "tools/g4-labels.py"));
+  const tool = await readFile(
+    join(
+      suiteDirectory,
+      compiled
+        ? "tools/g4-compiled-labels.py"
+        : profile === G4_PROFILE
+          ? "tools/g4-labels.py"
+          : "tools/g4-labels-v2.py",
+    ),
+  );
   assert.equal(
     sha256(tool),
     inputs.annotation_tool_sha256,
     "annotation generator changed after freeze",
   );
+  if (compiled) {
+    const frozen = await readJson(join(compiledFixtures, "call-plan.json"));
+    const calls = g4CallPlan(inputs.tasks, protocol).map((call) => {
+      const task = inputs.tasks.find((t) => t.task_id === call.task_id);
+      return {
+        ...call,
+        query_sha256: task.retrieval.query_sha256,
+        normalized_request_sha256: sha256(
+          JSON.stringify(
+            g4Request(
+              task,
+              call,
+              `/frozen-source/${task.repository.replaceAll("/", "__")}`,
+              protocol,
+            ),
+          ),
+        ),
+      };
+    });
+    assert.deepEqual(calls, frozen.calls, "frozen 800-call matrix changed");
+    return {
+      protocol,
+      inputs,
+      tasks: inputs.tasks,
+      identity: { protocol: objectHash(protocol), inputs: objectHash(inputs) },
+    };
+  }
   // The original question and file labels remain byte-for-byte independent of G4.
   const legacy = await readJson(join(suiteDirectory, "data/source.lock.json"));
   const legacyGold = await readJson(join(suiteDirectory, "gold/files-v1.json"));

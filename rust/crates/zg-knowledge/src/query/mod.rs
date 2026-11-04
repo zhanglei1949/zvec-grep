@@ -5,14 +5,18 @@ mod reader;
 mod request;
 mod result;
 mod seeds;
+mod semantic;
+mod semantic_read;
 mod view;
 pub use explore::{
     AugmentResult, ScopeRegion, ScopeResolution, ScopeTextEntity, ScopeTextFragment,
     ScopeTextProvider, ScopeUnit, SeedExpansion, augment, explore, resolve_scope,
+    resolve_semantic_scope,
 };
 pub use reader::*;
 pub use result::*;
 pub use seeds::*;
+pub use semantic::*;
 
 pub use execution::{BudgetLimits, BudgetUsage, ExecutionOptions, RequestContext};
 pub use request::*;
@@ -65,12 +69,8 @@ impl QueryError {
 }
 
 fn nonempty(value: &str) -> QueryResult<()> {
-    if value.trim().is_empty() || value.len() > 4096 || value.contains('\0') {
-        return Err(QueryError::invalid(
-            "expected a non-empty bounded identifier",
-        ));
-    }
-    Ok(())
+    crate::processing::identifier(value)
+        .map_err(|_| QueryError::invalid("expected a non-empty bounded identifier"))
 }
 
 fn source_id(value: &str) -> QueryResult<()> {

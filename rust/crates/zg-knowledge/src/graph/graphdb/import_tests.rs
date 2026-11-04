@@ -2,6 +2,108 @@ use super::super::ImportBudget;
 use super::*;
 
 #[test]
+fn finalized_import_retries_and_root_commit_recheck_persisted_semantic_facts()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (catalog, spec) = super::super::semantic_tests::semantic_fixture()?;
+    let dir = tempfile::tempdir()?;
+    let store =
+        GraphDbStore::create_batched_build(dir.path().join("graph"), GraphLimits::default())?;
+    let budget = ImportBudget::default();
+    let ready = store.write_facts_batched(&catalog, &budget, &context())?;
+    assert!(ready.finalized);
+    assert_eq!(
+        store.write_facts_batched(&catalog, &budget, &context())?,
+        ready
+    );
+    assert_eq!(store.read_build_facts(&spec, &context())?, None);
+    let changed_budget = ImportBudget {
+        max_batch_rows: budget.max_batch_rows + 1,
+        ..budget.clone()
+    };
+    assert_eq!(
+        store
+            .write_facts_batched(&catalog, &changed_budget, &context())
+            .expect_err("finalized imports keep their saved budget")
+            .kind,
+        GraphErrorKind::Conflict
+    );
+    let mut semantic = catalog.semantic.clone();
+    semantic.entities[0].name.push_str(" changed");
+    let changed = catalog.clone().with_semantic(semantic, &context())?;
+    assert_eq!(
+        store
+            .write_facts_batched(&changed, &budget, &context())
+            .expect_err("finalized facts cannot be rebound to changed input")
+            .kind,
+        GraphErrorKind::Conflict
+    );
+    store.with_write(|tx, options| {
+        tx.execute_with(
+            "MATCH(n:KgSemanticEntity) SET n.name='corrupted'",
+            (),
+            options,
+        )?;
+        Ok(())
+    })?;
+    assert!(
+        store
+            .write_facts_batched(&catalog, &budget, &context())
+            .is_err()
+    );
+    assert!(store.commit_build(&spec, &context()).is_err());
+    store.ensure_no_build_commit()?;
+    Ok(())
+}
+
+#[test]
+fn build_fact_read_verifies_fresh_rows_root_and_receipt() -> Result<(), Box<dyn std::error::Error>>
+{
+    for query in [
+        "MATCH(n:KgSemanticEntity) SET n.name='corrupted'",
+        "MATCH(r:GraphRoot) SET r.attempt=2",
+        "MATCH(r:Receipt) DELETE r",
+    ] {
+        let (catalog, spec) = super::super::semantic_tests::semantic_fixture()?;
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("graph");
+        let store = GraphDbStore::create_batched_build(&path, GraphLimits::default())?;
+        store.write_facts_batched(&catalog, &ImportBudget::default(), &context())?;
+        store.commit_build(&spec, &context())?;
+        store.checkpoint()?;
+        drop(store);
+        let store = GraphDbStore::open(&path, false, GraphLimits::default())?;
+        assert_eq!(store.read_build_facts(&spec, &context())?, Some(catalog));
+        let mut changed = spec.clone();
+        changed.attempt += 1;
+        assert_eq!(
+            store
+                .read_build_facts(&changed, &context())
+                .expect_err("changed proof")
+                .kind,
+            GraphErrorKind::Conflict
+        );
+        let cancelled = context();
+        cancelled.cancellation.cancel();
+        assert_eq!(
+            store
+                .read_build_facts(&spec, &cancelled)
+                .expect_err("cancelled read")
+                .kind,
+            GraphErrorKind::Cancelled
+        );
+        store.with_write(|tx, options| {
+            tx.execute_with(query, (), options)?;
+            Ok(())
+        })?;
+        assert!(
+            store.read_build_facts(&spec, &context()).is_err(),
+            "{query}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn batched_admission_refusal_preserves_native_prefix_and_can_resume()
 -> Result<(), Box<dyn std::error::Error>> {
     use std::cell::Cell;
@@ -45,6 +147,164 @@ fn batched_admission_refusal_preserves_native_prefix_and_can_resume()
         assert_eq!(store.inspect_import(&context())?, progress);
         store.write_facts_batched(&catalog, &budget, &context())?;
         assert_eq!(store.read_facts(&context())?, catalog);
+    }
+    Ok(())
+}
+
+#[test]
+fn borrowed_mutations_and_root_keep_the_v7_digest_contract()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (catalog, spec) = build_fixture()?;
+    let rows = FactRows::encode(&catalog)?;
+    let mut original = stable_digest(&"kg-rows-v7")?;
+    assert_eq!(
+        super::super::codec::catalog_digest(&catalog)?,
+        stable_digest(&catalog)?
+    );
+    for row in rows.mutations() {
+        original = stable_digest(&(original, row))?;
+    }
+    assert_eq!(rows.digest()?, original);
+    let dir = tempfile::tempdir()?;
+    let store =
+        GraphDbStore::create_batched_build(dir.path().join("graph"), GraphLimits::default())?;
+    store.write_facts_batched(&catalog, &ImportBudget::default(), &context())?;
+    let proof = store.commit_build(&spec, &context())?;
+    assert_eq!(proof.facts_digest, stable_digest(&catalog)?);
+    store.with_read(|tx, options| {
+        let roots = crate::graph::schema::RootRow::read(tx, options)?;
+        assert_eq!(roots[0].rows_digest, original);
+        assert_eq!(roots[0].facts_digest, proof.facts_digest);
+        Ok(())
+    })?;
+    assert_eq!(store.inspect_build(&spec, &context())?, Some(proof));
+    Ok(())
+}
+
+#[test]
+fn indexed_decode_rejects_orphan_rows_and_duplicate_ordinals()
+-> Result<(), Box<dyn std::error::Error>> {
+    for query in [
+        "MATCH(n:KgEntity) SET n.file_path='missing-source.rs'",
+        "MATCH(n:KgEntity) SET n.ordinal=0",
+    ] {
+        let dir = tempfile::tempdir()?;
+        let store = GraphDbStore::create(dir.path().join("graph"), GraphLimits::default())?;
+        store.write_facts(&fixture()?, &context())?;
+        store.with_write(|tx, options| {
+            tx.execute_with(query, (), options)?;
+            Ok(())
+        })?;
+        assert!(store.read_facts(&context()).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn finalized_import_rejects_changed_input_as_conflict() -> Result<(), Box<dyn std::error::Error>> {
+    let catalog = fixture()?;
+    let dir = tempfile::tempdir()?;
+    let store =
+        GraphDbStore::create_batched_build(dir.path().join("graph"), GraphLimits::default())?;
+    let budget = ImportBudget::default();
+    let ready = store.write_facts_batched(&catalog, &budget, &context())?;
+    let changed = FactCatalog::resolve(
+        catalog.files.clone(),
+        catalog.config_fingerprint.clone(),
+        stable_digest(&"different-selection")?,
+        &context(),
+    )?;
+    assert_eq!(
+        store
+            .write_facts_batched(&changed, &budget, &context())
+            .expect_err("different input plan")
+            .kind,
+        GraphErrorKind::Conflict
+    );
+    assert_eq!(store.inspect_import(&context())?, ready);
+    assert_eq!(
+        store.write_facts_batched(&catalog, &budget, &context())?,
+        ready
+    );
+    assert_eq!(store.read_facts(&context())?, catalog);
+    Ok(())
+}
+
+#[test]
+fn legacy_default_budget_resumes_after_default_changes() -> Result<(), Box<dyn std::error::Error>> {
+    let (catalog, spec) = build_fixture()?;
+    let mut files = catalog.files;
+    let source = files
+        .iter_mut()
+        .find(|f| f.record.path == "a.py")
+        .ok_or("source")?;
+    let facts = source.facts.as_mut().ok_or("facts")?;
+    for _ in 0..3000 {
+        facts.add_reference(
+            1,
+            RelationKind::Call,
+            Span { start: 0, end: 6 },
+            Lookup::Name {
+                parts: vec!["helper".into()],
+            },
+        )?;
+        source
+            .reference_entities
+            .push(source.node_entities[1].clone());
+    }
+    let catalog = FactCatalog::resolve(
+        files,
+        catalog.config_fingerprint,
+        catalog.selection_fingerprint,
+        &context(),
+    )?;
+    for legacy in [
+        ImportBudget {
+            max_batch_rows: 256,
+            max_batch_bytes: 256 * 1024,
+        },
+        ImportBudget {
+            max_batch_rows: 2048,
+            max_batch_bytes: 2 * 1024 * 1024,
+        },
+    ] {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("graph");
+        let store = GraphDbStore::create_batched_build(&path, GraphLimits::default())?;
+        let ctx = context();
+        let cancel = ctx.cancellation.clone();
+        let error = store
+            .write_facts_batched_observed(&catalog, &legacy, &ctx, |_| cancel.cancel())
+            .expect_err("stop after the first legacy batch");
+        assert_eq!(error.kind, GraphErrorKind::Cancelled);
+        let prefix = store.inspect_import(&context())?;
+        assert_eq!(prefix.completed_batches, 1);
+        assert!(prefix.completed_batches < prefix.total_batches);
+        assert_eq!(prefix.budget, legacy);
+        drop(store);
+
+        let store = GraphDbStore::open_import(&path, false, GraphLimits::default(), &context())?;
+        assert_eq!(store.inspect_import(&context())?, prefix);
+        assert_ne!(ImportBudget::default(), legacy);
+        assert_eq!(
+            store
+                .write_facts_batched(&catalog, &ImportBudget::default(), &context())
+                .expect_err("a new default must not re-partition an existing candidate")
+                .kind,
+            GraphErrorKind::Conflict,
+        );
+        assert_eq!(store.inspect_import(&context())?, prefix);
+        assert!(
+            store
+                .write_facts_batched(&catalog, &prefix.budget, &context())?
+                .finalized
+        );
+        let proof = store.commit_build(&spec, &context())?;
+        store.checkpoint()?;
+        drop(store);
+        let store = GraphDbStore::open(&path, true, GraphLimits::default())?;
+        assert_eq!(store.read_facts(&context())?, catalog);
+        assert_eq!(store.inspect_build(&spec, &context())?, Some(proof));
     }
     Ok(())
 }
@@ -292,6 +552,48 @@ fn typed_batch_failure_rolls_back_all_tables_in_the_logical_batch()
     let counts = store.counts()?;
     assert!(counts.nodes.values().all(|count| *count == 0));
     assert!(counts.relations.values().all(|count| *count == 0));
+    Ok(())
+}
+
+#[test]
+fn file_mapping_larger_than_copy_record_limit_round_trips_in_logical_batch()
+-> Result<(), Box<dyn std::error::Error>> {
+    use super::super::codec::Mutation;
+    let rows = FactRows::encode(&fixture()?)?;
+    let mut file = rows
+        .mutations()
+        .into_iter()
+        .find_map(|m| match m {
+            Mutation::File(row) => Some(row.clone()),
+            _ => None,
+        })
+        .expect("fixture file");
+    // Real ripgrep maps reach 183,780 bytes, within the 256 KiB logical batch
+    // budget but above the native COPY reader's 128 KiB record limit.
+    file.text_map = serde_json::to_string(&vec!["map"; 30_000])?;
+    assert!(file.text_map.len() > 128 * 1024);
+    assert!(
+        serde_json::to_vec(&Mutation::File(&file))?.len()
+            <= ImportBudget::default().max_batch_bytes
+    );
+    let dir = tempfile::tempdir()?;
+    let store = GraphDbStore::create(dir.path().join("graph"), GraphLimits::default())?;
+    store.with_write(|tx, options| {
+        FactRows::import_batch(&[Mutation::File(&file)], tx, options, &context())
+    })?;
+    store.with_read(|tx, options| {
+        let actual = FactRows::read(tx, options)?;
+        let stored = actual
+            .mutations()
+            .into_iter()
+            .find_map(|m| match m {
+                Mutation::File(row) => Some(row),
+                _ => None,
+            })
+            .expect("stored file");
+        assert_eq!(stored, &file);
+        Ok(())
+    })?;
     Ok(())
 }
 

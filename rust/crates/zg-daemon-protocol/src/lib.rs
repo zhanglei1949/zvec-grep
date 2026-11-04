@@ -12,7 +12,7 @@ use zg_engine::api::{
     info::{InfoOptions, InfoResult},
 };
 
-pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 14;
+pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 16;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DaemonRequest {
@@ -436,7 +436,7 @@ mod explore_tests {
     }
     #[test]
     fn explore_is_explicit_in_current_protocol_and_preserves_deadlines() {
-        assert_eq!(CURRENT_DAEMON_PROTOCOL_VERSION, 14);
+        assert_eq!(CURRENT_DAEMON_PROTOCOL_VERSION, 16);
         let mut options = ExploreOptions::new(ExploreRequest {
             domain: QueryDomain::Code,
             operation: ExploreOperation::Locate {

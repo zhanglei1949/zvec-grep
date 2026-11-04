@@ -84,7 +84,9 @@ fn table(kind: RelationKind) -> QueryResult<&'static str> {
         RelationKind::Contains => Ok("KgContains"),
         RelationKind::Calls => Ok("KgCalls"),
         RelationKind::Imports => Ok("KgImports"),
-        _ => Err(QueryError::new(
+        RelationKind::Extends => Ok("KgExtends"),
+        RelationKind::Implements => Ok("KgImplements"),
+        RelationKind::Links => Err(QueryError::new(
             QueryErrorKind::Unsupported,
             "graph_read",
             "relation unsupported in code explore",
@@ -92,6 +94,75 @@ fn table(kind: RelationKind) -> QueryResult<&'static str> {
     }
 }
 impl GraphDbStore {
+    fn implementation_references(
+        &self,
+        owner: Option<&str>,
+        source: &str,
+        id: Option<&str>,
+        offset: u64,
+        context: &RequestContext,
+    ) -> QueryResult<Vec<ReferenceRecord>> {
+        // v7 edges retain the declaration file in the typed payload. Its owner
+        // can be declared elsewhere; page by declaration rather than owner file.
+        let mut raw_offset = 0u64;
+        let mut matched = 0u64;
+        let mut output = Vec::new();
+        loop {
+            context.check()?;
+            let rows = self.with_read(|tx, options| {
+                let result = tx.query_with(&format!("MATCH (a:KgEntity)-[e:KgImplements]->(b:KgEntity) WHERE ($owner='' OR a.id=$owner) AND ($id='' OR e.ref_id=$id) RETURN e.data,b.id ORDER BY e.ref_id SKIP {raw_offset} LIMIT 256"), params!{"owner"=>owner.unwrap_or(""),"id"=>id.unwrap_or("")}, options)?;
+                let mut cursor = result.rows(); let mut rows = Vec::new();
+                while let Some(row) = cursor.next()? { rows.push((unjson::<ResolvedReference>(&row.try_get::<String>(0)?)?, row.try_get::<String>(1)?)); }
+                Ok(rows)
+            }).map_err(|e| error(&e))?;
+            context.charge(crate::query::BudgetUsage {
+                candidates: rows.len() as u64,
+                ..Default::default()
+            })?;
+            let count = rows.len();
+            for (mut resolved, target) in rows {
+                if resolved.reference.file_path != source {
+                    continue;
+                }
+                if matched >= offset {
+                    if let Some(source) = resolved.relation_source {
+                        resolved.reference.owner_id = source.node_id;
+                    }
+                    output.push(self.reference_record(
+                        &resolved.reference,
+                        Some(target),
+                        context,
+                    )?);
+                    if output.len() == 256 {
+                        return Ok(output);
+                    }
+                }
+                matched += 1;
+            }
+            if count < 256 {
+                return Ok(output);
+            }
+            raw_offset += 256;
+        }
+    }
+    pub fn find_source(
+        &self,
+        id: &str,
+        context: &RequestContext,
+    ) -> QueryResult<Option<SourceRecord>> {
+        context.check()?;
+        self.with_read(|tx, options| {
+            let rows = FileRow::select(
+                tx,
+                options,
+                "WHERE n.path=$source",
+                params! {"source"=>id},
+                0,
+            )?;
+            rows.into_iter().map(source).next().transpose()
+        })
+        .map_err(|e| error(&e))
+    }
     pub fn source_records(
         &self,
         after: &str,
@@ -116,6 +187,8 @@ impl GraphDbStore {
             "call" => RelationKind::Calls,
             "import" => RelationKind::Imports,
             "document_link" => RelationKind::Links,
+            "extends" => RelationKind::Extends,
+            "implements" => RelationKind::Implements,
             _ => return Err(QueryError::invalid("unknown persisted reference kind")),
         };
         Ok(ReferenceRecord {
@@ -153,6 +226,42 @@ impl GraphDbStore {
     }
 }
 impl GraphReader for GraphDbStore {
+    fn source_nodes(
+        &self,
+        ids: &[String],
+        context: &RequestContext,
+    ) -> QueryResult<Vec<EntityRecord>> {
+        context.check()?;
+        if ids.len() > 256 {
+            return Err(QueryError::invalid("source node batch exceeds 256"));
+        }
+        self.with_read(|tx, options| {
+            NodeRow::select(
+                tx,
+                options,
+                "WHERE n.id IN $ids",
+                params! {"ids"=>&strings(ids)},
+                0,
+            )?
+            .into_iter()
+            .map(entity)
+            .collect()
+        })
+        .map_err(|e| error(&e))
+    }
+    fn semantic_page(
+        &self,
+        partition: crate::query::SemanticPartition,
+        space: &str,
+        offset: u64,
+        context: &RequestContext,
+    ) -> QueryResult<crate::semantic::SemanticCatalog> {
+        context.check()?;
+        self.with_read(|tx, options| {
+            super::codec::FactRows::semantic_page(tx, options, partition, space, offset)
+        })
+        .map_err(|e| error(&e))
+    }
     fn span_nodes(
         &self,
         source: &str,
@@ -276,7 +385,10 @@ impl GraphReader for GraphDbStore {
                 let reference = data
                     .map(|v| unjson::<ResolvedReference>(&v).map_err(|e| error(&e)))
                     .transpose()?
-                    .map(|r| self.reference_record(&r.reference, Some(target.clone()), context))
+                    .map(|mut r| {
+                        r.reference.owner_id.clone_from(&source);
+                        self.reference_record(&r.reference, Some(target.clone()), context)
+                    })
                     .transpose()?;
                 Ok(RelationRecord {
                     id: reference
@@ -300,10 +412,15 @@ impl GraphReader for GraphDbStore {
         context: &RequestContext,
     ) -> QueryResult<Vec<ReferenceRecord>> {
         context.check()?;
+        if partition == ReferencePartition::Implements
+            && let Some(source) = source_id
+        {
+            return self.implementation_references(owner, source, id, offset, context);
+        }
         // Union before paging: the same ref_id occurs in exactly one branch.
         let raw=self.with_read(|tx,options| {
             let mut result_rows=Vec::new();
-            let name=match partition {ReferencePartition::Unresolved=>"KgUnresolvedRef",ReferencePartition::Calls=>"KgCalls",ReferencePartition::Imports=>"KgImports"};
+            let name=match partition {ReferencePartition::Unresolved=>"KgUnresolvedRef",ReferencePartition::Calls=>"KgCalls",ReferencePartition::Imports=>"KgImports",ReferencePartition::Extends=>"KgExtends",ReferencePartition::Implements=>"KgImplements"};
             {
                 let (q, data)=if name=="KgUnresolvedRef" {
                     (format!("MATCH (r:KgUnresolvedRef) WHERE r.kind <> 'document_link' AND ($owner='' OR r.owner_id=$owner) AND ($source='' OR r.file_path=$source) AND ($id='' OR r.id=$id) RETURN r.id,r.file_path,r.owner_id,r.kind,r.status,r.reason,r.span_start,r.span_end,r.lookup ORDER BY r.id SKIP {offset} LIMIT 256"),false)
@@ -311,7 +428,7 @@ impl GraphReader for GraphDbStore {
                 let result=tx.query_with(&q,params!{"owner"=>owner.unwrap_or(""),"source"=>source_id.unwrap_or(""),"id"=>id.unwrap_or("")},options)?;
                 let mut cursor=result.rows();
                 while let Some(row)=cursor.next()? {
-                    if data { let r:ResolvedReference=unjson(&row.try_get::<String>(0)?)?;result_rows.push((r.reference,Some(row.try_get(1)?))); }
+                    if data { let mut r:ResolvedReference=unjson(&row.try_get::<String>(0)?)?;if let Some(source) = r.relation_source { r.reference.owner_id = source.node_id; }result_rows.push((r.reference,Some(row.try_get(1)?))); }
                     else {result_rows.push((crate::graph::schema::ReferenceRow { id:row.try_get(0)?,file_path:row.try_get(1)?,owner_id:row.try_get(2)?,kind:row.try_get(3)?,status:row.try_get(4)?,reason:row.try_get(5)?,span_start:row.try_get(6)?,span_end:row.try_get(7)?,lookup:row.try_get(8)?,ordinal:0,scope_ordinal:0,entity_ids:String::new() },None));}
                 }
             } Ok(result_rows)

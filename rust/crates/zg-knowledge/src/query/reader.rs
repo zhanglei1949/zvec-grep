@@ -18,8 +18,31 @@ pub enum ReferencePartition {
     Unresolved,
     Calls,
     Imports,
+    Extends,
+    Implements,
 }
 pub trait GraphReader {
+    fn source_nodes(
+        &self,
+        ids: &[String],
+        context: &RequestContext,
+    ) -> QueryResult<Vec<EntityRecord>> {
+        self.get_nodes(ids, context)
+    }
+    /// Code-only readers explicitly lack this capability; views must not advertise it.
+    fn semantic_page(
+        &self,
+        _partition: super::SemanticPartition,
+        _space: &str,
+        _offset: u64,
+        _context: &RequestContext,
+    ) -> QueryResult<crate::semantic::SemanticCatalog> {
+        Err(super::QueryError::new(
+            super::QueryErrorKind::Unsupported,
+            "semantic_read",
+            "reader has no semantic capability",
+        ))
+    }
     /// Business nodes overlapping a nonempty source interval, in stable ID order.
     /// Callers page to completion before deciding whether a hit has one owner.
     fn span_nodes(

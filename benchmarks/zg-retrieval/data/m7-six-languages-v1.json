@@ -1,0 +1,408 @@
+{
+  "version": "m7-six-languages-v1",
+  "graph": {
+    "scope": "code",
+    "module_roots": [
+      {
+        "root": "go",
+        "language": "go",
+        "namespace": "fixture-go",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "java",
+        "language": "java",
+        "namespace": "fixture-java",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "c",
+        "language": "c",
+        "namespace": "fixture-c",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "cpp",
+        "language": "cpp",
+        "namespace": "fixture-cpp",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "rs",
+        "language": "rust",
+        "namespace": "fixture-rust",
+        "module_prefix": [],
+        "layout": "flat"
+      },
+      {
+        "root": "py",
+        "language": "python",
+        "namespace": "fixture-python",
+        "module_prefix": [],
+        "layout": "flat"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "path": "go/go.mod",
+      "text": "module example.test/project\n\ngo 1.24\n",
+      "sha256": "65cf169d0d631694b5a540281bb57a2dbc338d7385eae64bf6a31c014b28d864"
+    },
+    {
+      "path": "go/main.go",
+      "text": "﻿package project\r\nimport util \"example.test/project/util\"\r\n// 中文\r\nfunc GoEntry(){GoStep()}\r\nfunc GoStep(){util.GoLeaf()}\r\n",
+      "sha256": "a34f1fe09c84ef45f9aa118237b43a452dbbeee8c05e4d6541e3ee0233453b7c"
+    },
+    {
+      "path": "go/util/leaf.go",
+      "text": "package util\ntype GoCounter struct { Value int }\nfunc GoLeaf(){ /* go_scope */ }\n",
+      "sha256": "e106cee2a32299d04ac258b7409ec5605fe9120fe815d932f2546214609d1595"
+    },
+    {
+      "path": "java/a/JavaEntry.java",
+      "text": "package a;import b.JavaBase;import b.JavaStore;public class JavaEntry extends JavaBase implements JavaStore {public static void start(){JavaBase.javaStep();}}\n",
+      "sha256": "9643c79cf3d938e1cc3274e35b0c3212db6651ccd36c5e9eda5454320ca8c204"
+    },
+    {
+      "path": "java/b/JavaBase.java",
+      "text": "package b;public class JavaBase {public static void javaStep(){javaLeaf();}public static void javaLeaf(){ /* java_scope */ }}\n",
+      "sha256": "d4543ca3e56b3fbc6e111c903e117e0acd7e1736f3a82bb28262747829db5936"
+    },
+    {
+      "path": "java/b/JavaStore.java",
+      "text": "package b;public interface JavaStore {}\n",
+      "sha256": "564545be600d6e97dd21aca9edd383eacf1d0c56f5e57fb34f68a181e57ecb68"
+    },
+    {
+      "path": "c/main.c",
+      "text": "#include \"helpers.h\"\nstatic void cStep(void){cLeaf();}\nvoid cEntry(void){cStep();cForeign();}\n",
+      "sha256": "7e3e3b1b9607f328b3f92b7d420ecebbab4fd81843c78c7de49b454770f8bcb3"
+    },
+    {
+      "path": "c/helpers.h",
+      "text": "static inline void cLeaf(void){ /* c_scope */ }\n",
+      "sha256": "2a2e8b77cdcfcb3508355a6fcdd4a066fceabcd92c8baab0f8ecbeb636a5cb5d"
+    },
+    {
+      "path": "c/unrelated.c",
+      "text": "void cForeign(void){}\n",
+      "sha256": "c1496231d68c813019109ffbf42ffe84d19f1ed481f9579eaee81f1183a6cbf6"
+    },
+    {
+      "path": "cpp/main.C",
+      "text": "#include \"types.hpp\"\nvoid cppEntry(){demo::cppStep();}\n",
+      "sha256": "9247f3d7bd52dee230dd43795069201f9cafbf04c6390f644d4f8382dac9052b"
+    },
+    {
+      "path": "cpp/types.hpp",
+      "text": "namespace demo {struct CppBase {};struct CppExtra {};struct CppChild: CppBase, CppExtra {static void cppLeaf(){ /* cpp_scope */ }};inline void cppStep(){CppChild::cppLeaf();}}\n",
+      "sha256": "aa95693f5a73809484d56b493c7864a6f2aec80c1eb4e300a32b7c9ca05bf9a3"
+    },
+    {
+      "path": "cpp/overload.cpp",
+      "text": "void overloaded(){} void overloaded(int x){} void cppUnknown(){overloaded();}\n",
+      "sha256": "40c1fac8ffbc474fba8f6b0dc46ee4e9f69c4cf0cdfdc59816185bd44dc41e28"
+    },
+    {
+      "path": "compile_commands.json",
+      "text": "[\n  {\n    \"directory\": \".\",\n    \"file\": \"c/main.c\",\n    \"arguments\": [\n      \"cc\",\n      \"-Ic\",\n      \"-x\",\n      \"c\",\n      \"-c\",\n      \"c/main.c\"\n    ]\n  },\n  {\n    \"directory\": \".\",\n    \"file\": \"cpp/main.C\",\n    \"arguments\": [\n      \"c++\",\n      \"-Icpp\",\n      \"-x\",\n      \"c++\",\n      \"-c\",\n      \"cpp/main.C\"\n    ]\n  }\n]\n",
+      "sha256": "1f34895ee4afcf45fb0c25bd4f511843cada31cd01c092a8312901e09e6a3c76"
+    },
+    {
+      "path": "rs/lib.rs",
+      "text": "pub trait RustBase {}\npub trait RustChild: RustBase {}\npub struct RustWorker;\nimpl RustChild for RustWorker {}\nmod chain;\npub fn RustEntry(){chain::RustStep();}\n",
+      "sha256": "7196e3112033a6a67dc5c926f0354b34a918b9bb887b0c8d081b04f37d36cc94"
+    },
+    {
+      "path": "rs/chain.rs",
+      "text": "pub fn RustStep(){RustLeaf();}\npub fn RustLeaf(){ /* rust_scope */ }\npub fn RustUnknown(){missing();}\n",
+      "sha256": "67ef08c9c265e479e74ca09322b5d638d4a94e64ed17cc07e5843e3c63ce9ac6"
+    },
+    {
+      "path": "py/main.py",
+      "text": "class PythonBase: pass\nclass PythonChild(PythonBase): pass\ndef PythonEntry():\n    PythonStep()\ndef PythonStep():\n    PythonLeaf()\ndef PythonLeaf():\n    pass # python_scope\ndef PythonUnknown(callback):\n    callback()\n",
+      "sha256": "021ae23b1c53b8b2f937d987d92b84e68b66b75f09a3f33c8fbf321c673a99d1"
+    },
+    {
+      "path": "docs/README.md",
+      "text": "# Workspace\nFrozen six-language graph acceptance.\n",
+      "sha256": "10b2fd5a04567cc887a5c460349fc54f75bbfa301c20c42a46ce200ac469064b"
+    },
+    {
+      "path": "skipped/app.js",
+      "text": "export function skippedJS(){ return \"js_scope\"; }\n",
+      "sha256": "2dfacd3faadf621c2033063fd402c3e82aeb9d622da3b4e35e16852ad7d7487e"
+    },
+    {
+      "path": "skipped/app.ts",
+      "text": "export function skippedTS(): string { return \"ts_scope\"; }\n",
+      "sha256": "9116462eaacd845d5c73c8b46c4ab3882ed821d865cefce251fd06fa1763b44c"
+    }
+  ],
+  "paths": [
+    {
+      "language": "go",
+      "anchor": "GoEntry",
+      "target": "GoLeaf",
+      "marker": "go_scope"
+    },
+    {
+      "language": "java",
+      "anchor": "start",
+      "target": "javaLeaf",
+      "marker": "java_scope"
+    },
+    {
+      "language": "c",
+      "anchor": "cEntry",
+      "target": "cLeaf",
+      "marker": "c_scope"
+    },
+    {
+      "language": "cpp",
+      "anchor": "cppEntry",
+      "target": "cppLeaf",
+      "marker": "cpp_scope"
+    },
+    {
+      "language": "rust",
+      "anchor": "RustEntry",
+      "target": "RustLeaf",
+      "marker": "rust_scope"
+    },
+    {
+      "language": "python",
+      "anchor": "PythonEntry",
+      "target": "PythonLeaf",
+      "marker": "python_scope"
+    }
+  ],
+  "calls": [
+    {
+      "source": "go/main.go",
+      "span": {
+        "start": 84,
+        "end": 90
+      },
+      "text": "GoStep",
+      "target": "GoStep",
+      "target_source": "go/main.go"
+    },
+    {
+      "source": "go/main.go",
+      "span": {
+        "start": 109,
+        "end": 120
+      },
+      "text": "util.GoLeaf",
+      "target": "GoLeaf",
+      "target_source": "go/util/leaf.go"
+    },
+    {
+      "source": "java/a/JavaEntry.java",
+      "span": {
+        "start": 136,
+        "end": 155
+      },
+      "text": "JavaBase.javaStep()",
+      "target": "javaStep",
+      "target_source": "java/b/JavaBase.java"
+    },
+    {
+      "source": "java/b/JavaBase.java",
+      "span": {
+        "start": 63,
+        "end": 73
+      },
+      "text": "javaLeaf()",
+      "target": "javaLeaf",
+      "target_source": "java/b/JavaBase.java"
+    },
+    {
+      "source": "c/main.c",
+      "span": {
+        "start": 45,
+        "end": 50
+      },
+      "text": "cLeaf",
+      "target": "cLeaf",
+      "target_source": "c/helpers.h"
+    },
+    {
+      "source": "c/main.c",
+      "span": {
+        "start": 73,
+        "end": 78
+      },
+      "text": "cStep",
+      "target": "cStep",
+      "target_source": "c/main.c"
+    },
+    {
+      "source": "cpp/main.C",
+      "span": {
+        "start": 37,
+        "end": 50
+      },
+      "text": "demo::cppStep",
+      "target": "cppStep",
+      "target_source": "cpp/types.hpp"
+    },
+    {
+      "source": "cpp/types.hpp",
+      "span": {
+        "start": 153,
+        "end": 170
+      },
+      "text": "CppChild::cppLeaf",
+      "target": "cppLeaf",
+      "target_source": "cpp/types.hpp"
+    },
+    {
+      "source": "rs/lib.rs",
+      "span": {
+        "start": 141,
+        "end": 156
+      },
+      "text": "chain::RustStep",
+      "target": "RustStep",
+      "target_source": "rs/chain.rs"
+    },
+    {
+      "source": "rs/chain.rs",
+      "span": {
+        "start": 18,
+        "end": 26
+      },
+      "text": "RustLeaf",
+      "target": "RustLeaf",
+      "target_source": "rs/chain.rs"
+    },
+    {
+      "source": "py/main.py",
+      "span": {
+        "start": 82,
+        "end": 92
+      },
+      "text": "PythonStep",
+      "target": "PythonStep",
+      "target_source": "py/main.py"
+    },
+    {
+      "source": "py/main.py",
+      "span": {
+        "start": 117,
+        "end": 127
+      },
+      "text": "PythonLeaf",
+      "target": "PythonLeaf",
+      "target_source": "py/main.py"
+    }
+  ],
+  "negative_cases": [
+    {
+      "source": "c/main.c",
+      "text": "cForeign",
+      "status": "unresolved",
+      "reason": "different translation unit"
+    },
+    {
+      "source": "cpp/overload.cpp",
+      "text": "overloaded",
+      "status": "ambiguous",
+      "reason": "overload selection is unsupported"
+    },
+    {
+      "source": "rs/chain.rs",
+      "text": "missing",
+      "status": "unresolved",
+      "reason": "missing lexical function"
+    },
+    {
+      "source": "py/main.py",
+      "text": "callback",
+      "status": "unresolved",
+      "reason": "unknown runtime callable"
+    }
+  ],
+  "type_relations": [
+    {
+      "anchor": "JavaEntry",
+      "relations": [
+        "extends",
+        "implements"
+      ],
+      "targets": [
+        "JavaBase",
+        "JavaStore"
+      ]
+    },
+    {
+      "anchor": "CppChild",
+      "relations": [
+        "extends"
+      ],
+      "targets": [
+        "CppBase",
+        "CppExtra"
+      ]
+    },
+    {
+      "anchor": "RustChild",
+      "relations": [
+        "extends"
+      ],
+      "targets": [
+        "RustBase"
+      ]
+    },
+    {
+      "anchor": "RustWorker",
+      "relations": [
+        "implements"
+      ],
+      "targets": [
+        "RustChild"
+      ]
+    },
+    {
+      "anchor": "PythonChild",
+      "relations": [
+        "extends"
+      ],
+      "targets": [
+        "PythonBase"
+      ]
+    }
+  ],
+  "scope": "Six-language static subset; JS/TS graph deferred. No candidate output is read.",
+  "deferred_languages": [
+    {
+      "source": "skipped/app.js",
+      "symbol": "skippedJS",
+      "marker": "js_scope"
+    },
+    {
+      "source": "skipped/app.ts",
+      "symbol": "skippedTS",
+      "marker": "ts_scope"
+    }
+  ],
+  "unsupported_sources": [
+    {
+      "name": "cpp-default-parameter",
+      "path": "cpp/literals.cc",
+      "language": "cpp",
+      "text": "#include <cmath>\n#include <cstdlib>\n#include \"graphdb/common/string_literal.h\"\n#include \"frontend.h\"\nnamespace graphdb::graph {\nnamespace {\nstd::string Upper(std::string s) {\n  for (char &c : s)\n    c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));\n  return s;\n}\n[[noreturn]] void Unsupported(const std::string &feature) {\n  throw Error(\"unsupported lowering: \" + feature + \" (parsed by Kuzu)\");\n}\nId IntegerLiteral(const std::string &text,\n                  std::optional<SourceLocation> location = {}) {\n  const bool negative = !text.empty() && text.front() == '-';\n  size_t pos = negative ? 1 : 0;\n  unsigned base = 10;\n  if (text.size() > pos + 2 && text[pos] == '0') {\n    if (text[pos + 1] == 'x') base = 16;\n    if (text[pos + 1] == 'o') base = 8;\n    if (base != 10) pos += 2;\n  }\n  if (pos == text.size()) throw Error(\"invalid integer literal\");\n  const auto limit = static_cast<uint64_t>(INT64_MAX) + negative;\n  uint64_t magnitude = 0;\n  for (; pos < text.size(); ++pos) {\n    const auto c = text[pos];\n    const unsigned digit = c >= '0' && c <= '9'   ? c - '0'\n                           : c >= 'a' && c <= 'f' ? c - 'a' + 10\n                           : c >= 'A' && c <= 'F' ? c - 'A' + 10\n                                                  : base;\n    if (digit >= base) throw Error(\"invalid integer literal\");\n    if (magnitude > (limit - digit) / base)\n      throw DiagnosticError(ErrorCode::IntegerOverflow,\n                            ErrorCategory::OutOfRange, ErrorStage::Bind,\n                            \"integer literal out of range\", location);\n    magnitude = magnitude * base + digit;\n  }\n  // Neither cast 2^63 to signed nor negate INT64_MIN.\n  return negative && magnitude ? -static_cast<Id>(magnitude - 1) - 1\n                               : static_cast<Id>(magnitude);\n}\nconst Syntax &Peel(const Syntax &n) {\n  // Preserve semantic leaves; other one-child rules are precedence wrappers.\n  if (n.rule == \"oC_Parameter\" || n.rule == \"oC_Variable\" ||\n      n.rule == \"oC_Literal\" || n.rule == \"oC_FunctionInvocation\" ||\n      n.rule == \"oC_NumberLiteral\")\n    return n;\n  return n.children.size() == 1 ? Peel(n.children.front()) : n;\n}\n}  // namespace\nValue ReadScalarLiteral(const Syntax &input) {\n  const auto &n = Peel(input);\n  const auto text = n.text, upper = Upper(text);\n  if (n.rule == \"oC_Literal\") {\n    if (upper == \"NULL\") return {};\n    if (upper == \"TRUE\" || upper == \"FALSE\") return upper == \"TRUE\";\n    if (text.size() >= 2 && (text.front() == '\\'' || text.front() == '\"'))\n      return DecodeStringLiteral(text);\n    if (auto *number = n.Find(\"oC_NumberLiteral\"))\n      return ReadScalarLiteral(*number);\n  }\n  if (n.rule == \"oC_NumberLiteral\" ||\n      (n.rule == \"oC_UnaryAddSubtractOrFactorialExpression\" &&\n       n.children.size() == 2 && n.Has(\"-\"))) {\n    // The grammar has already validated the number; require full conversion.\n    try {\n      size_t used = 0;\n      // Hex digits E/e aren't floating-point exponents. Classify by the\n      // grammar leaf, including a unary negative integer's NumberLiteral.\n      const auto &number = n.rule == \"oC_NumberLiteral\"\n                               ? n\n                               : n.Need(\"oC_PropertyOrLabelsExpression\")\n                                     .Need(\"oC_Atom\")\n                                     .Need(\"oC_Literal\")\n                                     .Need(\"oC_NumberLiteral\");\n      if (number.Find(\"oC_IntegerLiteral\"))\n        return IntegerLiteral(text, n.location);\n      auto value = std::stod(text, &used);\n      if (used != text.size() || !std::isfinite(value))\n        throw Error(\"invalid floating literal\");\n      return value;\n    } catch (const std::logic_error &) {\n      // stod reports underflow as out_of_range too. Leave it unclassified\n      // rather than labeling a tiny finite value as overflow.\n      if (std::isinf(std::strtod(text.c_str(), nullptr)))\n        throw DiagnosticError(ErrorCode::FloatingPointOverflow,\n                              ErrorCategory::OutOfRange, ErrorStage::Bind,\n                              \"numeric literal out of range\", n.location);\n      throw Error(\"numeric literal out of range\");\n    }\n  }\n  Unsupported(\"scalar expression \" + n.text);\n}\nValue Scalar(const Syntax &input, const Parameters &parameters) {\n  return EvaluateValue(LowerValueExpression(input), parameters);\n}\n\n}  // namespace graphdb::graph\n",
+      "sha256": "aea5dc39d86fe84ba6cc51ff37c2403f34f7d25f3a65304f55c87ed6f1bf4b88",
+      "repository_commit": "c1a77be7d3327fdd72b1be23be8b2aac1dc2f8ae",
+      "expected": "not_ready",
+      "reason": "fixed tree-sitter-cpp=0.23.4 missing type_identifier at byte 517; original representative v1 failure retained"
+    }
+  ]
+}

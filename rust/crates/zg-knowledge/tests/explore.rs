@@ -266,7 +266,12 @@ fn view() -> KgReadView<()> {
         },
         vec![GraphReadCapabilities {
             domain: QueryDomain::Code,
-            relations: vec![RelationKind::Calls, RelationKind::Imports],
+            relations: vec![
+                RelationKind::Calls,
+                RelationKind::Imports,
+                RelationKind::Extends,
+                RelationKind::Implements,
+            ],
             text_mapping: true,
         }],
         None,
@@ -493,6 +498,46 @@ fn graph() -> Graph {
         ],
     }
 }
+
+#[test]
+fn references_reject_missing_type_relation_capabilities() {
+    let limited = KgReadView::new(
+        view().stamp().clone(),
+        (),
+        &ReadViewRequest {
+            graph: GraphRequirement::Required,
+            needs: Some(GraphReadNeeds {
+                domain: QueryDomain::Code,
+                relations: vec![],
+                text_mapping: false,
+            }),
+        },
+        vec![GraphReadCapabilities {
+            domain: QueryDomain::Code,
+            relations: vec![RelationKind::Calls, RelationKind::Imports],
+            text_mapping: false,
+        }],
+        None,
+    )
+    .expect("limited view");
+    let result = explore(
+        &graph(),
+        &Evidence { unavailable: false },
+        &limited,
+        &request(ExploreOperation::References {
+            selector: ReferenceSelector::Source {
+                source_id: "root.rs".into(),
+            },
+        }),
+        &context(BudgetLimits::default()),
+    );
+    assert_eq!(
+        result
+            .expect_err("all reference partitions require admission")
+            .kind,
+        QueryErrorKind::GraphUnavailable
+    );
+}
 fn execute(graph: &Graph, request: &ExploreRequest) -> ExploreResult {
     explore(
         graph,
@@ -708,6 +753,60 @@ fn unavailable_evidence_and_exhausted_path_search_are_errors() {
         QueryErrorKind::ResourceExhausted
     );
 }
+#[test]
+fn serialized_output_charges_the_complete_shared_counter_width() {
+    let query = request(ExploreOperation::Locate {
+        target: named("root"),
+    });
+    for used in [0, 9_990, u64::MAX / 2] {
+        let ctx = context(BudgetLimits {
+            output_bytes: u64::MAX,
+            ..Default::default()
+        });
+        ctx.charge(BudgetUsage {
+            output_bytes: used,
+            ..Default::default()
+        })
+        .expect("earlier query output");
+        let mut result = explore(
+            &graph(),
+            &Evidence { unavailable: false },
+            &view(),
+            &query,
+            &ctx,
+        )
+        .expect("locate");
+        result.execution.qualification_micros = u64::MAX;
+        let serialized = serde_json::to_vec(&result).expect("wire result");
+        assert_eq!(
+            result.execution.usage.output_bytes - used,
+            serialized.len() as u64,
+            "charge must include its own decimal width and reserve qualification timing"
+        );
+    }
+    let ctx = context(BudgetLimits {
+        output_bytes: u64::MAX,
+        ..Default::default()
+    });
+    ctx.charge(BudgetUsage {
+        output_bytes: u64::MAX - 16,
+        ..Default::default()
+    })
+    .expect("nearly exhausted output");
+    assert_eq!(
+        explore(
+            &graph(),
+            &Evidence { unavailable: false },
+            &view(),
+            &query,
+            &ctx,
+        )
+        .expect_err("remaining bytes cannot hold required evidence")
+        .kind,
+        QueryErrorKind::ResourceExhausted
+    );
+}
+
 #[test]
 fn truncation_is_explicit_and_retains_only_cited_evidence() {
     let graph = graph();

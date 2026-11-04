@@ -13,7 +13,7 @@ fn head(state: &TextState, policy: &GraphPolicy) -> GraphHead {
         graph_build_id: uuid::Uuid::new_v4().to_string(),
         text_revision: state.text_revision,
         catalog_digest: state.catalog_digest.clone(),
-        contract_version: "zg-relations-v1".into(),
+        contract_version: zg_knowledge::relations::FACT_CONTRACT_VERSION.into(),
         schema_fingerprint: "a".repeat(64),
         policy_fingerprint: policy.policy_fingerprint.clone(),
         domains: BTreeMap::new(),

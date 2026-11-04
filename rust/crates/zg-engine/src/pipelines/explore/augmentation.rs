@@ -38,7 +38,7 @@ pub(in crate::pipelines) struct AugmentInput {
 
 impl GraphExecution {
     pub(in crate::pipelines) fn new(options: &ContextOptions) -> EngineResult<Self> {
-        let execution: kg::ExecutionOptions = convert(options.graph_execution.unwrap_or_default())?;
+        let execution: kg::ExecutionOptions = options.graph_execution.unwrap_or_default();
         execution
             .validate_within(kg::ExecutionOptions::default())
             .map_err(query_error)?;
@@ -177,14 +177,6 @@ impl Drop for GraphExecution {
     }
 }
 
-fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(value: T) -> EngineResult<U> {
-    serde_json::from_value(
-        serde_json::to_value(value)
-            .map_err(|_| EngineError::internal("encode graph query value"))?,
-    )
-    .map_err(|_| EngineError::internal("convert graph query value"))
-}
-
 fn execute(
     input: &AugmentInput,
     context: &kg::RequestContext,
@@ -198,6 +190,7 @@ fn execute(
         context,
         signal,
         control,
+        kg::QueryDomain::Code,
     )?;
     let reader = &selected.provider.lease.reader;
     let query_started = Instant::now();
@@ -208,7 +201,7 @@ fn execute(
         &evidence,
         &selected.view,
         &hits,
-        &input.mode.clone().try_into()?,
+        &input.mode,
         context,
     )
     .map_err(query_error)?;
@@ -218,7 +211,7 @@ fn execute(
         .as_micros()
         .try_into()
         .unwrap_or(u64::MAX);
-    let mut graph = supplement(augmented, skipped, &input.result)?;
+    let mut graph = supplement(augmented, skipped)?;
     result::account(&mut graph, context)?;
     context.check().map_err(query_error)?;
     Ok(graph)

@@ -1,3 +1,4 @@
+mod compiled;
 mod implementation;
 use crate::{
     Error, Result,
@@ -85,13 +86,56 @@ impl<'a, 'b> Resolver<'a, 'b> {
         self.context.check_output(*self.visits)
     }
 
+    pub fn type_relation(
+        &mut self,
+        file: &FileFacts,
+        reference: &Reference,
+        owner: &[String],
+        target: &[String],
+    ) -> Result<(Found, Option<Target>)> {
+        let mut source = self.name(file, reference, owner)?;
+        source.targets.retain(|t| {
+            self.catalog
+                .iter()
+                .find(|f| f.version.path == t.path)
+                .and_then(|f| f.nodes.iter().find(|n| n.id == t.node_id))
+                .is_some_and(|n| n.entity_kind.is_type())
+        });
+        let mut source = self.nominal(source)?;
+        if source.complete && source.targets.len() == 1 {
+            Ok((self.name(file, reference, target)?, source.targets.pop()))
+        } else {
+            let status = if source.targets.len() > 1 {
+                ResolutionStatus::Ambiguous
+            } else {
+                source.status
+            };
+            Ok((
+                Found {
+                    targets: vec![],
+                    complete: false,
+                    status,
+                    reason: "relation_owner_not_unique",
+                },
+                None,
+            ))
+        }
+    }
+
     pub fn name(
         &mut self,
         file: &FileFacts,
         reference: &Reference,
         parts: &[String],
     ) -> Result<Found> {
-        self.name_at(file, reference.scope, reference.span.start, parts)
+        if matches!(
+            file.language,
+            Language::Go | Language::Java | Language::C | Language::Cpp
+        ) {
+            self.compiled_name(file, reference, parts)
+        } else {
+            self.name_at(file, reference.scope, reference.span.start, parts)
+        }
     }
 
     fn name_at(
@@ -226,7 +270,9 @@ impl<'a, 'b> Resolver<'a, 'b> {
                         self.tail(base, rest, origin)?
                     }
                 }
-                BindingTarget::GlobImport { .. } | BindingTarget::Redirect { .. } => {
+                BindingTarget::GlobImport { .. }
+                | BindingTarget::Redirect { .. }
+                | BindingTarget::PackageImport { .. } => {
                     return Err(Error::Provider("invalid named binding"));
                 }
             };
@@ -408,6 +454,35 @@ impl<'a, 'b> Resolver<'a, 'b> {
         path: &[String],
         origin: &[String],
     ) -> Result<Found> {
+        if file.language == Language::Go {
+            return self.go_import(file, path);
+        }
+        // A bare Rust import may start at a module declared in its lexical
+        // scope. Resolve that declaration before considering a crate-root path;
+        // a missing member must not fall through to an unrelated root module.
+        if file.language == Language::Rust
+            && let Some(first) = path.first()
+            && !matches!(first.as_str(), "crate" | "self" | "super")
+        {
+            let mut cursor = Some(scope);
+            while let Some(index) = cursor {
+                self.check()?;
+                if file.bindings.iter().any(|binding| {
+                    binding.scope == index
+                        && binding.name == *first
+                        && matches!(&binding.target, BindingTarget::Node { id }
+                            if file.nodes.iter().any(|n| n.id == *id && n.kind == NodeKind::Module))
+                }) {
+                    let mut qualified = module_path(file, index);
+                    qualified.extend_from_slice(path);
+                    return self.absolute(&qualified, origin);
+                }
+                if file.scopes[index].kind == ScopeKind::Module {
+                    break;
+                }
+                cursor = file.scopes[index].parent;
+            }
+        }
         let Some(path) = normalize(file, scope, path) else {
             return Ok(Found::unknown("invalid_relative_module"));
         };
@@ -422,7 +497,8 @@ impl<'a, 'b> Resolver<'a, 'b> {
             self.context.check()?;
             for (index, scope) in file.scopes.iter().enumerate().filter(|(_, s)| {
                 s.kind == ScopeKind::Module
-                    || file.language == Language::Python && s.kind == ScopeKind::Class
+                    || matches!(file.language, Language::Python | Language::Java)
+                        && s.kind == ScopeKind::Class
             }) {
                 let owner = file
                     .nodes
@@ -531,6 +607,22 @@ fn normalize(file: &FileFacts, scope: usize, path: &[String]) -> Option<Vec<Stri
     Some(path)
 }
 fn visible(file: &FileFacts, binding: &Binding, origin: &[String]) -> bool {
+    if file.language == Language::Cpp
+        && binding
+            .visibility
+            .split_whitespace()
+            .any(|m| matches!(m, "private" | "protected"))
+    {
+        return false;
+    }
+    if file.language == Language::Java {
+        return !binding
+            .visibility
+            .split_whitespace()
+            .any(|m| m == "private")
+            && (binding.visibility.split_whitespace().any(|m| m == "public")
+                || file.module.as_ref().is_some_and(|m| m.path == origin));
+    }
     if file.language != Language::Rust {
         return true;
     }

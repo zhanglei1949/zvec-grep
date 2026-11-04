@@ -1,6 +1,6 @@
 //! Graph additions are separate from normal retrieval items and their quotas.
 use crate::api::explore::{
-    ByteSpan, EvidenceRef, GraphNode, NodeRef, QueryExecution, RelationRecord, ViewStamp,
+    EvidenceRef, GraphNode, NodeRef, QueryExecution, RelationRecord, ViewStamp,
 };
 use serde::{Deserialize, Serialize};
 
@@ -12,20 +12,12 @@ pub enum GraphStatus {
     Degraded,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct GraphHit {
-    pub source_id: String,
-    pub entity_id: String,
-    pub fragment_id: String,
-    pub source_spans: Vec<ByteSpan>,
-    pub priority: u32,
-    pub query_sources: Vec<String>,
-}
+pub use zg_knowledge::query::{RankedHit, SeedExpansion};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GraphSeed {
     pub node: NodeRef,
-    pub hits: Vec<GraphHit>,
+    pub hits: Vec<RankedHit>,
     pub query_sources: Vec<String>,
 }
 
@@ -34,13 +26,6 @@ pub struct GraphSkippedHit {
     pub entity_id: String,
     pub fragment_id: String,
     pub reason: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct GraphSeedExpansion {
-    pub seed: NodeRef,
-    pub nodes: Vec<String>,
-    pub relations: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -65,7 +50,7 @@ pub struct GraphSupplement {
     pub view: Option<ViewStamp>,
     pub seeds: Vec<GraphSeed>,
     pub skipped: Vec<GraphSkippedHit>,
-    pub expansions: Vec<GraphSeedExpansion>,
+    pub expansions: Vec<SeedExpansion>,
     pub nodes: Vec<GraphNode>,
     pub relations: Vec<RelationRecord>,
     pub evidence: Vec<GraphEvidence>,

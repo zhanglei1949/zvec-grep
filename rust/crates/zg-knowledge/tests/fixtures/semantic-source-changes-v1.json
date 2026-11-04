@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "initial",
+      "input": {
+        "space_id": "workspace",
+        "update_scope": ["a.md"],
+        "sources": [{"change":"upsert","source":{"source_id":"a.md","source_version":"v1"},"semantic":{"status":"complete","value":{
+          "entities":[
+            {"space_id":"workspace","id":"project-a","kind":"project","name":"项目 A"},
+            {"space_id":"workspace","id":"zhang","kind":"person","name":"张三"},
+            {"space_id":"workspace","id":"li","kind":"person","name":"李四"}
+          ],
+          "facts":[{"identity":{"space_id":"workspace","id":"f1"},"subject":{"space_id":"workspace","id":"project-a"},"predicate":"owner","object":{"type":"entity","identity":{"space_id":"workspace","id":"zhang"}},"context":"project-a","state":"active","changed_at_ms":100,"attributes":{}}],
+          "mentions":[],"associations":[]
+        }}}],
+        "episodes":[],"fact_changes":[]
+      },
+      "expected":{"replaces":["a.md"],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name": "second-source",
+      "input": {
+        "space_id":"workspace","update_scope":["b.md"],
+        "sources":[{"change":"upsert","source":{"source_id":"b.md","source_version":"v1"},"semantic":{"status":"complete","value":{
+          "entities":[],
+          "facts":[{"identity":{"space_id":"workspace","id":"f1"},"subject":{"space_id":"workspace","id":"project-a"},"predicate":"owner","object":{"type":"entity","identity":{"space_id":"workspace","id":"zhang"}},"context":"project-a","state":"active","changed_at_ms":100,"attributes":{}}],
+          "mentions":[],"associations":[]
+        }}}],
+        "episodes":[],"fact_changes":[]
+      },
+      "expected":{"replaces":["b.md"],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"scope-without-changes",
+      "input":{"space_id":"workspace","update_scope":["a.md","b.md"],"sources":[],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":[],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"semantic-omitted",
+      "input":{"space_id":"workspace","update_scope":["a.md"],"sources":[{"change":"upsert","source":{"source_id":"a.md","source_version":"v2"}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":[],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"semantic-partial",
+      "input":{"space_id":"workspace","update_scope":["a.md"],"sources":[{"change":"upsert","source":{"source_id":"a.md","source_version":"v2"},"semantic":{"status":"partial","value":{"entities":[],"facts":[],"mentions":[],"associations":[]}}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":[],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"semantic-failed",
+      "input":{"space_id":"workspace","update_scope":["a.md"],"sources":[{"change":"upsert","source":{"source_id":"a.md","source_version":"v2"},"semantic":{"status":"failed","value":{"reason":"source extraction failed"}}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":[],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"complete-empty",
+      "input":{"space_id":"workspace","update_scope":["a.md"],"sources":[{"change":"upsert","source":{"source_id":"a.md","source_version":"v2"},"semantic":{"status":"complete","value":{"entities":[],"facts":[],"mentions":[],"associations":[]}}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":["a.md"],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"delete-a",
+      "input":{"space_id":"workspace","update_scope":["a.md"],"sources":[{"change":"delete","source":{"source_id":"a.md","source_version":"v1"}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":["a.md"],"deletes":["a.md"],"fact_changes":0}
+    },
+    {
+      "name":"delete-b",
+      "input":{"space_id":"workspace","update_scope":["b.md"],"sources":[{"change":"delete","source":{"source_id":"b.md","source_version":"v1"}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":["b.md"],"deletes":["b.md"],"fact_changes":0}
+    },
+    {
+      "name":"new-statement-without-correction",
+      "input":{
+        "space_id":"workspace","update_scope":["c.md"],
+        "sources":[{"change":"upsert","source":{"source_id":"c.md","source_version":"v1"},"semantic":{"status":"complete","value":{
+          "entities":[],
+          "facts":[{"identity":{"space_id":"workspace","id":"f2"},"subject":{"space_id":"workspace","id":"project-a"},"predicate":"owner","object":{"type":"entity","identity":{"space_id":"workspace","id":"li"}},"context":"project-a","state":"active","changed_at_ms":200,"attributes":{}}],
+          "mentions":[],"associations":[]
+        }}}],"episodes":[],"fact_changes":[]
+      },
+      "expected":{"replaces":["c.md"],"deletes":[],"fact_changes":0}
+    },
+    {
+      "name":"explicit-correction",
+      "input":{
+        "space_id":"workspace","update_scope":["c.md"],
+        "sources":[{"change":"upsert","source":{"source_id":"c.md","source_version":"v1"}}],"episodes":[],
+        "fact_changes":[{"change":"supersede","target":{"space_id":"workspace","id":"f1"},"expected_state":"active","replacement":{"identity":{"space_id":"workspace","id":"f2"},"subject":{"space_id":"workspace","id":"project-a"},"predicate":"owner","object":{"type":"entity","identity":{"space_id":"workspace","id":"li"}},"context":"project-a","state":"active","supersedes":{"space_id":"workspace","id":"f1"},"changed_at_ms":200,"attributes":{}},"evidence":{"source":{"source_id":"c.md","source_version":"v1"},"locator":null}}]
+      },
+      "expected":{"replaces":[],"deletes":[],"fact_changes":1}
+    },
+    {
+      "name":"delete-correction-source",
+      "input":{"space_id":"workspace","update_scope":["c.md"],"sources":[{"change":"delete","source":{"source_id":"c.md","source_version":"v1"}}],"episodes":[],"fact_changes":[]},
+      "expected":{"replaces":["c.md"],"deletes":["c.md"],"fact_changes":0}
+    },
+    {
+      "name":"explicit-retraction",
+      "input":{
+        "space_id":"workspace","update_scope":["c.md"],
+        "sources":[{"change":"upsert","source":{"source_id":"c.md","source_version":"v1"}}],"episodes":[],
+        "fact_changes":[{"change":"retract","target":{"space_id":"workspace","id":"f1"},"expected_state":"active","context":"project-a","changed_at_ms":200,"evidence":{"source":{"source_id":"c.md","source_version":"v1"},"locator":null}}]
+      },
+      "expected":{"replaces":[],"deletes":[],"fact_changes":1}
+    }
+  ]
+}

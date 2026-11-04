@@ -59,7 +59,7 @@ fn digest(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 impl BuildSpec {
-    fn root(&self, catalog: &FactCatalog) -> GraphResult<RootRow> {
+    fn root(&self, catalog: &FactCatalog, metadata: &MetadataRow) -> GraphResult<RootRow> {
         if !uuid(&self.graph_build_id)
             || !uuid(&self.operation_id)
             || self.base_head.as_ref().is_some_and(|id| !uuid(id))
@@ -118,8 +118,8 @@ impl BuildSpec {
             configuration: serde_json::to_string(&self.configuration).map_err(|_| invalid())?,
             policy_fingerprint: self.policy_fingerprint.clone(),
             catalog_revisions: serde_json::to_string(&catalog.catalogs).map_err(|_| invalid())?,
-            facts_digest: stable_digest(catalog)?,
-            rows_digest: GraphDbStore::rows_digest(catalog)?,
+            facts_digest: metadata.content_digest.clone(),
+            rows_digest: metadata.rows_digest.clone(),
             file_count: catalog.files.len() as u64,
             node_count: nodes,
             reference_count: references,
@@ -153,7 +153,7 @@ fn proof(
         return Err(GraphError::local(GraphErrorKind::IncompatibleFormat));
     }
     if roots[0].schema_fingerprint != schema::build_fingerprint()?
-        || roots[0].contract_version != FACT_CONTRACT_VERSION
+        || roots[0].contract_version != expected.contract_version
     {
         return Err(GraphError::local(GraphErrorKind::IncompatibleFormat));
     }
@@ -189,7 +189,9 @@ impl GraphDbStore {
         context: &ProcessingContext,
     ) -> GraphResult<ConfirmedBuild> {
         let _stage = super::profile::stage("graph.commit_build");
-        let expected = spec.root(&self.read_facts(context)?)?;
+        let expected = self.with_verified_facts(context, |catalog, metadata, _, _| {
+            spec.root(&catalog, metadata)
+        })?;
         context.check_input(
             expected
                 .configuration
@@ -250,7 +252,9 @@ impl GraphDbStore {
         context: &ProcessingContext,
     ) -> GraphResult<Option<ConfirmedBuild>> {
         let _stage = super::profile::stage("graph.inspect_build");
-        let expected = spec.root(&self.read_facts(context)?)?;
+        let expected = self.with_verified_facts(context, |catalog, metadata, _, _| {
+            spec.root(&catalog, metadata)
+        })?;
         context.check_input(
             expected
                 .configuration
@@ -264,6 +268,39 @@ impl GraphDbStore {
                 &RootRow::read(tx, options)?,
                 &ReceiptRow::read(tx, options)?,
             )
+        })
+    }
+
+    /// Read an immutable build's facts and verify its commit proof in the same
+    /// fresh snapshot. Used when carrying selected facts into a new candidate.
+    /// The v2 raw contract uses the same v7 rows and can supply a rebuild base;
+    /// query admission and new commits still require the current contract.
+    pub fn read_build_facts(
+        &self,
+        spec: &BuildSpec,
+        context: &ProcessingContext,
+    ) -> GraphResult<Option<FactCatalog>> {
+        let _stage = super::profile::stage("graph.read_build_facts");
+        self.with_verified_facts(context, |catalog, metadata, tx, options| {
+            let mut expected = spec.root(&catalog, metadata)?;
+            let roots = RootRow::read(tx, options)?;
+            if let [root] = roots.as_slice() {
+                if !matches!(
+                    root.contract_version.as_str(),
+                    "zg-relations-v2" | "zg-relations-v3"
+                ) {
+                    return Err(GraphError::local(GraphErrorKind::IncompatibleFormat));
+                }
+                expected.contract_version.clone_from(&root.contract_version);
+            }
+            context.check_input(
+                expected
+                    .configuration
+                    .len()
+                    .saturating_add(expected.catalog_revisions.len()),
+            )?;
+            context.check_output(2)?;
+            Ok(proof(expected, &roots, &ReceiptRow::read(tx, options)?)?.map(|_| catalog))
         })
     }
 }
@@ -325,5 +362,68 @@ impl GraphDbStore {
             }
             proof(expected, &roots, &ReceiptRow::read(tx, options)?)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_raw_contract_is_a_verified_rebuild_base_only()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let configuration = serde_json::json!({"scope":"code"});
+        let root = RootRow {
+            graph_build_id: "00000000-0000-0000-0000-000000000001".into(),
+            operation_id: "00000000-0000-0000-0000-000000000002".into(),
+            attempt: 1,
+            base_text_revision: 1,
+            base_catalog_digest: "a".repeat(64),
+            base_head: None,
+            scope: "code".into(),
+            contract_version: "zg-relations-v2".into(),
+            schema_fingerprint: schema::build_fingerprint()?,
+            rules_fingerprint: "b".repeat(64),
+            module_roots_fingerprint: "c".repeat(64),
+            configuration: configuration.to_string(),
+            policy_fingerprint: stable_digest(&configuration)?,
+            catalog_revisions: "[]".into(),
+            facts_digest: "d".repeat(64),
+            rows_digest: "e".repeat(64),
+            file_count: 0,
+            node_count: 0,
+            reference_count: 0,
+            committed_epoch_ms: 1,
+        };
+        let success = receipt(&root)?;
+        assert!(
+            proof(
+                root.clone(),
+                std::slice::from_ref(&root),
+                std::slice::from_ref(&success)
+            )?
+            .is_some()
+        );
+        let mut current = root.clone();
+        current.contract_version = FACT_CONTRACT_VERSION.into();
+        assert_eq!(
+            proof(
+                current,
+                std::slice::from_ref(&root),
+                std::slice::from_ref(&success)
+            )
+            .expect_err("old contract cannot prove a current build")
+            .kind,
+            GraphErrorKind::IncompatibleFormat
+        );
+        let mut corrupted = success;
+        corrupted.root_digest = "0".repeat(64);
+        assert_eq!(
+            proof(root.clone(), &[root], &[corrupted])
+                .expect_err("legacy receipt must match")
+                .kind,
+            GraphErrorKind::Conflict
+        );
+        Ok(())
     }
 }

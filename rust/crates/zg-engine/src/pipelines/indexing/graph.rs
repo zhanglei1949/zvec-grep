@@ -1,26 +1,21 @@
 //! Optional graph construction. The service owns admission and the final text
 //! manifest; native graph connections/transactions stay in one blocking task.
-#[path = "graph/control.rs"]
 mod control;
-#[path = "graph/coverage.rs"]
 mod coverage;
-#[path = "graph/recovery.rs"]
 pub(super) mod recovery;
-#[path = "graph/resources.rs"]
 mod resources;
-#[path = "graph/text_recovery.rs"]
+pub(super) mod semantic;
 pub(super) mod text_recovery;
 use crate::{
     EngineError, EngineResult,
     api::index::graph::{
-        GraphDomainResult, GraphIndexResult, GraphLanguage, GraphOptions, GraphReady, GraphScope,
-        PackageLayout,
+        GraphDomainResult, GraphIndexResult, GraphOptions, GraphReady, GraphScope,
     },
     domain::{FileFormat, FileRecord},
     extraction::{self, TextSource},
     graph_facts::{
         binding::FactCapture,
-        module_roots::{ModuleRoot, ModuleRoots, PackageLayout as KgLayout},
+        module_roots::{ModuleRoot, ModuleRoots},
     },
     storage::{
         IndexStore,
@@ -32,7 +27,7 @@ use crate::{
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, HashMap},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -96,27 +91,28 @@ fn context(signal: Option<CancellationToken>) -> ProcessingContext {
         cancellation: signal.unwrap_or_default(),
     }
 }
-fn roots(options: &GraphOptions) -> EngineResult<ModuleRoots> {
+fn roots(options: &GraphOptions, workspace: &Path) -> EngineResult<ModuleRoots> {
+    if options
+        .rules
+        .as_ref()
+        .is_some_and(|r| r.version != zg_knowledge::relations::FACT_CONTRACT_VERSION)
+    {
+        return Err(EngineError::unsupported("unsupported graph rules version"));
+    }
     ModuleRoots::new(
         options
             .module_roots
             .iter()
             .map(|r| ModuleRoot {
                 root: r.root.clone(),
-                language: match r.language {
-                    GraphLanguage::Rust => Language::Rust,
-                    GraphLanguage::Python => Language::Python,
-                },
+                language: r.language.fact_language(),
                 namespace: r.namespace.clone(),
                 module_prefix: r.module_prefix.clone(),
-                layout: match r.layout {
-                    PackageLayout::Flat => KgLayout::Flat,
-                    PackageLayout::Src => KgLayout::Src,
-                    PackageLayout::ModRs => KgLayout::ModRs,
-                },
+                layout: r.layout,
             })
             .collect(),
-    )
+    )?
+    .configured(workspace)
 }
 
 pub(super) fn capture(
@@ -137,7 +133,7 @@ pub(super) fn capture(
             EngineError::storage_failure("graph construction requires a published text generation")
         })?,
         state.text_revision,
-        roots(&policy.configuration)?,
+        roots(&policy.configuration, &manifest.workspace.root)?,
         context(signal),
     ))
 }
@@ -181,13 +177,16 @@ fn attempt(
 }
 
 fn graph_error(error: &zg_knowledge::graph::GraphError) -> EngineError {
+    if std::env::var_os("ZG_GRAPH_PROFILE").is_some_and(|v| v == "1") {
+        eprintln!("ZG_GRAPH_PROFILE_ERROR {error:?}");
+    }
     if error.kind == GraphErrorKind::RecoveryRequired
         || matches!(
             error.outcome,
             Some(GraphOutcome::Unknown | GraphOutcome::InTransaction)
         )
     {
-        EngineError::storage_failure("graph candidate recovery_required")
+        EngineError::recovery_required("graph candidate recovery_required")
     } else {
         match error.kind {
             GraphErrorKind::Conflict => EngineError::resource_busy("graph candidate conflict"),
@@ -241,7 +240,7 @@ fn committed_recovery(
         cancelled,
         Some(error),
     );
-    EngineError::storage_failure("graph candidate committed; confirmation recovery_required")
+    EngineError::recovery_required("graph candidate committed; confirmation recovery_required")
 }
 
 #[cfg(test)]
@@ -318,7 +317,7 @@ pub(super) async fn run(
                 let build = manifest.storage_home().join("graph/builds").join(&id);
                 let attempt: Option<serde_json::Value> = read_record(&build.join("attempt.json"))
                     .map_err(|_| {
-                    EngineError::storage_failure("graph build diagnostic recovery_required")
+                    EngineError::recovery_required("graph build diagnostic recovery_required")
                 })?;
                 if attempt.as_ref().is_some_and(|a| {
                     a["commitEffect"] == "unknown"
@@ -327,7 +326,7 @@ pub(super) async fn run(
                             .as_str()
                             .is_some_and(|s| s.ends_with("_pending") || s == "unknown")
                 }) {
-                    return Err(EngineError::storage_failure(
+                    return Err(EngineError::recovery_required(
                         "graph build recovery_required",
                     ));
                 }
@@ -337,7 +336,7 @@ pub(super) async fn run(
                             error.code(),
                             EngineError::DEADLINE_EXCEEDED | EngineError::INVALID_ARGUMENT
                         ))
-                    || error.message().contains("recovery_required")
+                    || error.is_recovery_required()
                 {
                     return Err(error);
                 }
@@ -375,10 +374,12 @@ fn run_blocking(
     })?;
     let previous = profile::measure("host.previous", || candidate.previous())?;
     if let (Some(head), Some(facts)) = (&candidate.old_head, &previous)
+        && head.policy_fingerprint == candidate.policy.policy_fingerprint
         && head.text_revision == candidate.state.text_revision
         && head.catalog_digest == candidate.state.catalog_digest
         && facts.selection_fingerprint == fingerprint(&manifest.workspace.scan)?
         && bound_matches(&candidate.storage, &candidate.files, facts)?
+        && candidate.configuration_matches()?
     {
         return Ok(GraphIndexResult {
             text_published: work.text_published(),
@@ -413,6 +414,7 @@ struct Candidate<'a> {
     state: TextState,
     old_head: Option<GraphHead>,
     schema: String,
+    roots: ModuleRoots,
 }
 impl<'a> Candidate<'a> {
     fn open(
@@ -441,6 +443,7 @@ impl<'a> Candidate<'a> {
             ctx,
             limits,
             operation,
+            roots: roots(&policy.configuration, &manifest.workspace.root)?,
             home,
             storage,
             files,
@@ -449,23 +452,64 @@ impl<'a> Candidate<'a> {
             schema,
         })
     }
-    fn previous(&self) -> EngineResult<Option<FactCatalog>> {
+    fn configuration_matches(&self) -> EngineResult<bool> {
         let Some(head) = &self.old_head else {
+            return Ok(false);
+        };
+        let record: BuildRecord = read_record(
+            &self
+                .home
+                .join("graph/builds")
+                .join(&head.graph_build_id)
+                .join("build.json"),
+        )?
+        .ok_or_else(|| EngineError::storage_failure("missing graph build input"))?;
+        Ok(record.configuration_inputs == self.roots.inputs())
+    }
+    fn previous_head(&self) -> EngineResult<Option<(PathBuf, GraphHead)>> {
+        if let Some(head) = &self.old_head {
+            return Ok(Some((self.home.clone(), head.clone())));
+        }
+        let Some(selected) =
+            crate::workspace::manifest::read_workspace_manifest(&self.manifest.path)?
+        else {
             return Ok(None);
         };
-        if head.schema_fingerprint != self.schema
-            || head.policy_fingerprint != self.policy.policy_fingerprint
-        {
+        if selected.storage_generation == self.manifest.storage_generation {
             return Ok(None);
         }
-        let path = self.home.join("graph/builds").join(&head.graph_build_id);
+        let home = selected.storage_home();
+        let Some(head) = read_record::<GraphHead>(&home.join("graph/HEAD.json"))? else {
+            return Ok(None);
+        };
+        // A new generation explicitly rebuilds unsupported formats from inputs.
+        // Compatible selected data remains the semantic base until publication.
+        if head.schema_fingerprint != self.schema {
+            return Ok(None);
+        }
+        head.validate_lifecycle()?;
+        Ok(Some((home, head)))
+    }
+
+    fn previous(&self) -> EngineResult<Option<FactCatalog>> {
+        let Some((home, head)) = self.previous_head()? else {
+            return Ok(None);
+        };
+        if head.schema_fingerprint != self.schema {
+            return Err(EngineError::unsupported(
+                "selected graph format requires an explicit rebuild",
+            ));
+        }
+        let path = home.join("graph/builds").join(&head.graph_build_id);
         let Some(record) = read_record::<BuildRecord>(&path.join("build.json"))? else {
             return Err(EngineError::storage_failure(
                 "graph HEAD has no immutable build input",
             ));
         };
-        if record.rules_fingerprint != rules_fingerprint()? {
-            return Ok(None);
+        if record.rules_fingerprint != record.expected_rules_fingerprint()? && home == self.home {
+            return Err(EngineError::unsupported(
+                "selected graph rules require an explicit rebuild",
+            ));
         }
         if record.graph_build_id != head.graph_build_id
             || record.base_text_revision != head.text_revision
@@ -479,19 +523,11 @@ impl<'a> Candidate<'a> {
         }
         let graph = GraphDbStore::open(path.join("db"), true, self.limits.clone())
             .map_err(|e| graph_error(&e))?;
-        if graph
-            .inspect_build(&record.spec(), &self.ctx)
-            .map_err(|e| graph_error(&e))?
-            .is_none()
-        {
-            return Err(EngineError::storage_failure(
-                "selected graph has no commit proof",
-            ));
-        }
         graph
-            .read_facts(&self.ctx)
+            .read_build_facts(&record.spec(), &self.ctx)
+            .map_err(|e| graph_error(&e))?
             .map(Some)
-            .map_err(|e| graph_error(&e))
+            .ok_or_else(|| EngineError::storage_failure("selected graph has no commit proof"))
     }
     fn collect(
         &self,
@@ -505,7 +541,7 @@ impl<'a> Candidate<'a> {
         let collector = FactCapture::new(
             generation,
             self.state.text_revision,
-            roots(&self.policy.configuration)?,
+            self.roots.clone(),
             self.ctx.clone(),
         );
         let mut captured = captured
@@ -513,6 +549,7 @@ impl<'a> Candidate<'a> {
             .map(|f| (f.record.path.clone(), f))
             .collect::<BTreeMap<_, _>>();
         let mut files = Vec::new();
+        let same_configuration = self.configuration_matches()?;
         for file in &self.files {
             check_context(&self.ctx)?;
             let path = file.relative_path.to_path_buf();
@@ -532,15 +569,22 @@ impl<'a> Candidate<'a> {
                 .map_err(crate::graph_facts::map_error)?;
             let ids = profile::measure("host.entity_ids", || self.storage.file_entity_ids(file))?;
             let digest = entity_ids_digest(&ids).map_err(crate::graph_facts::map_error)?;
-            let reusable = previous.and_then(|c| {
-                c.files.iter().find(|b| {
-                    b.record.path == name
-                        && b.record.content_hash == file.snapshot.content_hash
-                        && b.record.file_id == file.id.get()
-                        && b.record.entity_ids_digest == digest
-                        && b.record.storage_generation == collector.generation
+            let reusable = previous
+                .filter(|_| {
+                    same_configuration
+                        && self.old_head.as_ref().is_some_and(|head| {
+                            head.policy_fingerprint == self.policy.policy_fingerprint
+                        })
                 })
-            });
+                .and_then(|c| {
+                    c.files.iter().find(|b| {
+                        b.record.path == name
+                            && b.record.content_hash == file.snapshot.content_hash
+                            && b.record.file_id == file.id.get()
+                            && b.record.entity_ids_digest == digest
+                            && b.record.storage_generation == collector.generation
+                    })
+                });
             let mut bound = if let Some(b) = captured.remove(name).or_else(|| reusable.cloned()) {
                 b
             } else {
@@ -548,14 +592,7 @@ impl<'a> Candidate<'a> {
                     self.extract(file, inputs, &collector, &ids, &digest)
                 })?
             };
-            if bound.record.content_hash != file.snapshot.content_hash
-                || bound.record.entity_ids_digest != digest
-                || bound.record.storage_generation != collector.generation
-            {
-                return Err(EngineError::resource_busy(
-                    "captured graph binding no longer matches text",
-                ));
-            }
+            self.validate_capture(&bound, file, &digest, &collector.generation)?;
             bound.record.index_status = IndexStatus::Indexed;
             bound.record.text_revision = self.state.text_revision;
             self.restrict_domain(&mut bound);
@@ -582,6 +619,7 @@ impl<'a> Candidate<'a> {
             )
         })
         .map_err(crate::graph_facts::map_error)?;
+        let catalog = self.inherit_semantic(catalog, previous)?;
         self.ctx
             .check_output(
                 catalog
@@ -592,6 +630,80 @@ impl<'a> Candidate<'a> {
             .map_err(crate::graph_facts::map_error)?;
         Ok(catalog)
     }
+    fn validate_capture(
+        &self,
+        bound: &BoundFileFacts,
+        file: &FileRecord,
+        digest: &str,
+        generation: &str,
+    ) -> EngineResult<()> {
+        if bound.record.content_hash != file.snapshot.content_hash
+            || bound.record.entity_ids_digest != digest
+            || bound.record.storage_generation != generation
+        {
+            return Err(EngineError::resource_busy(
+                "captured graph binding no longer matches text",
+            ));
+        }
+        if let Some(facts) = &bound.facts
+            && !self.roots.matches_configuration(facts)?
+        {
+            return Err(EngineError::resource_busy(
+                "captured source configuration changed",
+            ));
+        }
+        Ok(())
+    }
+    fn inherit_semantic(
+        &self,
+        catalog: FactCatalog,
+        previous: Option<&FactCatalog>,
+    ) -> EngineResult<FactCatalog> {
+        use zg_knowledge::semantic::{SourceChange, SourceRef};
+        let Some(base) = previous else {
+            return Ok(catalog);
+        };
+        let current: BTreeMap<_, _> = catalog
+            .files
+            .iter()
+            .map(|file| (file.record.path.as_str(), &file.record))
+            .collect();
+        let before: BTreeMap<_, _> = base
+            .files
+            .iter()
+            .map(|file| (file.record.path.as_str(), &file.record))
+            .collect();
+        let mut observed = Vec::new();
+        for source in &base.semantic.sources {
+            check_context(&self.ctx)?;
+            let old = before.get(source.source.source_id.as_str());
+            let present = current.get(source.source.source_id.as_str());
+            match (old, present) {
+                (Some(_), None) => observed.push(SourceChange::Delete {
+                    source: source.source.clone(),
+                }),
+                (old, Some(file))
+                    if old.is_none_or(|old| file.content_hash != old.content_hash) =>
+                {
+                    let version = file.content_hash.as_ref().ok_or_else(|| {
+                        EngineError::storage_failure("indexed semantic source has no content hash")
+                    })?;
+                    observed.push(SourceChange::Upsert {
+                        source: SourceRef {
+                            source_id: source.source.source_id.clone(),
+                            source_version: version.clone(),
+                        },
+                        semantic: None,
+                    });
+                }
+                _ => {}
+            }
+        }
+        catalog
+            .inherit_semantic(base, &observed, &self.ctx)
+            .map_err(crate::graph_facts::map_error)
+    }
+
     fn restrict_domain(&self, bound: &mut BoundFileFacts) {
         if bound.facts.as_ref().is_some_and(|f| {
             if f.language == Language::Markdown {
@@ -620,9 +732,17 @@ impl<'a> Candidate<'a> {
         let formats =
             FileFormat::from_path(&self.manifest.workspace.source_path(&file.relative_path))?;
         let enabled = (self.policy.configuration.scope.code()
-            && formats
-                .iter()
-                .any(|f| matches!(f, FileFormat::Rust | FileFormat::Python)))
+            && formats.iter().any(|f| {
+                matches!(
+                    f,
+                    FileFormat::Rust
+                        | FileFormat::Python
+                        | FileFormat::Go
+                        | FileFormat::Java
+                        | FileFormat::C
+                        | FileFormat::Cpp
+                )
+            }))
             || (self.policy.configuration.scope.documents()
                 && formats.contains(&FileFormat::Markdown));
         if enabled {
@@ -689,7 +809,7 @@ impl<'a> Candidate<'a> {
         .map_err(crate::graph_facts::map_error)
     }
     fn record(&self) -> EngineResult<BuildRecord> {
-        Ok(BuildRecord {
+        let mut record = BuildRecord {
             format_version: 1,
             graph_build_id: self.id.into(),
             operation_id: uuid::Uuid::new_v4().to_string(),
@@ -713,9 +833,17 @@ impl<'a> Candidate<'a> {
             schema_fingerprint: self.schema.clone(),
             created_epoch_ms: graph_state::now(),
             import_budget: Some(ImportBudget::default()),
-        })
+            semantic: None,
+            configuration_inputs: self.roots.inputs().to_vec(),
+        };
+        record.rules_fingerprint = record.expected_rules_fingerprint()?;
+        Ok(record)
     }
     fn commit(&self, record: &BuildRecord, catalog: &FactCatalog) -> EngineResult<()> {
+        crate::graph_facts::module_roots::configuration::validate_inputs(
+            &self.manifest.workspace.root,
+            &record.configuration_inputs,
+        )?;
         let path = self.home.join("graph/builds").join(self.id);
         write_record(&path.join("build.json"), record)?;
         attempt(
@@ -839,11 +967,10 @@ impl<'a> Candidate<'a> {
             let mapped = failure(error);
             return Err(rejected.unwrap_or(mapped));
         }
-        if graph.read_facts(&self.ctx).map_err(failure)? != *catalog {
-            return Err(EngineError::storage_failure(
-                "candidate validation mismatch; recovery_required",
-            ));
-        }
+        self.ctx
+            .check()
+            .map_err(zg_knowledge::graph::GraphError::from)
+            .map_err(failure)?;
         attempt(
             &path,
             record,
@@ -963,11 +1090,10 @@ impl<'a> Candidate<'a> {
             let mapped = failure(error);
             return Err(rejected.unwrap_or(mapped));
         }
-        if graph.read_facts(&self.ctx).map_err(failure)? != *catalog {
-            return Err(EngineError::storage_failure(
-                "candidate validation mismatch; recovery_required",
-            ));
-        }
+        self.ctx
+            .check()
+            .map_err(zg_knowledge::graph::GraphError::from)
+            .map_err(failure)?;
         attempt(
             path,
             record,
@@ -1010,7 +1136,7 @@ impl<'a> Candidate<'a> {
                 .map_err(|e| graph_error(&e))?
                 .is_none()
             {
-                return Err(EngineError::storage_failure(
+                return Err(EngineError::recovery_required(
                     "committed candidate confirmation recovery_required",
                 ));
             }
@@ -1042,6 +1168,10 @@ impl<'a> Candidate<'a> {
         work: GraphWorkMode,
     ) -> EngineResult<GraphIndexResult> {
         check_context(&self.ctx)?;
+        crate::graph_facts::module_roots::configuration::validate_inputs(
+            &self.manifest.workspace.root,
+            &record.configuration_inputs,
+        )?;
         self.resources.check(false)?;
         if GraphPolicy::read(&self.manifest.path)?
             .as_ref()
@@ -1059,7 +1189,7 @@ impl<'a> Candidate<'a> {
             graph_build_id: self.id.into(),
             text_revision: self.state.text_revision,
             catalog_digest: self.state.catalog_digest.clone(),
-            contract_version: "zg-relations-v1".into(),
+            contract_version: zg_knowledge::relations::FACT_CONTRACT_VERSION.into(),
             schema_fingerprint: self.schema.clone(),
             policy_fingerprint: self.policy.policy_fingerprint.clone(),
             domains: domains.clone(),
@@ -1231,13 +1361,13 @@ pub(super) fn confirm_manifest_selection(
         != manifest.storage_generation.as_ref()
         || result.graph_build_id.as_deref() != Some(head.graph_build_id.as_str())
     {
-        return Err(EngineError::storage_failure(
+        return Err(EngineError::recovery_required(
             "manifest selection recovery_required",
         ));
     }
     let path = home.join("graph/builds").join(&head.graph_build_id);
     let record: BuildRecord = read_record(&path.join("build.json"))?
-        .ok_or_else(|| EngineError::storage_failure("graph selection recovery_required"))?;
+        .ok_or_else(|| EngineError::recovery_required("graph selection recovery_required"))?;
     result.graph_selected = true;
     result.domains = head.domains;
     if cancelled {

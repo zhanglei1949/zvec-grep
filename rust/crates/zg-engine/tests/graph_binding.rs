@@ -317,7 +317,7 @@ fn code_change_catalog(
             ),
             format!("def {target_name}(): pass\ndef alternate(): pass\n"),
         ),
-        Language::Markdown => panic!("code fixture requires a code language"),
+        _ => panic!("alias fixture covers Rust and Python"),
     };
     let inputs = [("caller", caller, 1), ("target", target, 2)]
         .into_iter()

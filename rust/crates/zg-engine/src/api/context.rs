@@ -130,7 +130,7 @@ pub mod options {
                     ));
                 }
             }
-            self.graph.ensure_supported(self.rg)?;
+            crate::api::context::graph::ensure_supported(&self.graph, self.rg)?;
             if self.rg {
                 if self.filter != QueryFilter::default() {
                     return Err(crate::EngineError::invalid_argument(

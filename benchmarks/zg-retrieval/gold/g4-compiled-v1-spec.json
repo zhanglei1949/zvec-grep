@@ -1,0 +1,2988 @@
+{
+  "id": "g4-compiled-authored-v1",
+  "human_reviewed": false,
+  "repositories": [
+    {
+      "repository": "google/uuid",
+      "language": "go",
+      "commit": "0f11ee6918f41a04c201eceeadf612a377bc7fbc",
+      "slug": "google__uuid",
+      "files": [
+        {
+          "path": "uuid.go",
+          "sha256": "0edec8e34c6b6fe0db31b71a29069a09ed832e3fd04ee0175916b58f2b60e5c1",
+          "git_blob": "5232b486780d605d2c6bcc0b268bf93ba4e309c8",
+          "bytes": 9633,
+          "role": "code"
+        },
+        {
+          "path": "util.go",
+          "sha256": "755f50afafb13dd89ae6177da7eb6dc31ae650ece2f9ba52821021e9f8de044e",
+          "git_blob": "5ea6c737806e68a6d0457e65d97bb3414cb22953",
+          "bytes": 1920,
+          "role": "code"
+        },
+        {
+          "path": "hash.go",
+          "sha256": "afe975c3f3e8b9a972c66165f06e978cc5c2f8ea5a4809dae4c46b4cfebbadce",
+          "git_blob": "dc60082d3b3b108bb5b15207fdd6df7e89455710",
+          "bytes": 1963,
+          "role": "code"
+        },
+        {
+          "path": "marshal.go",
+          "sha256": "933eb226d049268e17809fd37f777c650b9ec8cb3fa988534b792610a64dcc43",
+          "git_blob": "14bd34072b64d2c9cd0491d00454e593af99e1e2",
+          "bytes": 907,
+          "role": "code"
+        },
+        {
+          "path": "go.mod",
+          "sha256": "73da47b6338b00a082fd451aa35a3273d3adc09b8e9bba98dab01091e402af6e",
+          "git_blob": "fc84cd79d4c79a2ad598d6c5285473aa32b34982",
+          "bytes": 30,
+          "role": "configuration"
+        },
+        {
+          "path": "node_net.go",
+          "sha256": "78e274b465de8da8690f4ab06281f41025b142c1d093e337fda1d6726b35662b",
+          "git_blob": "0cbbcddbd6e81da612534338c786a4e111bc0a04",
+          "bytes": 949,
+          "role": "boundary_only"
+        }
+      ],
+      "excluded_policy": "Only the frozen component slice is indexed; all other upstream sources remain out of scope. No source is removed after product execution.",
+      "git_tree": "42ba8f689f0586db861c6fdef4f0042efc62c958",
+      "selection": {
+        "root": "frozen-original-path-component-slice",
+        "files": [
+          "uuid.go",
+          "util.go",
+          "hash.go",
+          "marshal.go"
+        ],
+        "configuration_files": [
+          "go.mod"
+        ],
+        "max_file_size_bytes": 1000000,
+        "graph": {
+          "scope": "code",
+          "module_roots": [
+            {
+              "root": "",
+              "language": "go",
+              "namespace": "compiled-go",
+              "module_prefix": [],
+              "layout": "flat"
+            }
+          ]
+        },
+        "unselected_dependencies_policy": "Imports, headers and same-package files outside the slice remain explicit unknowns; no invented definitions or compiler execution."
+      }
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "commit": "89f0263cc7a1fd9c396d2c4953747a013556a7f9",
+      "slug": "kuzudb__kuzu",
+      "files": [
+        {
+          "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+          "sha256": "9e40c943d5154ee774a391bf58a9168fca8a365c8198d2155e681acca1c1eb12",
+          "git_blob": "682db7da5d0c1b09d20b886bf30c9c6a2db9bb33",
+          "bytes": 4118,
+          "role": "code"
+        },
+        {
+          "path": "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+          "sha256": "e7d5492a954a261d75c4cc63ac893190ad73e92d33fb8224b2a855d166b0efcb",
+          "git_blob": "956ecb7c4719ead8daf3d59b780fbc8b45e7ec63",
+          "bytes": 3334,
+          "role": "code"
+        },
+        {
+          "path": "tools/java_api/src/main/java/com/kuzudb/DataTypeID.java",
+          "sha256": "dc0583dacdd1581b70dfdc0e89f9b0fe5cdc4138455d0c5a382b9406c859f5eb",
+          "git_blob": "9a7fbceecd6de3e831a3f05ca9360e3cbd546a63",
+          "bytes": 727,
+          "role": "code"
+        },
+        {
+          "path": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+          "sha256": "99429dca795e8dd8c25765c00843af3a1d3d8a79638a2aac3db39cc80efff6bc",
+          "git_blob": "f6708469242cafc0825e465541b452820f65bcdd",
+          "bytes": 9731,
+          "role": "code"
+        },
+        {
+          "path": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+          "sha256": "0f7db2b432534287719f42ddcbe628588bbe378981ec96588eb5c10369a0cc24",
+          "git_blob": "4a23869c433906b97300afb78d914492a0419334",
+          "bytes": 60190,
+          "role": "code"
+        },
+        {
+          "path": "tools/java_api/src/test/java/com/kuzudb/DataTypeTest.java",
+          "sha256": "ad4d5aae463c3f089ee70130da6f38a8a1939c9f1baff5ad1112bfb25db46c96",
+          "git_blob": "a40327f50d8daf05c131a350b2983c8a3c5b1860",
+          "bytes": 5102,
+          "role": "code"
+        },
+        {
+          "path": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+          "sha256": "a58267bf2f727ad2c74226e0e882c7147390fe99841b40458145758b25d33847",
+          "git_blob": "e616aa2d042bb0f42fe5cfaf5702f54ccb16f8f8",
+          "bytes": 858,
+          "role": "code"
+        }
+      ],
+      "excluded_policy": "Only the frozen component slice is indexed; all other upstream sources remain out of scope. No source is removed after product execution.",
+      "git_tree": "04d703e080929822389bac4793ff1478e6768e1b",
+      "selection": {
+        "root": "frozen-original-path-component-slice",
+        "files": [
+          "tools/java_api/src/main/java/com/kuzudb/Value.java",
+          "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+          "tools/java_api/src/main/java/com/kuzudb/DataTypeID.java",
+          "tools/java_api/src/main/java/com/kuzudb/Native.java",
+          "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+          "tools/java_api/src/test/java/com/kuzudb/DataTypeTest.java",
+          "tools/java_api/src/test/java/com/kuzudb/TestBase.java"
+        ],
+        "configuration_files": [],
+        "max_file_size_bytes": 1000000,
+        "graph": {
+          "scope": "code",
+          "module_roots": [
+            {
+              "root": "tools/java_api/src/main/java/com/kuzudb",
+              "language": "java",
+              "namespace": "compiled-java",
+              "module_prefix": [],
+              "layout": "flat"
+            },
+            {
+              "root": "tools/java_api/src/test/java/com/kuzudb",
+              "language": "java",
+              "namespace": "compiled-java",
+              "module_prefix": [],
+              "layout": "flat"
+            }
+          ]
+        },
+        "unselected_dependencies_policy": "Imports, headers and same-package files outside the slice remain explicit unknowns; no invented definitions or compiler execution."
+      }
+    },
+    {
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "commit": "a579fbf5d192e85b6249935e117de7d02a6dc4e9",
+      "slug": "apache__arrow-nanoarrow",
+      "files": [
+        {
+          "path": "src/nanoarrow/common/utils.c",
+          "sha256": "0c4f2330cf2ce173e4ce26db41906a7670e4b54689ad3971f992571b5c4624ee",
+          "git_blob": "5b5116a12366520896fe771584ad9936de40e3fb",
+          "bytes": 19720,
+          "role": "code"
+        },
+        {
+          "path": "src/nanoarrow/common/schema.c",
+          "sha256": "f73f643b42b35a7a88c689030f20bef2175a93b4a38eea52e02e732ed068d1a0",
+          "git_blob": "bd9733b6e9fb0b79d6d82a694c1a5816c00ff310",
+          "bytes": 57668,
+          "role": "code"
+        },
+        {
+          "path": "src/nanoarrow/common/array_stream.c",
+          "sha256": "7527859fdf0fc2f454474823890d20d001b027d53f6f57ef7d63eae481c0b749",
+          "git_blob": "886ea7372f6139ddf56462d2e43a6d3e08ea4c29",
+          "bytes": 5164,
+          "role": "code"
+        },
+        {
+          "path": "src/nanoarrow/common/inline_types.h",
+          "sha256": "d38a48bfb098edcd4f736b75afb8801256cac0befa9edec901be83339e7c42d5",
+          "git_blob": "8748c67f57f8156ec39a5f9f824113874dd9a100",
+          "bytes": 34833,
+          "role": "code"
+        },
+        {
+          "path": "src/nanoarrow/common/inline_buffer.h",
+          "sha256": "3761a55218f67dc3eaa6c3d8ab10b04e0369f1d63fa4f5991dfd180af0574417",
+          "git_blob": "c9a78602b135775e39dea370dbe95ad45acccec9",
+          "bytes": 24276,
+          "role": "code"
+        },
+        {
+          "path": "src/nanoarrow/common/inline_array.h",
+          "sha256": "a686c69ebf3eab70b67be19042396a4c6df9b206666f2fda327c802e8dfacdf3",
+          "git_blob": "885276b491ed9bf198f4665b546e0b68eea868f3",
+          "bytes": 49683,
+          "role": "code"
+        },
+        {
+          "path": "src/nanoarrow/nanoarrow.h",
+          "sha256": "d0c52d9a87e8d703a64e408958268d593449acb6df8467025c08606ca16c6ae0",
+          "git_blob": "c22ef12e54e874ca7c7a499780a060997a43ef20",
+          "bytes": 59511,
+          "role": "code"
+        }
+      ],
+      "excluded_policy": "Only the frozen component slice is indexed; all other upstream sources remain out of scope. No source is removed after product execution.",
+      "git_tree": "4c0437b04ff3a90da6fc04b002550fb54a88f73e",
+      "selection": {
+        "root": "frozen-original-path-component-slice",
+        "files": [
+          "src/nanoarrow/common/utils.c",
+          "src/nanoarrow/common/schema.c",
+          "src/nanoarrow/common/array_stream.c",
+          "src/nanoarrow/common/inline_types.h",
+          "src/nanoarrow/common/inline_buffer.h",
+          "src/nanoarrow/common/inline_array.h",
+          "src/nanoarrow/nanoarrow.h"
+        ],
+        "configuration_files": [],
+        "max_file_size_bytes": 1000000,
+        "graph": {
+          "scope": "code",
+          "module_roots": [
+            {
+              "root": "src/nanoarrow",
+              "language": "c",
+              "namespace": "compiled-c",
+              "module_prefix": [],
+              "layout": "flat"
+            }
+          ]
+        },
+        "generated_configuration": {
+          "path": "compile_commands.json",
+          "origin": "Evaluation-only declared include roots and language, not an upstream build database; commands are never executed.",
+          "entries": [
+            {
+              "directory": ".",
+              "file": "src/nanoarrow/common/utils.c",
+              "arguments": [
+                "clang",
+                "-x",
+                "c",
+                "-Isrc",
+                "-c",
+                "src/nanoarrow/common/utils.c"
+              ]
+            },
+            {
+              "directory": ".",
+              "file": "src/nanoarrow/common/schema.c",
+              "arguments": [
+                "clang",
+                "-x",
+                "c",
+                "-Isrc",
+                "-c",
+                "src/nanoarrow/common/schema.c"
+              ]
+            },
+            {
+              "directory": ".",
+              "file": "src/nanoarrow/common/array_stream.c",
+              "arguments": [
+                "clang",
+                "-x",
+                "c",
+                "-Isrc",
+                "-c",
+                "src/nanoarrow/common/array_stream.c"
+              ]
+            }
+          ],
+          "sha256": "a693de6e3b6e43a186878af177b66b34493d6b5b7422f86ae266f8061644cc7e",
+          "bytes": 625
+        },
+        "unselected_dependencies_policy": "Imports, headers and same-package files outside the slice remain explicit unknowns; no invented definitions or compiler execution."
+      }
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "commit": "c1a77be7d3327fdd72b1be23be8b2aac1dc2f8ae",
+      "slug": "zhanglei1949__graphdb",
+      "files": [
+        {
+          "path": "src/common/string_literal.cc",
+          "sha256": "3f88d89d3bf7ead3e97979cae193a1a2edc07a88c6df00ad4c7ee7ccb15c51ac",
+          "git_blob": "045b642d8178482cf1f56520a8cba5327ccfc439",
+          "bytes": 2834,
+          "role": "code"
+        },
+        {
+          "path": "src/common/error.cc",
+          "sha256": "c1720c05f9912c76e4528fc96fa77770e5e0284a2bb714793ce88eca48a347f4",
+          "git_blob": "13833bc4e4500395449f99887201d084b972a08c",
+          "bytes": 2478,
+          "role": "code"
+        },
+        {
+          "path": "include/graphdb/common/string_literal.h",
+          "sha256": "147608e508363454926e50d8d1b783a4cd9ea2c5f8e3fe9de802a5878673b2a4",
+          "git_blob": "7060c25c1ae7ff076f94ea9af0e5f69b6dc700d1",
+          "bytes": 409,
+          "role": "code"
+        },
+        {
+          "path": "include/graphdb/common/error.h",
+          "sha256": "4269ac415979f392658388457b3dd03053ef046a83f78d37e3fbf1456709eb3c",
+          "git_blob": "9b4d48c50b829867cda569ce02db2fe6f3c435cc",
+          "bytes": 2223,
+          "role": "code"
+        },
+        {
+          "path": "src/compiler/literals.cc",
+          "sha256": "aea5dc39d86fe84ba6cc51ff37c2403f34f7d25f3a65304f55c87ed6f1bf4b88",
+          "git_blob": "b1eb6156a7b4c9e194b9420a51a865d9671f5c17",
+          "bytes": 4406,
+          "role": "boundary_only"
+        }
+      ],
+      "excluded_policy": "Only the frozen component slice is indexed; all other upstream sources remain out of scope. No source is removed after product execution.",
+      "git_tree": "5ac8018a97b721443b6ff7ebf3fb60fdba4274e4",
+      "selection": {
+        "root": "frozen-original-path-component-slice",
+        "files": [
+          "src/common/string_literal.cc",
+          "src/common/error.cc",
+          "include/graphdb/common/string_literal.h",
+          "include/graphdb/common/error.h"
+        ],
+        "configuration_files": [],
+        "max_file_size_bytes": 1000000,
+        "graph": {
+          "scope": "code",
+          "module_roots": [
+            {
+              "root": "",
+              "language": "cpp",
+              "namespace": "compiled-cpp",
+              "module_prefix": [],
+              "layout": "flat"
+            }
+          ]
+        },
+        "generated_configuration": {
+          "path": "compile_commands.json",
+          "origin": "Evaluation-only declared include roots and language, not an upstream build database; commands are never executed.",
+          "entries": [
+            {
+              "directory": ".",
+              "file": "src/common/string_literal.cc",
+              "arguments": [
+                "clang++",
+                "-x",
+                "c++",
+                "-Iinclude",
+                "-c",
+                "src/common/string_literal.cc"
+              ]
+            },
+            {
+              "directory": ".",
+              "file": "src/common/error.cc",
+              "arguments": [
+                "clang++",
+                "-x",
+                "c++",
+                "-Iinclude",
+                "-c",
+                "src/common/error.cc"
+              ]
+            }
+          ],
+          "sha256": "556cd1149afa3eed469df67ff684d3030436f944f36cb51b0e64c987f2256dd9",
+          "bytes": 405
+        },
+        "unselected_dependencies_policy": "Imports, headers and same-package files outside the slice remain explicit unknowns; no invented definitions or compiler execution."
+      }
+    }
+  ],
+  "symbols": {
+    "g_parse": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "Parse",
+      "kind": "function",
+      "start": "func Parse(s string)"
+    },
+    "g_bytes": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "ParseBytes",
+      "kind": "function",
+      "start": "func ParseBytes(b []byte)"
+    },
+    "g_mustparse": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "MustParse",
+      "kind": "function",
+      "start": "func MustParse(s string)"
+    },
+    "g_from": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "FromBytes",
+      "kind": "function",
+      "start": "func FromBytes(b []byte)"
+    },
+    "g_string": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "String",
+      "kind": "method",
+      "start": "func (uuid UUID) String()"
+    },
+    "g_hex": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "encodeHex",
+      "kind": "function",
+      "start": "func encodeHex("
+    },
+    "g_validate": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "Validate",
+      "kind": "function",
+      "start": "func Validate(s string)"
+    },
+    "g_match": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "IsInvalidLengthError",
+      "kind": "function",
+      "start": "func IsInvalidLengthError("
+    },
+    "g_length_error": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "Error",
+      "kind": "method",
+      "start": "func (err invalidLengthError) Error()"
+    },
+    "g_type": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "UUID",
+      "kind": "type",
+      "start": "type UUID [16]byte",
+      "text": "type UUID [16]byte"
+    },
+    "g_length_type": {
+      "repository": "google/uuid",
+      "path": "uuid.go",
+      "name": "invalidLengthError",
+      "kind": "struct",
+      "start": "type invalidLengthError struct"
+    },
+    "g_xtob": {
+      "repository": "google/uuid",
+      "path": "util.go",
+      "name": "xtob",
+      "kind": "function",
+      "start": "func xtob("
+    },
+    "g_mt": {
+      "repository": "google/uuid",
+      "path": "marshal.go",
+      "name": "MarshalText",
+      "kind": "method",
+      "start": "func (uuid UUID) MarshalText()"
+    },
+    "g_ut": {
+      "repository": "google/uuid",
+      "path": "marshal.go",
+      "name": "UnmarshalText",
+      "kind": "method",
+      "start": "func (uuid *UUID) UnmarshalText("
+    },
+    "g_mb": {
+      "repository": "google/uuid",
+      "path": "marshal.go",
+      "name": "MarshalBinary",
+      "kind": "method",
+      "start": "func (uuid UUID) MarshalBinary()"
+    },
+    "g_ub": {
+      "repository": "google/uuid",
+      "path": "marshal.go",
+      "name": "UnmarshalBinary",
+      "kind": "method",
+      "start": "func (uuid *UUID) UnmarshalBinary("
+    },
+    "g_hash": {
+      "repository": "google/uuid",
+      "path": "hash.go",
+      "name": "NewHash",
+      "kind": "function",
+      "start": "func NewHash("
+    },
+    "g_md5": {
+      "repository": "google/uuid",
+      "path": "hash.go",
+      "name": "NewMD5",
+      "kind": "function",
+      "start": "func NewMD5("
+    },
+    "g_sha": {
+      "repository": "google/uuid",
+      "path": "hash.go",
+      "name": "NewSHA1",
+      "kind": "function",
+      "start": "func NewSHA1("
+    },
+    "g_net": {
+      "repository": "google/uuid",
+      "path": "node_net.go",
+      "name": "getHardwareInterface",
+      "kind": "function",
+      "start": "func getHardwareInterface("
+    },
+    "g_tag": {
+      "repository": "google/uuid",
+      "path": "node_net.go",
+      "name": "build-condition",
+      "kind": "file",
+      "start": "// +build !js",
+      "text": "// +build !js"
+    },
+    "j_value": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "Value",
+      "kind": "class",
+      "start": "public class Value implements AutoCloseable"
+    },
+    "j_type": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+      "name": "DataType",
+      "kind": "class",
+      "start": "public class DataType implements AutoCloseable"
+    },
+    "j_test": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+      "name": "ValueTest",
+      "kind": "class",
+      "start": "public class ValueTest extends TestBase"
+    },
+    "j_base": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+      "name": "TestBase",
+      "kind": "class",
+      "start": "public class TestBase"
+    },
+    "j_null": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "createNull",
+      "kind": "method",
+      "start": "public static Value createNull()"
+    },
+    "j_typednull": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "createNullWithDataType",
+      "kind": "method",
+      "start": "public static Value createNullWithDataType("
+    },
+    "j_guard": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "checkNotDestroyed",
+      "kind": "method",
+      "start": "public void checkNotDestroyed()"
+    },
+    "j_close": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "close",
+      "kind": "method",
+      "start": "@Override\n    public void close()"
+    },
+    "j_destroy": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "destroy",
+      "kind": "method",
+      "start": "private void destroy()"
+    },
+    "j_clone": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "clone",
+      "kind": "method",
+      "start": "public Value clone()"
+    },
+    "j_isnull": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Value.java",
+      "name": "isNull",
+      "kind": "method",
+      "start": "public boolean isNull()"
+    },
+    "j_testnull": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+      "name": "ValueCreateNull",
+      "kind": "method",
+      "start": "@Test\n    void ValueCreateNull()"
+    },
+    "j_testtyped": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+      "name": "ValueCreateNullWithDatatype",
+      "kind": "method",
+      "start": "@Test\n    void ValueCreateNullWithDatatype()"
+    },
+    "j_testclone": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+      "name": "ValueClone",
+      "kind": "method",
+      "start": "@Test\n    void ValueClone()"
+    },
+    "j_dtclone": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+      "name": "clone",
+      "kind": "method",
+      "start": "public DataType clone()"
+    },
+    "j_dtclose": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+      "name": "close",
+      "kind": "method",
+      "start": "@Override\n    public void close()"
+    },
+    "j_dtdestroy": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+      "name": "destroy",
+      "kind": "method",
+      "start": "private void destroy()"
+    },
+    "j_dtguard": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/DataType.java",
+      "name": "checkNotDestroyed",
+      "kind": "method",
+      "start": "private void checkNotDestroyed()"
+    },
+    "j_setup": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+      "name": "getDBandConn",
+      "kind": "method",
+      "start": "@BeforeAll\n    static void getDBandConn()"
+    },
+    "j_native_null": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+      "name": "kuzuValueCreateNull",
+      "kind": "method",
+      "start": "protected static native Value kuzuValueCreateNull();",
+      "text": "protected static native Value kuzuValueCreateNull();"
+    },
+    "j_native_typed": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+      "name": "kuzuValueCreateNullWithDataType",
+      "kind": "method",
+      "start": "protected static native Value kuzuValueCreateNullWithDataType(DataType dataType);",
+      "text": "protected static native Value kuzuValueCreateNullWithDataType(DataType dataType);"
+    },
+    "j_native_clone": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+      "name": "kuzuValueClone",
+      "kind": "method",
+      "start": "protected static native Value kuzuValueClone(Value value);",
+      "text": "protected static native Value kuzuValueClone(Value value);"
+    },
+    "j_native_destroy": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+      "name": "kuzuValueDestroy",
+      "kind": "method",
+      "start": "protected static native void kuzuValueDestroy(Value value);",
+      "text": "protected static native void kuzuValueDestroy(Value value);"
+    },
+    "j_native_dtclone": {
+      "repository": "kuzudb/kuzu",
+      "path": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+      "name": "kuzuDataTypeClone",
+      "kind": "method",
+      "start": "protected static native DataType kuzuDataTypeClone(DataType dataType);",
+      "text": "protected static native DataType kuzuDataTypeClone(DataType dataType);"
+    },
+    "c_error": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowErrorSet",
+      "kind": "function",
+      "start": "ArrowErrorCode ArrowErrorSet("
+    },
+    "c_malloc": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowMalloc",
+      "kind": "function",
+      "start": "void* ArrowMalloc("
+    },
+    "c_realloc": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowRealloc",
+      "kind": "function",
+      "start": "void* ArrowRealloc("
+    },
+    "c_free": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowFree",
+      "kind": "function",
+      "start": "void ArrowFree("
+    },
+    "c_allocfree": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowBufferAllocatorMallocFree",
+      "kind": "function",
+      "start": "static void ArrowBufferAllocatorMallocFree("
+    },
+    "c_default": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowBufferAllocatorDefault",
+      "kind": "function",
+      "start": "struct ArrowBufferAllocator ArrowBufferAllocatorDefault("
+    },
+    "c_dealloc": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowBufferDeallocator",
+      "kind": "function",
+      "start": "struct ArrowBufferAllocator ArrowBufferDeallocator("
+    },
+    "c_dealloc_realloc": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/utils.c",
+      "name": "ArrowBufferDeallocatorReallocate",
+      "kind": "function",
+      "start": "static uint8_t* ArrowBufferDeallocatorReallocate("
+    },
+    "c_schema_init": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/schema.c",
+      "name": "ArrowSchemaInit",
+      "kind": "function",
+      "start": "void ArrowSchemaInit("
+    },
+    "c_schema_type": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/schema.c",
+      "name": "ArrowSchemaSetType",
+      "kind": "function",
+      "start": "ArrowErrorCode ArrowSchemaSetType("
+    },
+    "c_init_type": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/schema.c",
+      "name": "ArrowSchemaInitFromType",
+      "kind": "function",
+      "start": "ArrowErrorCode ArrowSchemaInitFromType("
+    },
+    "c_format": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/schema.c",
+      "name": "ArrowSchemaSetFormat",
+      "kind": "function",
+      "start": "ArrowErrorCode ArrowSchemaSetFormat("
+    },
+    "c_copy": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/schema.c",
+      "name": "ArrowSchemaDeepCopy",
+      "kind": "function",
+      "start": "ArrowErrorCode ArrowSchemaDeepCopy("
+    },
+    "c_getschema": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/array_stream.c",
+      "name": "ArrowBasicArrayStreamGetSchema",
+      "kind": "function",
+      "start": "static int ArrowBasicArrayStreamGetSchema("
+    },
+    "c_next": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/array_stream.c",
+      "name": "ArrowBasicArrayStreamGetNext",
+      "kind": "function",
+      "start": "static int ArrowBasicArrayStreamGetNext("
+    },
+    "c_release": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/array_stream.c",
+      "name": "ArrowBasicArrayStreamRelease",
+      "kind": "function",
+      "start": "static void ArrowBasicArrayStreamRelease("
+    },
+    "c_stream_init": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/array_stream.c",
+      "name": "ArrowBasicArrayStreamInit",
+      "kind": "function",
+      "start": "ArrowErrorCode ArrowBasicArrayStreamInit("
+    },
+    "c_private": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/array_stream.c",
+      "name": "BasicArrayStreamPrivate",
+      "kind": "struct",
+      "start": "struct BasicArrayStreamPrivate {"
+    },
+    "c_arraymove": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/inline_types.h",
+      "name": "ArrowArrayMove",
+      "kind": "function",
+      "start": "static inline void ArrowArrayMove("
+    },
+    "c_schemamove": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/inline_types.h",
+      "name": "ArrowSchemaMove",
+      "kind": "function",
+      "start": "static inline void ArrowSchemaMove("
+    },
+    "c_schema_release": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/inline_types.h",
+      "name": "ArrowSchemaRelease",
+      "kind": "function",
+      "start": "static inline void ArrowSchemaRelease("
+    },
+    "c_allocator": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/inline_types.h",
+      "name": "ArrowBufferAllocator",
+      "kind": "struct",
+      "start": "struct ArrowBufferAllocator {"
+    },
+    "c_schema": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/common/inline_types.h",
+      "name": "ArrowSchema",
+      "kind": "struct",
+      "start": "struct ArrowSchema {"
+    },
+    "c_alloc_decl": {
+      "repository": "apache/arrow-nanoarrow",
+      "path": "src/nanoarrow/nanoarrow.h",
+      "name": "ArrowBufferAllocatorDefault",
+      "kind": "function",
+      "start": "NANOARROW_DLL struct ArrowBufferAllocator ArrowBufferAllocatorDefault(void);",
+      "text": "NANOARROW_DLL struct ArrowBufferAllocator ArrowBufferAllocatorDefault(void);"
+    },
+    "p_decode": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/common/string_literal.cc",
+      "name": "DecodeStringLiteral",
+      "kind": "function",
+      "start": "std::string DecodeStringLiteral("
+    },
+    "p_utf8": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/common/string_literal.cc",
+      "name": "Utf8",
+      "kind": "function",
+      "start": "void Utf8("
+    },
+    "p_code": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/common/error.cc",
+      "name": "ErrorCodeName",
+      "kind": "function",
+      "start": "const char *ErrorCodeName("
+    },
+    "p_category": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/common/error.cc",
+      "name": "ErrorCategoryName",
+      "kind": "function",
+      "start": "const char *ErrorCategoryName("
+    },
+    "p_stage": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/common/error.cc",
+      "name": "ErrorStageName",
+      "kind": "function",
+      "start": "const char *ErrorStageName("
+    },
+    "p_ctor": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/common/error.cc",
+      "name": "DiagnosticError::DiagnosticError",
+      "kind": "function",
+      "start": "DiagnosticError::DiagnosticError("
+    },
+    "p_unicode": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "include/graphdb/common/string_literal.h",
+      "name": "UnicodeEscapeError",
+      "kind": "class",
+      "start": "class UnicodeEscapeError : public Error"
+    },
+    "p_error": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "include/graphdb/common/error.h",
+      "name": "Error",
+      "kind": "class",
+      "start": "class Error : public std::runtime_error"
+    },
+    "p_diagnostic": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "include/graphdb/common/error.h",
+      "name": "DiagnosticError",
+      "kind": "class",
+      "start": "class DiagnosticError final : public Error"
+    },
+    "p_location": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "include/graphdb/common/error.h",
+      "name": "SourceLocation",
+      "kind": "struct",
+      "start": "struct SourceLocation {"
+    },
+    "p_decode_decl": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "include/graphdb/common/string_literal.h",
+      "name": "DecodeStringLiteral",
+      "kind": "function",
+      "start": "std::string DecodeStringLiteral(const std::string &text);",
+      "text": "std::string DecodeStringLiteral(const std::string &text);"
+    },
+    "p_bad_default": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "src/compiler/literals.cc",
+      "name": "IntegerLiteral",
+      "kind": "function",
+      "start": "Id IntegerLiteral(const std::string &text,\n                  std::optional<SourceLocation> location = {}) {",
+      "text": "Id IntegerLiteral(const std::string &text,\n                  std::optional<SourceLocation> location = {}) {"
+    },
+    "p_error_include": {
+      "repository": "zhanglei1949/graphdb",
+      "path": "include/graphdb/common/string_literal.h",
+      "name": "error-header-include",
+      "kind": "file",
+      "start": "#include \"graphdb/common/error.h\"",
+      "text": "#include \"graphdb/common/error.h\""
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "go:Q-01",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "behavior",
+      "query": "How does validation of a braced UUID differ from permissive parsing?",
+      "answer": "Validate 在 38 字节形式下明确检查首尾花括号；Parse 对这一长度只跳过首字节，随后检查中间 UUID 的格式。因此解析成功不能代替严格括号校验。",
+      "evidence": [
+        {
+          "symbol": "g_validate",
+          "quote": "case 36 + 2:\n\t\tif s[0] != '{' || s[len(s)-1] != '}' {\n\t\t\treturn fmt.Errorf(\"invalid bracketed UUID format\")\n\t\t}\n\t\ts = s[1 : len(s)-1]"
+        },
+        {
+          "symbol": "g_parse",
+          "quote": "case 36 + 2:\n\t\ts = s[1:]"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "go:Q-02",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "behavior",
+      "query": "What happens when a byte slice has the wrong length for constructing a UUID?",
+      "answer": "FromBytes 把输入交给 UnmarshalBinary 并返回其错误；UnmarshalBinary 要求恰好 16 字节，长度错误时返回带实际长度的错误，成功时复制字节。接收者调用的图目标仍按当前不推断边界处理。",
+      "evidence": [
+        {
+          "symbol": "g_from"
+        },
+        {
+          "symbol": "g_ub"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "go:Q-03",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "behavior",
+      "query": "How are the version and variant bits set when a UUID is generated from a hash?",
+      "answer": "NewHash 先取哈希前 16 字节，再把第 6 字节高四位设为给定版本低四位，把第 8 字节高位设为 RFC 4122 变体。",
+      "evidence": [
+        {
+          "symbol": "g_hash",
+          "quote": "copy(uuid[:], s)\n\tuuid[6] = (uuid[6] & 0x0f) | uint8((version&0xf)<<4)\n\tuuid[8] = (uuid[8] & 0x3f) | 0x80 // RFC 4122 variant"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "go:Q-04",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "calls",
+      "query": "Which parsing entry converts a returned parse error into a panic?",
+      "answer": "MustParse 调用 Parse，err 非空时构造 panic 信息；Parse 在输入长度不符合已支持形式时返回 invalidLengthError。",
+      "evidence": [
+        {
+          "symbol": "g_mustparse"
+        },
+        {
+          "symbol": "g_parse",
+          "quote": "default:\n\t\treturn uuid, invalidLengthError{len(s)}"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "g_mustparse",
+        "nodes": [
+          "g_mustparse",
+          "g_parse"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "go:Q-05",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "calls",
+      "query": "Which shared formatter supplies the text-marshaling implementation?",
+      "answer": "MarshalText 在 36 字节缓冲区上调用 encodeHex；encodeHex 负责十六进制分组与连字符的位置。",
+      "evidence": [
+        {
+          "symbol": "g_mt"
+        },
+        {
+          "symbol": "g_hex"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "g_mt",
+        "nodes": [
+          "g_mt",
+          "g_hex"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "go:Q-06",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "calls",
+      "query": "Which parser is called by the text unmarshaler, and when is the destination updated?",
+      "answer": "UnmarshalText 调用 ParseBytes；有错误即返回，成功后才通过 *uuid = id 更新接收者。ParseBytes 的长度分派和格式检查在 uuid.go 中。",
+      "evidence": [
+        {
+          "symbol": "g_ut"
+        },
+        {
+          "symbol": "g_bytes",
+          "quote": "default:\n\t\treturn uuid, invalidLengthError{len(b)}"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "g_ut",
+        "nodes": [
+          "g_ut",
+          "g_bytes"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "go:Q-07",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "dependencies",
+      "query": "How do the MD5 and SHA-1 UUID factories delegate algorithm-independent work?",
+      "answer": "NewMD5 和 NewSHA1 分别建立对应哈希器，把版本 3／5 和相同的 namespace/data 交给 NewHash；公共函数负责输入组合、哈希截取及位设置。",
+      "evidence": [
+        {
+          "symbol": "g_md5"
+        },
+        {
+          "symbol": "g_sha"
+        },
+        {
+          "symbol": "g_hash",
+          "quote": "h.Reset()\n\th.Write(space[:]) //nolint:errcheck\n\th.Write(data)     //nolint:errcheck\n\ts := h.Sum(nil)"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "g_md5",
+        "nodes": [
+          "g_md5",
+          "g_hash"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "go:Q-08",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "dependencies",
+      "query": "How do the string form and text marshaler keep UUID punctuation consistent?",
+      "answer": "String 与 MarshalText 都使用 encodeHex；二者都准备 36 字节目标，连字符布局统一由该 helper 设置。",
+      "evidence": [
+        {
+          "symbol": "g_string"
+        },
+        {
+          "symbol": "g_mt"
+        },
+        {
+          "symbol": "g_hex",
+          "quote": "dst[8] = '-'\n\thex.Encode(dst[9:13], uuid[4:6])\n\tdst[13] = '-'\n\thex.Encode(dst[14:18], uuid[6:8])\n\tdst[18] = '-'\n\thex.Encode(dst[19:23], uuid[8:10])\n\tdst[23] = '-'"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "go:Q-09",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "chain",
+      "query": "Trace rejection of a non-hex UUID from the panic-on-error entry to byte decoding.",
+      "answer": "MustParse → Parse → xtob。xtob 通过查表与 255 哨兵返回是否为有效十六进制；Parse 在 !ok 时返回格式错误，外层 MustParse 在 err 非空时 panic。",
+      "evidence": [
+        {
+          "symbol": "g_mustparse"
+        },
+        {
+          "symbol": "g_parse",
+          "quote": "v, ok := xtob(s[x], s[x+1])\n\t\tif !ok {\n\t\t\treturn uuid, errors.New(\"invalid UUID format\")\n\t\t}\n\t\tuuid[i] = v"
+        },
+        {
+          "symbol": "g_xtob"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "g_mustparse",
+        "nodes": [
+          "g_mustparse",
+          "g_parse",
+          "g_xtob"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 2
+      }
+    },
+    {
+      "task_id": "go:Q-10",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "chain",
+      "query": "Trace a failed textual UUID decode before it can overwrite the destination value.",
+      "answer": "UnmarshalText → ParseBytes → xtob。无效十六进制导致 ParseBytes 返回错误，UnmarshalText 在赋值前返回；目标只在成功路径被覆盖。",
+      "evidence": [
+        {
+          "symbol": "g_ut"
+        },
+        {
+          "symbol": "g_bytes",
+          "quote": "v, ok := xtob(b[x], b[x+1])\n\t\tif !ok {\n\t\t\treturn uuid, errors.New(\"invalid UUID format\")\n\t\t}\n\t\tuuid[i] = v"
+        },
+        {
+          "symbol": "g_xtob"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "g_ut",
+        "nodes": [
+          "g_ut",
+          "g_bytes",
+          "g_xtob"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 2
+      }
+    },
+    {
+      "task_id": "go:Q-11",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "responsibility",
+      "query": "How does the fixed-size UUID type relate to its binary marshal and unmarshal contracts?",
+      "answer": "UUID 的底层表示是 [16]byte。MarshalBinary 返回其字节切片；UnmarshalBinary 要求 16 字节后复制。这不要求推断任何隐式接口实现。",
+      "evidence": [
+        {
+          "symbol": "g_type"
+        },
+        {
+          "symbol": "g_mb"
+        },
+        {
+          "symbol": "g_ub"
+        }
+      ],
+      "relations": [
+        "contains"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "g_ub",
+        "nodes": [
+          "g_ub"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "go:Q-12",
+      "repository": "google/uuid",
+      "language": "go",
+      "category": "responsibility",
+      "query": "How is an invalid-length parse error represented and recognized?",
+      "answer": "invalidLengthError 保存 len，Error 把它格式化为文本；IsInvalidLengthError 用该具体类型断言识别错误。该职责不同于按字符串猜测错误类别。",
+      "evidence": [
+        {
+          "symbol": "g_length_type"
+        },
+        {
+          "symbol": "g_length_error"
+        },
+        {
+          "symbol": "g_match"
+        }
+      ],
+      "relations": [
+        "contains"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "g_match",
+        "nodes": [
+          "g_match"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-01",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "behavior",
+      "query": "What prevents operations from using a value after it has been destroyed?",
+      "answer": "checkNotDestroyed 检查 destroyed 并抛 RuntimeException；isNull 等方法先调用这一检查再调用 Native。这是 Java 层检查，不证明 native 层实现。",
+      "evidence": [
+        {
+          "symbol": "j_guard"
+        },
+        {
+          "symbol": "j_isnull"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "java:Q-02",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "behavior",
+      "query": "When does closing a value release native resources and mark it destroyed?",
+      "answer": "close 委托 destroy；destroy 先检查未销毁，仅在 !isOwnedByCPP 时调用 Native.kuzuValueDestroy 并设置 destroyed=true。",
+      "evidence": [
+        {
+          "symbol": "j_close"
+        },
+        {
+          "symbol": "j_destroy"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "java:Q-03",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "behavior",
+      "query": "How does cloning an already destroyed value differ from cloning a live one?",
+      "answer": "Value.clone 在 destroyed 时返回 null，否则调用 Native.kuzuValueClone；Native.java 只提供本地方法声明，题集不推断 JNI 实现。",
+      "evidence": [
+        {
+          "symbol": "j_clone"
+        },
+        {
+          "symbol": "j_native_clone"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "java:Q-04",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "calls",
+      "query": "Which test calls the empty-value factory, and what ownership and type checks follow?",
+      "answer": "ValueCreateNull 调用 Value.createNull，验证非 CPP 所有、类型为 ANY，并在转换验证后 close。工厂委托本地方法声明。实例调用目标不由该题强行推断。",
+      "evidence": [
+        {
+          "symbol": "j_testnull"
+        },
+        {
+          "symbol": "j_null"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "incoming",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "j_testnull",
+        "nodes": [
+          "j_testnull",
+          "j_null"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-05",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "calls",
+      "query": "Which test exercises a typed null factory and when does it release the temporary type?",
+      "answer": "ValueCreateNullWithDatatype 创建 INT64 的 DataType，调用 createNullWithDataType，检查所有权后关闭临时 type，再检查值类型并转换、关闭值。",
+      "evidence": [
+        {
+          "symbol": "j_testtyped"
+        },
+        {
+          "symbol": "j_typednull"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "incoming",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "j_testtyped",
+        "nodes": [
+          "j_testtyped",
+          "j_typednull"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-06",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "calls",
+      "query": "Which native declaration is called when a value is cloned?",
+      "answer": "Value.clone 的存活分支调用 Native.kuzuValueClone(this)，其 Java 声明返回 Value；声明不等于 native 实现体。",
+      "evidence": [
+        {
+          "symbol": "j_clone"
+        },
+        {
+          "symbol": "j_native_clone"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "j_clone",
+        "nodes": [
+          "j_clone"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-07",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "dependencies",
+      "query": "How does typed-null construction cross the Java wrapper and native declaration boundary?",
+      "answer": "Value.createNullWithDataType 把 DataType 参数原样交给 Native 的同名静态 native 声明；这里能证明 Java 调用和声明，不证明 JNI 内部行为。",
+      "evidence": [
+        {
+          "symbol": "j_typednull"
+        },
+        {
+          "symbol": "j_native_typed"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "j_typednull",
+        "nodes": [
+          "j_typednull"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-08",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "dependencies",
+      "query": "How do value cloning and data-type cloning depend on different native entry declarations?",
+      "answer": "两种 clone 都在 destroyed 时返回 null，但分别委托 kuzuValueClone(Value) 和 kuzuDataTypeClone(DataType)，返回相应包装类型。",
+      "evidence": [
+        {
+          "symbol": "j_clone"
+        },
+        {
+          "symbol": "j_dtclone"
+        },
+        {
+          "symbol": "j_native_clone"
+        },
+        {
+          "symbol": "j_native_dtclone"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "java:Q-09",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "chain",
+      "query": "Trace closing a data-type wrapper through its guard and state transition.",
+      "answer": "DataType.close → destroy → checkNotDestroyed；检查通过后调用 Native.kuzuDataTypeDestroy，再把 destroyed 置 true。不对实例派发补充超出支持范围的图边。",
+      "evidence": [
+        {
+          "symbol": "j_dtclose"
+        },
+        {
+          "symbol": "j_dtdestroy"
+        },
+        {
+          "symbol": "j_dtguard"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "j_dtclose",
+        "nodes": [
+          "j_dtclose"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-10",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "chain",
+      "query": "How does the cloning test check that a cloned value survives closing the original?",
+      "answer": "ValueClone 在取得 clone 后关闭原 value，随后验证 clone 的所有权、字符串类型和原内容，最后关闭 clone；Value.clone 的存活路径交给 native 声明。测试是上游源码证据，本轮不声称执行了 Java 测试。",
+      "evidence": [
+        {
+          "symbol": "j_testclone",
+          "quote": "Value clone = value.clone();\n        value.close();\n\n        assertFalse(clone.isOwnedByCPP());\n        assertEquals(clone.getDataType().getID(), DataTypeID.STRING);\n        str = clone.getValue();\n        assertTrue(str.equals(\"abcdefg\"));\n        clone.close();"
+        },
+        {
+          "symbol": "j_clone"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "j_testclone",
+        "nodes": [
+          "j_testclone"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-11",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "responsibility",
+      "query": "Which resource wrappers explicitly declare automatic close support, and where do their close methods delegate?",
+      "answer": "Value 和 DataType 均明确 implements AutoCloseable，close 都委托各自 destroy。AutoCloseable 来自外部 JDK，题集只标注声明，不伪造本地实现目标。",
+      "evidence": [
+        {
+          "symbol": "j_value",
+          "quote": "public class Value implements AutoCloseable"
+        },
+        {
+          "symbol": "j_type",
+          "quote": "public class DataType implements AutoCloseable"
+        },
+        {
+          "symbol": "j_close"
+        },
+        {
+          "symbol": "j_dtclose"
+        }
+      ],
+      "relations": [
+        "implements",
+        "contains"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "j_value",
+        "nodes": [
+          "j_value"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "java:Q-12",
+      "repository": "kuzudb/kuzu",
+      "language": "java",
+      "category": "responsibility",
+      "query": "Where does the value test inherit its database and connection setup?",
+      "answer": "ValueTest 显式 extends TestBase；基类声明共享 db／conn 和 getDBandConn，设置方法通过 TestHelper 建立它们。TestHelper 的实现不在此子集。",
+      "evidence": [
+        {
+          "symbol": "j_test",
+          "quote": "public class ValueTest extends TestBase"
+        },
+        {
+          "symbol": "j_base",
+          "quote": "protected static Database db;\n    protected static Connection conn;\n    @TempDir\n    static Path tempDir;"
+        },
+        {
+          "symbol": "j_setup"
+        }
+      ],
+      "relations": [
+        "extends"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "j_test",
+        "nodes": [
+          "j_test",
+          "j_base"
+        ],
+        "relations": [
+          "extends"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-01",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "behavior",
+      "query": "How does formatting an error distinguish a missing destination, a formatting failure, and truncation?",
+      "answer": "ArrowErrorSet 在 error=NULL 时返回成功；否则清空 message、格式化，vsnprintf 负值返回 EINVAL，需要字符数超过缓冲区返回 ERANGE，其余成功。",
+      "evidence": [
+        {
+          "symbol": "c_error"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "c:Q-02",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "behavior",
+      "query": "How does schema initialization roll back when assigning its requested type fails?",
+      "answer": "ArrowSchemaInitFromType 先初始化 schema，再设置类型；非成功时调用 ArrowSchemaRelease 并返回原错误。头文件的 Release helper 通过回调执行释放并检查 release 清空，回调目标不推断。",
+      "evidence": [
+        {
+          "symbol": "c_init_type"
+        },
+        {
+          "symbol": "c_schema_release"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "c:Q-03",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "behavior",
+      "query": "How does the basic array stream signal end of input without returning another array?",
+      "answer": "GetNext 检查 stream 与 release 后，arrays_i==n_arrays 时把输出 array->release 置 NULL 并返回成功，不再移动数组。",
+      "evidence": [
+        {
+          "symbol": "c_next",
+          "quote": "if (array_stream == NULL || array_stream->release == NULL) {\n    return EINVAL;\n  }"
+        },
+        {
+          "symbol": "c_next",
+          "quote": "if (private_data->arrays_i == private_data->n_arrays) {\n    array->release = NULL;\n    return NANOARROW_OK;\n  }"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "c:Q-04",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "calls",
+      "query": "Which allocator callback releases a non-null buffer through the local free wrapper?",
+      "answer": "ArrowBufferAllocatorMallocFree 仅对非空 ptr 调用同编译单元 ArrowFree；后者转交外部 free。不能把 libc 的实现当作本地源码。",
+      "evidence": [
+        {
+          "symbol": "c_allocfree"
+        },
+        {
+          "symbol": "c_free"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_allocfree",
+        "nodes": [
+          "c_allocfree",
+          "c_free"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-05",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "calls",
+      "query": "Which functions prepare an empty schema before its requested type is assigned?",
+      "answer": "ArrowSchemaInitFromType 调用 ArrowSchemaInit 再调用 ArrowSchemaSetType；前者清空字段并登记内部 release 回调，后者选择格式并初始化需要的子结构。宏包裹的调用与直接调用分开标注。",
+      "evidence": [
+        {
+          "symbol": "c_init_type",
+          "quote": "ArrowSchemaInit(schema);\n\n  int result = ArrowSchemaSetType(schema, type);"
+        },
+        {
+          "symbol": "c_schema_init"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_init_type",
+        "nodes": [
+          "c_init_type",
+          "c_schema_init",
+          "c_schema_type",
+          "c_schema_release"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-06",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "calls",
+      "query": "How does the basic stream obtain an independent schema for a consumer?",
+      "answer": "GetSchema 检查 stream 是否有效，从 private_data 取 schema 并调用 ArrowSchemaDeepCopy；深拷贝在另一个编译单元逐步复制字段、子项和字典。此子集不证明跨编译单元链接目标。",
+      "evidence": [
+        {
+          "symbol": "c_getschema"
+        },
+        {
+          "symbol": "c_copy",
+          "quote": "ArrowSchemaInit(schema_out);\n\n  int result = ArrowSchemaSetFormat(schema_out, schema->format);"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_getschema",
+        "nodes": [
+          "c_getschema"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-07",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "dependencies",
+      "query": "Where is the default allocator declared publicly and where is its implementation supplied?",
+      "answer": "nanoarrow.h 声明 ArrowBufferAllocatorDefault；utils.c 的定义返回静态默认分配器记录。声明与定义分别留证，不把原型当作可调用实现。",
+      "evidence": [
+        {
+          "symbol": "c_alloc_decl"
+        },
+        {
+          "symbol": "c_default"
+        }
+      ],
+      "relations": [
+        "imports"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "c_default",
+        "nodes": [
+          "c_default"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-08",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "dependencies",
+      "query": "How does replacing a schema format use the separately implemented memory wrappers?",
+      "answer": "ArrowSchemaSetFormat 先通过 ArrowFree 释放旧 format，再按 strlen+1 通过 ArrowMalloc 分配并复制新字符串；分配失败返回 ENOMEM。两个 wrapper 的定义在 utils.c，跨单元绑定未作承诺。",
+      "evidence": [
+        {
+          "symbol": "c_format",
+          "quote": "if (schema->format != NULL) {\n    ArrowFree((void*)schema->format);\n  }\n\n  if (format != NULL) {\n    size_t format_size = strlen(format) + 1;\n    schema->format = (const char*)ArrowMalloc(format_size);\n    if (schema->format == NULL) {\n      return ENOMEM;\n    }"
+        },
+        {
+          "symbol": "c_malloc"
+        },
+        {
+          "symbol": "c_free"
+        },
+        {
+          "symbol": "c_format",
+          "quote": "memcpy((void*)schema->format, format, format_size);"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "c:Q-09",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "chain",
+      "query": "Trace initialization, type assignment, and failure cleanup for a new schema.",
+      "answer": "InitFromType → Init／SetType；SetType 对未知非 UNINITIALIZED 类型返回 EINVAL，外层遇错通过 inline Release helper 调用 release 回调。宏展开与回调派发不冒充已解析静态图边。",
+      "evidence": [
+        {
+          "symbol": "c_init_type"
+        },
+        {
+          "symbol": "c_schema_type",
+          "quote": "if (template_format == NULL && type != NANOARROW_TYPE_UNINITIALIZED) {\n    return EINVAL;\n  }"
+        },
+        {
+          "symbol": "c_schema_release"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_init_type",
+        "nodes": [
+          "c_init_type",
+          "c_schema_init",
+          "c_schema_type",
+          "c_schema_release"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-10",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "chain",
+      "query": "Trace ownership transfer when the basic stream returns its next array.",
+      "answer": "GetNext 在非末尾时用 arrays_i++ 选取数组并调用 ArrowArrayMove；inline helper memcpy 整个 ArrowArray，再把来源 release 置 NULL。",
+      "evidence": [
+        {
+          "symbol": "c_next",
+          "quote": "ArrowArrayMove(&private_data->arrays[private_data->arrays_i++], array);"
+        },
+        {
+          "symbol": "c_arraymove"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_next",
+        "nodes": [
+          "c_next"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-11",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "responsibility",
+      "query": "How does a custom deallocator populate the allocator callback record?",
+      "answer": "ArrowBufferAllocator 记录 reallocate、free 和 private_data；ArrowBufferDeallocator 把 reallocate 设为受限 helper，把 free 设为调用方传入回调，并保存 private_data。回调不是继承关系。",
+      "evidence": [
+        {
+          "symbol": "c_allocator"
+        },
+        {
+          "symbol": "c_dealloc"
+        }
+      ],
+      "relations": [
+        "contains"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_dealloc",
+        "nodes": [
+          "c_dealloc"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "c:Q-12",
+      "repository": "apache/arrow-nanoarrow",
+      "language": "c",
+      "category": "responsibility",
+      "query": "Which state belongs to a basic stream and how is its input schema ownership transferred?",
+      "answer": "BasicArrayStreamPrivate 保存 schema、n_arrays、arrays、arrays_i；初始化用 ArrowSchemaMove 把 schema 复制到私有记录并清空来源 release，随后初始化数组数量、指针和索引。",
+      "evidence": [
+        {
+          "symbol": "c_private"
+        },
+        {
+          "symbol": "c_stream_init",
+          "quote": "ArrowSchemaMove(schema, &private_data->schema);\n\n  private_data->n_arrays = n_arrays;\n  private_data->arrays = NULL;\n  private_data->arrays_i = 0;"
+        },
+        {
+          "symbol": "c_schemamove"
+        }
+      ],
+      "relations": [
+        "contains"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "c_stream_init",
+        "nodes": [
+          "c_stream_init"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-01",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "behavior",
+      "query": "Which checks reject invalid quoting or an unfinished escape in a string literal?",
+      "answer": "DecodeStringLiteral 检查长度、开引号种类和配对尾引号；普通字符若等于开引号则拒绝未转义引号，结尾反斜线触发 incomplete string escape。",
+      "evidence": [
+        {
+          "symbol": "p_decode",
+          "quote": "if (text.size() < 2 || (text[0] != '\\'' && text[0] != '\"') ||\n      text.back() != text[0])\n    throw Error(\"invalid string literal\");"
+        },
+        {
+          "symbol": "p_decode",
+          "quote": "if (c != '\\\\') {\n      if (c == text.front()) throw Error(\"unescaped string quote\");\n      out += c;\n      continue;\n    }\n    if (i + 1 >= text.size() - 1) throw Error(\"incomplete string escape\");\n    c = text.at(++i);"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "cpp:Q-02",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "behavior",
+      "query": "Which Unicode code points are rejected before UTF-8 bytes are emitted?",
+      "answer": "Utf8 拒绝大于 0x10ffff 的码点及 0xd800—0xdfff 代理区间，抛 UnicodeEscapeError；其他码点继续进入编码分支。",
+      "evidence": [
+        {
+          "symbol": "p_utf8",
+          "quote": "if (cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))\n    throw UnicodeEscapeError(\"invalid Unicode escape\");"
+        },
+        {
+          "symbol": "p_utf8",
+          "quote": "if (cp < 0x80)\n    out += static_cast<char>(cp);"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "cpp:Q-03",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "behavior",
+      "query": "How does the string decoder choose the number of hexadecimal digits for Unicode escapes?",
+      "answer": "x／X 默认 2 位，u／U 默认 4 位；仅 U 且有足够 8 位十六进制时改为 8 位。长度不足或非十六进制抛 UnicodeEscapeError。",
+      "evidence": [
+        {
+          "symbol": "p_decode",
+          "quote": "size_t count = (c == 'x' || c == 'X') ? 2 : 4;\n        // Kuzu accepts both 4- and 8-hex escapes. Prefer 8 only for U.\n        if (c == 'U' && i + 8 < text.size() - 1 &&\n            std::all_of(text.begin() + i + 1, text.begin() + i + 9,\n                        [](unsigned char h) { return std::isxdigit(h); }))\n          count = 8;\n        if (i + count >= text.size() - 1)\n          throw UnicodeEscapeError(\"incomplete Unicode escape\");\n        if (!std::all_of(text.begin() + i + 1, text.begin() + i + 1 + count,\n                         [](unsigned char h) { return std::isxdigit(h); }))\n          throw UnicodeEscapeError(\"invalid Unicode escape\");"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "cpp:Q-04",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "calls",
+      "query": "Which local helper turns decoded hexadecimal code points into output bytes?",
+      "answer": "DecodeStringLiteral 在十六进制长度与字符检查后用 std::stoul 得到码点并调用同命名空间 Utf8；外部 std::stoul 的实现不在图中。",
+      "evidence": [
+        {
+          "symbol": "p_decode",
+          "quote": "Utf8(out, static_cast<uint32_t>(\n                      std::stoul(text.substr(i + 1, count), nullptr, 16)));\n        i += count;"
+        },
+        {
+          "symbol": "p_utf8",
+          "quote": "if (cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))\n    throw UnicodeEscapeError(\"invalid Unicode escape\");"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "p_decode",
+        "nodes": [
+          "p_decode",
+          "p_utf8"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-05",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "calls",
+      "query": "Which diagnostic-name functions are called to validate a constructed diagnostic?",
+      "answer": "DiagnosticError 构造体依次调用 ErrorCodeName、ErrorCategoryName、ErrorStageName；其中 ErrorCodeName 对未知错误码抛 logic_error。类外限定构造定义是否被图支持单列，不据文本名称补边。",
+      "evidence": [
+        {
+          "symbol": "p_ctor",
+          "quote": "(void)ErrorCodeName(code);\n  (void)ErrorCategoryName(category);\n  (void)ErrorStageName(stage);"
+        },
+        {
+          "symbol": "p_code",
+          "quote": "throw std::logic_error(\"invalid diagnostic code\");"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "p_ctor",
+        "nodes": [
+          "p_ctor",
+          "p_code",
+          "p_category",
+          "p_stage"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-06",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "calls",
+      "query": "Which exception type is thrown for a malformed Unicode escape, and how is that type declared?",
+      "answer": "DecodeStringLiteral 和 Utf8 的 Unicode 错误使用 UnicodeEscapeError；头文件将其声明为 Error 的公开子类并继承构造函数，Error 再公开继承 runtime_error。构造调用不自动视为普通函数调用边。",
+      "evidence": [
+        {
+          "symbol": "p_decode",
+          "quote": "throw UnicodeEscapeError(\"incomplete Unicode escape\");"
+        },
+        {
+          "symbol": "p_unicode"
+        },
+        {
+          "symbol": "p_error"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "p_decode",
+        "nodes": [
+          "p_decode",
+          "p_utf8"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-07",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "dependencies",
+      "query": "How does the public string-literal header connect its decoder declaration to the error hierarchy?",
+      "answer": "string_literal.h 声明 DecodeStringLiteral，同时声明继承 Error 的 UnicodeEscapeError，并通过 include error.h 引入其基础错误声明；实现位于 string_literal.cc。",
+      "evidence": [
+        {
+          "symbol": "p_decode_decl"
+        },
+        {
+          "symbol": "p_unicode"
+        },
+        {
+          "symbol": "p_error"
+        },
+        {
+          "symbol": "p_decode",
+          "quote": "throw Error(\"invalid string literal\");"
+        },
+        {
+          "symbol": "p_error_include"
+        }
+      ],
+      "relations": [
+        "imports",
+        "extends"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "p_unicode",
+        "nodes": [
+          "p_unicode",
+          "p_error"
+        ],
+        "relations": [
+          "extends"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-08",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "dependencies",
+      "query": "Where do diagnostic construction and its public declaration agree on the structured fields?",
+      "answer": "error.h 中 DiagnosticError 声明 code、category、stage、optional location；error.cc 的构造初始化列表逐项保存参数。基类 Error 保存 message，不能从消息文本反推这些结构字段。",
+      "evidence": [
+        {
+          "symbol": "p_diagnostic",
+          "quote": "const ErrorCode code;\n  const ErrorCategory category;\n  const ErrorStage stage;\n  const std::optional<SourceLocation> location;"
+        },
+        {
+          "symbol": "p_ctor",
+          "quote": ": Error(std::move(message)),\n      code(code),\n      category(category),\n      stage(stage),\n      location(location) {"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name"
+    },
+    {
+      "task_id": "cpp:Q-09",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "chain",
+      "query": "Trace a hexadecimal string escape through validation, number conversion, and UTF-8 encoding.",
+      "answer": "解码器先检查 count 与十六进制字符，std::stoul(...,16) 转换后传给 Utf8；Utf8 再拒绝非法码点并编码。这是源码处理链，外部库实现不作为本地路径。",
+      "evidence": [
+        {
+          "symbol": "p_decode",
+          "quote": "if (i + count >= text.size() - 1)\n          throw UnicodeEscapeError(\"incomplete Unicode escape\");\n        if (!std::all_of(text.begin() + i + 1, text.begin() + i + 1 + count,\n                         [](unsigned char h) { return std::isxdigit(h); }))\n          throw UnicodeEscapeError(\"invalid Unicode escape\");\n        Utf8(out, static_cast<uint32_t>(\n                      std::stoul(text.substr(i + 1, count), nullptr, 16)));\n        i += count;"
+        },
+        {
+          "symbol": "p_utf8",
+          "quote": "if (cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))\n    throw UnicodeEscapeError(\"invalid Unicode escape\");"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "p_decode",
+        "nodes": [
+          "p_decode",
+          "p_utf8"
+        ],
+        "relations": [
+          "calls"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-10",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "chain",
+      "query": "How does a structured diagnostic validate its enum values and source position?",
+      "answer": "DiagnosticError 在保存字段后调用三个枚举转换函数；若 location 存在且 line 或 column 为 0，抛一基位置错误。SourceLocation 的两个字段在头文件中定义。",
+      "evidence": [
+        {
+          "symbol": "p_ctor",
+          "quote": "(void)ErrorCodeName(code);\n  (void)ErrorCategoryName(category);\n  (void)ErrorStageName(stage);\n  if (location && (!location->line || !location->column))\n    throw std::logic_error(\"diagnostic location is one-based\");"
+        },
+        {
+          "symbol": "p_location"
+        }
+      ],
+      "relations": [
+        "calls"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "p_ctor",
+        "nodes": [
+          "p_ctor"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-11",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "responsibility",
+      "query": "How does the Unicode-specific exception fit into the shared error type hierarchy?",
+      "answer": "UnicodeEscapeError public extends Error，Error public extends std::runtime_error；UnicodeEscapeError 使用 using Error::Error 继承构造函数。前一条是子集内显式关系，runtime_error 的定义属于外部标准库。",
+      "evidence": [
+        {
+          "symbol": "p_unicode"
+        },
+        {
+          "symbol": "p_error"
+        }
+      ],
+      "relations": [
+        "extends"
+      ],
+      "direction": "outgoing",
+      "query_style": "behavior_without_answer_name",
+      "scope": {
+        "anchor": "p_unicode",
+        "nodes": [
+          "p_unicode",
+          "p_error"
+        ],
+        "relations": [
+          "extends"
+        ],
+        "max_hops": 1
+      }
+    },
+    {
+      "task_id": "cpp:Q-12",
+      "repository": "zhanglei1949/graphdb",
+      "language": "cpp",
+      "category": "responsibility",
+      "query": "What immutable metadata does the diagnostic exception carry beyond its message?",
+      "answer": "DiagnosticError 的 code、category、stage 和 optional SourceLocation 字段均为 const；SourceLocation 保存 line／column，构造体检查存在的位置是一基。",
+      "evidence": [
+        {
+          "symbol": "p_diagnostic",
+          "quote": "const ErrorCode code;\n  const ErrorCategory category;\n  const ErrorStage stage;\n  const std::optional<SourceLocation> location;"
+        },
+        {
+          "symbol": "p_location"
+        },
+        {
+          "symbol": "p_ctor",
+          "quote": "if (location && (!location->line || !location->column))\n    throw std::logic_error(\"diagnostic location is one-based\");"
+        }
+      ],
+      "relations": [
+        "contains"
+      ],
+      "direction": "outgoing",
+      "query_style": "public_api_named",
+      "scope": {
+        "anchor": "p_diagnostic",
+        "nodes": [
+          "p_diagnostic"
+        ],
+        "relations": [
+          "contains"
+        ],
+        "max_hops": 1
+      }
+    }
+  ],
+  "reference_annotations": [
+    {
+      "repository": "google/uuid",
+      "site": {
+        "symbol": "g_mustparse",
+        "quote": "Parse(s)"
+      },
+      "target": "g_parse",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "google/uuid",
+      "site": {
+        "symbol": "g_parse",
+        "quote": "xtob(s[x], s[x+1])"
+      },
+      "target": "g_xtob",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "google/uuid",
+      "site": {
+        "symbol": "g_mt",
+        "quote": "encodeHex(js[:], uuid)"
+      },
+      "target": "g_hex",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "google/uuid",
+      "site": {
+        "symbol": "g_ut",
+        "quote": "ParseBytes(data)"
+      },
+      "target": "g_bytes",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "google/uuid",
+      "site": {
+        "symbol": "g_from",
+        "quote": "uuid.UnmarshalBinary(b)"
+      },
+      "target": null,
+      "resolution_expectation": "unresolved",
+      "reason": "Unknown receiver inference is outside the declared Go graph support; behavioral evidence is still labelled independently."
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "site": {
+        "symbol": "j_testnull",
+        "quote": "Value.createNull()"
+      },
+      "target": "j_null",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "site": {
+        "symbol": "j_testtyped",
+        "quote": "Value.createNullWithDataType(type)"
+      },
+      "target": "j_typednull",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "site": {
+        "symbol": "j_testnull",
+        "quote": "value.close()"
+      },
+      "target": null,
+      "resolution_expectation": "unresolved",
+      "reason": "Unknown instance receiver; no virtual-dispatch inference."
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "site": {
+        "symbol": "j_null",
+        "quote": "Native.kuzuValueCreateNull()"
+      },
+      "target": null,
+      "resolution_expectation": "declaration_only_or_unresolved",
+      "reason": "A Java native declaration can be located; no JNI implementation body is in the selected corpus."
+    },
+    {
+      "repository": "apache/arrow-nanoarrow",
+      "site": {
+        "symbol": "c_allocfree",
+        "quote": "ArrowFree(ptr)"
+      },
+      "target": "c_free",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "apache/arrow-nanoarrow",
+      "site": {
+        "symbol": "c_init_type",
+        "quote": "ArrowSchemaInit(schema)"
+      },
+      "target": "c_schema_init",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "apache/arrow-nanoarrow",
+      "site": {
+        "symbol": "c_getschema",
+        "quote": "ArrowSchemaDeepCopy(&private_data->schema, schema)"
+      },
+      "target": null,
+      "resolution_expectation": "unresolved",
+      "reason": "Definition in another compilation unit; no cross-unit linkage inference is promised."
+    },
+    {
+      "repository": "apache/arrow-nanoarrow",
+      "site": {
+        "symbol": "c_free",
+        "quote": "free(ptr)"
+      },
+      "target": null,
+      "resolution_expectation": "unresolved",
+      "reason": "External libc implementation is absent."
+    },
+    {
+      "repository": "apache/arrow-nanoarrow",
+      "site": {
+        "symbol": "c_dealloc_realloc",
+        "quote": "allocator->free(allocator, ptr, old_size)"
+      },
+      "target": null,
+      "resolution_expectation": "unresolved",
+      "reason": "Function-pointer dispatch, not a direct static target."
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "site": {
+        "symbol": "p_decode",
+        "quote": "Utf8(out, static_cast<uint32_t>("
+      },
+      "target": "p_utf8",
+      "resolution_expectation": "resolved",
+      "reason": "Direct source proof of a unique static call in the selected scope."
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "site": {
+        "symbol": "p_decode",
+        "quote": "std::stoul(text.substr(i + 1, count), nullptr, 16)"
+      },
+      "target": null,
+      "resolution_expectation": "unresolved",
+      "reason": "External standard-library implementation is not selected."
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "site": {
+        "symbol": "p_ctor",
+        "quote": "ErrorCodeName(code)"
+      },
+      "target": null,
+      "resolution_expectation": "outside_declared_resolution",
+      "reason": "Out-of-class qualified definition is an explicitly unsupported graph-resolution boundary; direct source behavior is still labelled."
+    }
+  ],
+  "boundary_cases": [
+    {
+      "case_id": "go:B-01",
+      "language": "go",
+      "repository": "google/uuid",
+      "expected": "unresolved",
+      "reason": "未知接收者 uuid.UnmarshalBinary 不靠类型猜测目标。",
+      "evidence": [
+        {
+          "symbol": "g_from",
+          "quote": "uuid.UnmarshalBinary(b)"
+        }
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "references",
+          "selector": {
+            "by": "owner",
+            "owner": {
+              "by": "name",
+              "name": "FromBytes",
+              "source_id": "uuid.go"
+            }
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_files": [
+        "uuid.go",
+        "util.go",
+        "hash.go",
+        "marshal.go",
+        "go.mod"
+      ],
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "go:B-02",
+      "language": "go",
+      "repository": "google/uuid",
+      "expected": "not_ready",
+      "reason": "node_net.go 的 !js 构建条件缺少构建上下文；独立工作区只包含该原样来源和 go.mod。",
+      "evidence": [
+        {
+          "symbol": "g_tag"
+        }
+      ],
+      "workspace_files": [
+        "node_net.go",
+        "go.mod"
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "locate",
+          "target": {
+            "by": "name",
+            "name": "getHardwareInterface",
+            "source_id": "node_net.go"
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "java:B-01",
+      "language": "java",
+      "repository": "kuzudb/kuzu",
+      "expected": "unresolved",
+      "reason": "value.close 实例调用不推断接收者。",
+      "evidence": [
+        {
+          "symbol": "j_testnull",
+          "quote": "value.close()"
+        }
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "references",
+          "selector": {
+            "by": "owner",
+            "owner": {
+              "by": "name",
+              "name": "ValueCreateNull",
+              "source_id": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java"
+            }
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_files": [
+        "tools/java_api/src/main/java/com/kuzudb/Value.java",
+        "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "tools/java_api/src/test/java/com/kuzudb/TestBase.java"
+      ],
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "java:B-02",
+      "language": "java",
+      "repository": "kuzudb/kuzu",
+      "expected": "declaration_only_or_unresolved",
+      "reason": "native 方法可保留 Java 声明位置，但不得生成不存在的 JNI 实现体。",
+      "evidence": [
+        {
+          "symbol": "j_null"
+        },
+        {
+          "symbol": "j_native_null"
+        }
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "references",
+          "selector": {
+            "by": "owner",
+            "owner": {
+              "by": "name",
+              "name": "createNull",
+              "source_id": "tools/java_api/src/main/java/com/kuzudb/Value.java"
+            }
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_files": [
+        "tools/java_api/src/main/java/com/kuzudb/Value.java",
+        "tools/java_api/src/main/java/com/kuzudb/Native.java"
+      ],
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "c:B-01",
+      "language": "c",
+      "repository": "apache/arrow-nanoarrow",
+      "expected": "unresolved",
+      "reason": "ArrowFree 中的外部 free 不能误连其他同名本地函数。",
+      "evidence": [
+        {
+          "symbol": "c_free",
+          "quote": "free(ptr)"
+        }
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "references",
+          "selector": {
+            "by": "owner",
+            "owner": {
+              "by": "name",
+              "name": "ArrowFree",
+              "source_id": "src/nanoarrow/common/utils.c"
+            }
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_files": [
+        "src/nanoarrow/common/utils.c"
+      ],
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "c:B-02",
+      "language": "c",
+      "repository": "apache/arrow-nanoarrow",
+      "expected": "unresolved",
+      "reason": "allocator->free 是真实函数指针调用，不作为静态直接目标。",
+      "evidence": [
+        {
+          "symbol": "c_dealloc_realloc",
+          "quote": "allocator->free(allocator, ptr, old_size)"
+        }
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "references",
+          "selector": {
+            "by": "owner",
+            "owner": {
+              "by": "name",
+              "name": "ArrowBufferDeallocatorReallocate",
+              "source_id": "src/nanoarrow/common/utils.c"
+            }
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_files": [
+        "src/nanoarrow/common/utils.c"
+      ],
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "cpp:B-01",
+      "language": "cpp",
+      "repository": "zhanglei1949/graphdb",
+      "expected": "unresolved",
+      "reason": "std::stoul 的外部实现不在子集，不猜测目标。",
+      "evidence": [
+        {
+          "symbol": "p_decode",
+          "quote": "std::stoul(text.substr(i + 1, count), nullptr, 16)"
+        }
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "references",
+          "selector": {
+            "by": "owner",
+            "owner": {
+              "by": "name",
+              "name": "DecodeStringLiteral",
+              "source_id": "src/common/string_literal.cc"
+            }
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_files": [
+        "src/common/string_literal.cc"
+      ],
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    },
+    {
+      "case_id": "cpp:B-02",
+      "language": "cpp",
+      "repository": "zhanglei1949/graphdb",
+      "expected": "not_ready",
+      "reason": "保留 compiler/literals.cc 默认参数在固定 grammar 下的原 v1 失败；不将其他子集通过视为修复。",
+      "evidence": [
+        {
+          "symbol": "p_bad_default"
+        }
+      ],
+      "workspace_files": [
+        "src/compiler/literals.cc"
+      ],
+      "explore_request": {
+        "domain": "code",
+        "operation": {
+          "operation": "locate",
+          "target": {
+            "by": "name",
+            "name": "IntegerLiteral",
+            "source_id": "src/compiler/literals.cc"
+          }
+        }
+      },
+      "case_role": "boundary",
+      "human_reviewed": false,
+      "workspace_policy": "isolated-original-path-source-subset",
+      "generated_configuration": "absent; explicit language root only; go.mod present where listed"
+    }
+  ],
+  "scope": "Agent-reviewed source evidence, not exhaustive or human gold. No product output was read to author this version.",
+  "relation_annotations": [
+    {
+      "repository": "kuzudb/kuzu",
+      "relation": "extends",
+      "source": "j_test",
+      "target": "j_base",
+      "evidence": [
+        {
+          "symbol": "j_test",
+          "quote": "public class ValueTest extends TestBase"
+        }
+      ],
+      "resolution_expectation": "resolved"
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "relation": "implements",
+      "source": "j_value",
+      "target": null,
+      "target_name": "AutoCloseable",
+      "evidence": [
+        {
+          "symbol": "j_value",
+          "quote": "public class Value implements AutoCloseable"
+        }
+      ],
+      "resolution_expectation": "external_declaration_only"
+    },
+    {
+      "repository": "kuzudb/kuzu",
+      "relation": "implements",
+      "source": "j_type",
+      "target": null,
+      "target_name": "AutoCloseable",
+      "evidence": [
+        {
+          "symbol": "j_type",
+          "quote": "public class DataType implements AutoCloseable"
+        }
+      ],
+      "resolution_expectation": "external_declaration_only"
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "relation": "extends",
+      "source": "p_unicode",
+      "target": "p_error",
+      "evidence": [
+        {
+          "symbol": "p_unicode",
+          "quote": "class UnicodeEscapeError : public Error"
+        }
+      ],
+      "resolution_expectation": "resolved"
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "relation": "extends",
+      "source": "p_diagnostic",
+      "target": "p_error",
+      "evidence": [
+        {
+          "symbol": "p_diagnostic",
+          "quote": "class DiagnosticError final : public Error"
+        }
+      ],
+      "resolution_expectation": "resolved"
+    },
+    {
+      "repository": "zhanglei1949/graphdb",
+      "relation": "extends",
+      "source": "p_error",
+      "target": null,
+      "target_name": "std::runtime_error",
+      "evidence": [
+        {
+          "symbol": "p_error",
+          "quote": "class Error : public std::runtime_error"
+        }
+      ],
+      "resolution_expectation": "external_declaration_only"
+    }
+  ],
+  "oracle_limitations": [
+    "Agent-authored questions on real source; not a sample of logged user queries.",
+    "No human review; semantic correctness and completeness remain subject to independent review.",
+    "Source byte checks prove provenance and positions, not completeness of the semantic oracle.",
+    "Primary-source readiness is deliberately not assumed; source/grammar failures discovered after freeze remain failures, not reclassified negatives.",
+    "C++ error.h also contains a brace-default optional argument; main-slice readiness must be measured, not inferred from representative v2.",
+    "Header configurations are evaluation declarations, not real compiler/build-system execution; absent generated headers remain explicit."
+  ]
+}

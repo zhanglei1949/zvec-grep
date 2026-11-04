@@ -1,6 +1,8 @@
 //! Real service + real zvec/graphdb; only model computation is deterministic.
 #[path = "graph_recovery_leases.rs"]
 mod recovery_leases;
+#[path = "graph_semantic_sources.rs"]
+mod semantic_sources;
 use super::*;
 use crate::EngineError;
 use crate::{
@@ -194,6 +196,17 @@ fn unselected_candidate(
     incomplete: bool,
     commit_root: bool,
 ) -> String {
+    unselected_candidate_with_facts(manifest, incomplete, commit_root, std::convert::identity)
+}
+
+fn unselected_candidate_with_facts(
+    manifest: &crate::workspace::manifest::WorkspaceManifest,
+    incomplete: bool,
+    commit_root: bool,
+    enrich: impl FnOnce(
+        zg_knowledge::relations::bound::FactCatalog,
+    ) -> zg_knowledge::relations::bound::FactCatalog,
+) -> String {
     use zg_knowledge::{
         graph::{
             GraphDbStore, GraphLimits, ImportBudget,
@@ -212,7 +225,7 @@ fn unselected_candidate(
     let old_path = home.join("graph/builds").join(&old.graph_build_id);
     let graph =
         GraphDbStore::open(old_path.join("db"), true, GraphLimits::default()).expect("old graph");
-    let catalog = graph.read_facts(&ctx).expect("facts");
+    let catalog = enrich(graph.read_facts(&ctx).expect("facts"));
     drop(graph);
     let mut record: serde_json::Value =
         serde_json::from_slice(&std::fs::read(old_path.join("build.json")).expect("record"))
@@ -336,7 +349,7 @@ async fn graph_recovery_selects_only_matching_committed_candidate_and_rejects_st
         .recover_graph(recovery_options(dir.path(), &competing))
         .await
         .expect_err("root and host input disagree");
-    assert!(error.message().contains("recovery_required"));
+    assert!(error.is_recovery_required());
     assert_eq!(
         std::fs::read(conflicting.join("attempt.json")).expect("retained evidence"),
         bytes

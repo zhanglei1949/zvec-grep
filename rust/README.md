@@ -385,7 +385,7 @@ See [root cause and acceptance](../knowledge/ANN_READONLY_DIGEST_DRIFT.md).
 
 `zg-knowledge` now owns relation facts, resolution, processing budgets/fingerprints and optional graphdb storage. The independent snapshot/parser/embedding/worker/projection pipeline has retired; the engine owns ingestion, models, text/vector indexes and scheduling. `zg-storage/zvec` is explicit and enabled by the engine; pure KG library checks need no zvec runtime. Native coexistence tests still use the real libraries. See [module consolidation and pending G2 repairs](../knowledge/MODULE_CONSOLIDATION_REPORT.md).
 
-The default-off `zg-engine/knowledge-graph` feature exposes G1 candidate-fact inspection for Rust/Python static references and Markdown document links. The additional `knowledge-graph-graphdb` feature enables experimental `IndexOptions.graph`: persistent policy, same-extraction EntityId binding, candidate commit and joint text/graph publication. A verified unchanged text index can build or reuse its graph before model acquisition, remote authorization or Embedding. Text and vectors remain in the existing host collections.
+The engine re-exports the pure Rust query contracts from its regular `zg-knowledge` dependency; this does not enable native graphdb storage. The default-off `zg-engine/knowledge-graph` feature exposes G1 candidate-fact inspection for Rust/Python static references and Markdown document links. The additional `knowledge-graph-graphdb` feature enables experimental `IndexOptions.graph`: persistent policy, same-extraction EntityId binding, candidate commit and joint text/graph publication. A verified unchanged text index can build or reuse its graph before model acquisition, remote authorization or Embedding. Text and vectors remain in the existing host collections.
 
 `graph: None` inherits saved intent; explicit `GraphScope::Off` persists Off and revokes HEAD. Text writers honor STATE fences even without the native graph feature. Explicit enable without that feature is rejected before policy/model changes. Current enabled manifests require a storage generation; old layouts still require rebuild. The native read-only fix above is required.
 
@@ -394,7 +394,7 @@ New candidates import facts in row/parameter-byte bounded transactions, with fac
 `ZvecGrep::recover_graph` provides explicit `Inspect`, `Reconcile`, `Select` and `Discard` actions without models. Mutating actions require the operation/attempt returned by inspection. Selection requires a committed matching candidate and an unchanged current text/policy/HEAD base. Incomplete imports cannot publish; graph recovery never repairs a dirty text STATE or publishes an unselected text generation. Discard verifies a reopenable candidate, drains the existing read leases, closes native owners and removes it only if no HEAD references it. See the [batch/recovery acceptance](../knowledge/G2_2_BATCH_RECOVERY_REPORT.md) and [executable example](crates/zg-engine/examples/graph_recovery.rs).
 
 With the executable `knowledge-graph-graphdb` feature enabled, `zg explore`
-reads published Rust/Python code graphs without indexing, refreshing or loading
+reads published Rust/Python code graphs and structured semantic objects without indexing, refreshing or loading
 models. Default builds still parse the public types and CLI arguments, but
 return `unsupported` before opening a workspace. The code domain must be fully
 ready; partial extraction cannot silently become an empty result.
@@ -413,8 +413,8 @@ cargo build --locked -p zg --features knowledge-graph-graphdb
 ```
 
 `--request` accepts an `ExploreRequest` JSON file and excludes convenience
-subcommands. Operations are `locate`, `neighbors`, `expand`, `shortest_path` and
-`references`; `callers`/`callees` select incoming/outgoing CALLS. Names may be
+subcommands. Operations are `locate`, `neighbors`, `expand`, `shortest_path`,
+`references` and `semantic`; `callers`/`callees` select incoming/outgoing CALLS. Names may be
 ambiguous; traversal needs a unique anchor. Boundaries constrain every traversed
 node, while result filters affect display. Node/reference IDs carry their view.
 Default limits are 30 seconds total, 5 seconds for the graph stage, 2,000 nodes,
@@ -425,11 +425,39 @@ Rust callers use `api::explore::{ExploreOptions, ExploreRequest}` and
 `ZvecGrep::explore`; options contain no model or refresh settings. MCP exposes
 `zvec_grep_explore` in both Agent and Full toolsets when compiled, with typed
 input/output schemas and structured results. MCP index accepts `graph` with the
-same shape as `--graph-options`. Daemon protocol 14 advertises `explore.code.v1`, `augment.code.v1` and
-`constrain.code.v1`;
+same shape as `--graph-options`. Daemon protocol 16 advertises `explore.code.v1`, `explore.semantic.v1`,
+`augment.code.v1` and `constrain.code.v1`;
 an incompatible daemon fails explicitly. No ordinary-search fallback is used.
 
-Schema/fact format v2 requires an explicit graph build for older candidates.
+Schema/fact format v7 requires an explicit rebuild for older candidates. Current
+semantic records inherit through complete candidates; structured source updates
+replace only complete contributions, retaining incomplete results and withdrawal
+provenance. Explicit corrections, retractions and Episode withdrawals retain their
+business records in the current graph. `ZvecGrep::apply_semantics` pins a generation,
+base graph and operation UUID and reuses candidate commit/selection and explicit
+recovery with persisted input. M3 validates current/history reads, source removal,
+Episode withdrawal, replay/conflicts, interrupted import recovery and close/reopen.
+Semantic `explore` returns typed objects, provenance and explicit evidence
+unavailability; `history: true` reads necessary business records in the current
+graph. Provider-owned space/context/source grants intersect client filters.
+Rust supertraits/explicit trait impls and Python static bases are available through
+EXTENDS/IMPLEMENTS and the existing code traversal. Old static rules require an
+explicit `index --rebuild`; restart older daemons after the protocol upgrade.
+Go, Java, C and C++ now use the same extraction, publication and public query
+path within the static subset documented in the [acceptance matrix](../knowledge/S2_ACCEPTANCE_MATRIX.md).
+Go module and compile-command inputs are pinned; ambiguous `.h` requires an explicit
+C/Cpp root. Configuration drift blocks stale code reads and writes while preserving
+independently qualified semantic reads. Raw facts use `zg-relations-v3`; v7 row
+identities remain stable. An explicit rebuild can carry verified v7/v2 semantic
+data forward; old code rules cannot be queried. JS/TS code graphs are deferred by
+user decision. [Six-language functional acceptance](../knowledge/S2_ACCEPTANCE_MATRIX.md)
+passes within the declared subset; six cost gates remain unmet. Code-only reads
+allow ordinary Markdown and JS/TS text sources without requiring code facts.
+Product Context Augment/Constrain remains code-only; the KG semantic scope primitive
+is validated for later integration. See the [acceptance matrix](../knowledge/S2_ACCEPTANCE_MATRIX.md).
+Augment retains verified graph evidence content independently of ordinary items:
+a source range does not prove that a shortened public preview displayed those
+bytes. Existing output budgets and explicit degradation remain unchanged.
 Graph-only reuse checks actual stored body and fragment identity before reusing
 vectors. Query qualification retains the complete commit/binding checks in
 bounded pages; this work does not eliminate their full-scan cost. See the

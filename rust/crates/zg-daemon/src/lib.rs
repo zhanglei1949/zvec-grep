@@ -195,9 +195,12 @@ pub async fn execute_command(
     | zg_daemon_protocol::DaemonCommand::QueryAuthorization(options) = &command
         && !options.graph.is_off()
     {
-        options.graph.validate()?;
+        options
+            .graph
+            .validate()
+            .map_err(zg_engine::EngineError::from)?;
         let execution = options.graph_execution.unwrap_or_default();
-        execution.validate()?;
+        execution.validate().map_err(zg_engine::EngineError::from)?;
         return within_graph_request(
             execution.request_timeout_ms,
             options.signal.clone(),
@@ -241,7 +244,13 @@ async fn execute_command_inner(
         ));
     }
     let capability = match &command {
-        zg_daemon_protocol::DaemonCommand::Explore(_) => Some("explore.code.v1"),
+        zg_daemon_protocol::DaemonCommand::Explore(options) => Some(
+            if options.request.domain == zg_engine::api::explore::QueryDomain::Semantic {
+                "explore.semantic.v1"
+            } else {
+                "explore.code.v1"
+            },
+        ),
         zg_daemon_protocol::DaemonCommand::Context(options)
         | zg_daemon_protocol::DaemonCommand::QueryAuthorization(options)
             if !options.graph.is_off() =>
@@ -419,13 +428,14 @@ mod tests {
             serde_json::json!({"status":"ok"}),
             serde_json::json!({"protocol_version":12,"capabilities":["explore.code.v1"]}),
             serde_json::json!({"protocol_version":13,"capabilities":[]}),
+            serde_json::json!({"protocol_version":14,"capabilities":["explore.code.v1","explore.semantic.v1"]}),
         ] {
             assert!(super::require_query_capability(&value, "explore.code.v1").is_err());
         }
         assert!(
             super::require_query_capability(
                 &serde_json::json!({
-                    "protocol_version":14,"capabilities":["explore.code.v1"]
+                    "protocol_version":16,"capabilities":["explore.code.v1"]
                 }),
                 "explore.code.v1"
             )
@@ -434,16 +444,16 @@ mod tests {
     }
 
     #[test]
-    fn augmentation_requires_protocol_14_and_its_own_capability() {
+    fn augmentation_requires_current_protocol_and_its_own_capability() {
         for value in [
             serde_json::json!({"protocol_version":13,"capabilities":["augment.code.v1"]}),
-            serde_json::json!({"protocol_version":14,"capabilities":["explore.code.v1"]}),
+            serde_json::json!({"protocol_version":16,"capabilities":["explore.code.v1"]}),
         ] {
             assert!(super::require_query_capability(&value, "augment.code.v1").is_err());
         }
         assert!(
             super::require_query_capability(
-                &serde_json::json!({"protocol_version":14,"capabilities":["augment.code.v1"]}),
+                &serde_json::json!({"protocol_version":16,"capabilities":["augment.code.v1"]}),
                 "augment.code.v1"
             )
             .is_ok()
@@ -464,10 +474,10 @@ mod tests {
 mod constrain_capability_tests {
     #[test]
     fn constrain_requires_its_own_declared_capability() {
-        let old = serde_json::json!({"protocol_version":14,"capabilities":["explore.code.v1","augment.code.v1"]});
+        let old = serde_json::json!({"protocol_version":15,"capabilities":["explore.code.v1","augment.code.v1"]});
         assert!(super::require_query_capability(&old, "constrain.code.v1").is_err());
         let current =
-            serde_json::json!({"protocol_version":14,"capabilities":["constrain.code.v1"]});
+            serde_json::json!({"protocol_version":16,"capabilities":["constrain.code.v1"]});
         assert!(super::require_query_capability(&current, "constrain.code.v1").is_ok());
     }
 }

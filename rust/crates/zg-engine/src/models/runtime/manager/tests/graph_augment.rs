@@ -52,7 +52,7 @@ pub(super) async fn build_code(
 }
 
 #[tokio::test]
-async fn graph_augment_preserves_normal_items_and_references_existing_text() {
+async fn graph_augment_preserves_normal_items_and_verified_evidence() {
     let directory = tempfile::tempdir().expect("workspace");
     let calls = Arc::new(AtomicUsize::new(0));
     let manager = models(&calls);
@@ -82,13 +82,7 @@ async fn graph_augment_preserves_normal_items_and_references_existing_text() {
             graph
                 .evidence
                 .iter()
-                .any(|e| matches!(e, GraphEvidence::Retrieved { .. }))
-        );
-        assert!(
-            graph
-                .evidence
-                .iter()
-                .any(|e| matches!(e, GraphEvidence::Verified { .. }))
+                .all(|e| matches!(e, GraphEvidence::Verified { .. }))
         );
         assert_eq!(graph.seeds[0].hits[0].query_sources, ["Q1"]);
     }
@@ -98,6 +92,66 @@ async fn graph_augment_preserves_normal_items_and_references_existing_text() {
         calls.load(Ordering::Acquire),
         before,
         "FTS and graph do not embed"
+    );
+}
+
+#[tokio::test]
+async fn graph_augment_keeps_full_body_with_fragment_previews() {
+    let directory = tempfile::tempdir().expect("workspace");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let manager = models(&calls);
+    let body = "\r\n".repeat(12);
+    let code = format!(
+        "fn target() {{\r\n    let needle = \"中文🙂\";\r\n{body}    let tail_marker = needle;\r\n}}\r\nfn caller() {{ let needle = 1; target(); }}\r\n"
+    );
+    let service = build_code(directory.path(), &manager, true, &code).await;
+    let mut opts = query_options(directory.path());
+    opts.routes[0].query = "needle".into();
+    opts.graph = GraphQueryMode::Augment {
+        seeds: 5,
+        expansion: TraversalSpec {
+            max_hops: 1,
+            include_start: true,
+            ..Default::default()
+        },
+    };
+    let mut off = opts.clone();
+    off.graph = GraphQueryMode::Off {};
+    let ordinary = indexed_search::service::context(&service, &manager, &off, None, false)
+        .await
+        .expect("ordinary");
+    assert!(!ordinary.items.is_empty());
+    let before = calls.load(Ordering::Acquire);
+    let result = indexed_search::service::context(&service, &manager, &opts, None, false)
+        .await
+        .expect("augmentation");
+    assert_eq!(result.items, ordinary.items);
+    let graph = result.graph.expect("graph");
+    assert_eq!(graph.status, GraphStatus::Complete);
+    let target = graph
+        .nodes
+        .iter()
+        .find(|n| n.name == "target")
+        .expect("target");
+    assert!(graph.evidence.iter().any(|e| matches!(e, GraphEvidence::Verified { reference, content }
+        if reference.span == target.span && content.lines().count() > 10 && content.contains("tail_marker") && content.contains("中文🙂"))));
+    assert!(graph.evidence.iter().any(|e| matches!(e, GraphEvidence::Verified { reference, .. }
+        if ordinary.items.iter().any(|item| matches!(item.content_range,
+            crate::api::context::result::ContentRange::Text { start_byte_offset, end_byte_offset, .. }
+            if start_byte_offset as u64 <= reference.span.start && reference.span.end <= end_byte_offset as u64)))));
+    for evidence in &graph.evidence {
+        let GraphEvidence::Verified { reference, content } = evidence else {
+            panic!("preview is not proof of visible evidence");
+        };
+        assert_eq!(
+            reference.span.slice(&code).expect("source interval"),
+            content
+        );
+    }
+    assert_eq!(
+        calls.load(Ordering::Acquire),
+        before,
+        "FTS graph reads do not embed"
     );
 }
 

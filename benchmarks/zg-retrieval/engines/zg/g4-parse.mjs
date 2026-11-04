@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { parseVisibleResponse } from "./parse.mjs";
 import { sha256, objectHash } from "../../core/io.mjs";
 import { coverage, scopeViolations } from "../../core/g4.mjs";
+import { matchesCompiledReference } from "../../core/g4-compiled.mjs";
 
 export function publicText(response) {
   assert.ok(
@@ -52,7 +53,7 @@ export function parseGraphResponse(response, family) {
 }
 
 /** Only actual public source lines and explicit verified content earn evidence credit. */
-export function visibleRanges(parsed, sources) {
+export function visibleRanges(parsed, sources, numberedEmptyLines = false) {
   const visible = [];
   for (const item of parsed.items ?? []) {
     const source = sources.get(item.path);
@@ -76,7 +77,10 @@ export function visibleRanges(parsed, sources) {
         column >= 0,
         `visible line differs from frozen ${item.path}:${line.line}`,
       );
-      if (!line.text.length || column !== original.lastIndexOf(line.text))
+      if (
+        (!line.text.length && !numberedEmptyLines) ||
+        column !== original.lastIndexOf(line.text)
+      )
         continue;
       const endColumn = column + line.text.length;
       const consecutive =
@@ -174,6 +178,29 @@ function matchesNode(actual, expected) {
   );
 }
 
+export function scoreBudgetBoundary(task, parsed, sources) {
+  const expected = task.budget_expectation;
+  assert.ok(expected, "missing frozen budget expectation");
+  if (expected.status === "product_error")
+    return {
+      passed:
+        parsed.status === "product_error" &&
+        parsed.text.includes(expected.reason),
+      expected,
+    };
+  // Partial results still have to carry valid source evidence.
+  if (parsed.status === "success") visibleRanges(parsed, sources);
+  return {
+    passed:
+      parsed.status === "success" &&
+      parsed.graph.execution.status === expected.status &&
+      parsed.graph.execution.stop_reason === expected.stop_reason &&
+      JSON.stringify(parsed.graph.locations.map((l) => l.status)) ===
+        JSON.stringify(task.contract.locations),
+    expected,
+  };
+}
+
 export function scoreExplore(task, parsed, sources, nodeMap) {
   if (parsed.status !== "success")
     return { passed: false, issues: ["product_error"] };
@@ -258,10 +285,16 @@ export function scoreExplore(task, parsed, sources, nodeMap) {
   };
 }
 
-export function scoreSearch(task, call, parsed, sources) {
+export function scoreSearch(
+  task,
+  call,
+  parsed,
+  sources,
+  numberedEmptyLines = false,
+) {
   if (parsed.status !== "success")
     return { status: "product_error", evidence: null };
-  const visible = visibleRanges(parsed, sources);
+  const visible = visibleRanges(parsed, sources, numberedEmptyLines);
   const required =
     call.family === "constrain"
       ? task.retrieval.scope_required_evidence
@@ -339,12 +372,16 @@ export function scoreSearch(task, call, parsed, sources) {
   };
 }
 
-/** Precision only at independently labelled reference sites, never across unknown gold. */
-export function judgeRelations(graph, nodeMap, truthEdges) {
-  const references = [
+export function graphReferences(graph) {
+  return [
     ...(graph?.relations ?? []).map((r) => r.reference).filter(Boolean),
     ...(graph?.references ?? []),
   ];
+}
+
+/** Precision only at independently labelled reference sites, never across unknown gold. */
+export function judgeRelations(graph, nodeMap, truthEdges, compiled = []) {
+  const references = graphReferences(graph);
   const result = {
     known_correct: 0,
     known_wrong: 0,
@@ -352,18 +389,40 @@ export function judgeRelations(graph, nodeMap, truthEdges) {
     unjudged: 0,
   };
   for (const ref of references) {
-    const expected = truthEdges.filter(
-      (e) =>
-        e.kind === ref.kind &&
-        e.evidence.path === ref.evidence.source_id &&
-        e.evidence.start === ref.evidence.span.start &&
-        e.evidence.end === ref.evidence.span.end,
+    const independent = compiled.filter((a) =>
+      matchesCompiledReference(ref, a),
     );
+    for (const a of independent) {
+      assert.equal(
+        ref.evidence.raw_digest,
+        a.site.sha256,
+        "known reference raw digest mismatch",
+      );
+      assert.equal(
+        ref.evidence.decoded_digest,
+        a.site.sha256,
+        "known reference decoded digest mismatch",
+      );
+    }
+    const expected = [
+      ...truthEdges.filter(
+        (e) =>
+          e.kind === ref.kind &&
+          e.evidence.path === ref.evidence.source_id &&
+          e.evidence.start === ref.evidence.span.start &&
+          e.evidence.end === ref.evidence.span.end,
+      ),
+      ...independent,
+    ];
     if (!expected.length) {
       result.unjudged++;
       continue;
     }
     if (ref.status !== "resolved") continue;
+    if (independent.some((a) => a.resolution_expectation === "unresolved")) {
+      result.known_wrong++;
+      continue;
+    }
     const target = nodeMap.get(ref.target);
     if (!target) {
       result.known_identity_unavailable++;

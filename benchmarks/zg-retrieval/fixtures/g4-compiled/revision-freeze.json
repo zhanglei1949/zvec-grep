@@ -1,0 +1,26 @@
+{
+  "id": "g4-compiled-v2-configuration-revision",
+  "frozen_at_utc": "2026-11-03T07:12:28.683930+00:00",
+  "files": [
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-compiled-v2.json",
+      "bytes": 1249,
+      "sha256": "48f1e9f646c0cea9034c33139f4a94af99113e0a3cd739561e321cbebc2ece25"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/data/g4-compiled-v2.json",
+      "bytes": 408288,
+      "sha256": "25e99401b1ec9dfe6b25c95ab974362d1a4dacd482a7545749d2748cef93d0e7"
+    }
+  ],
+  "parent": "four-language-query-r0-r1/freeze.json",
+  "changes": [
+    "Java: merge duplicate namespace roots under tools/java_api/src; same selected source files",
+    "C++ B-02: independent parser repair conformance expects successful locate; original frozen boundary, question, answer and source preserved"
+  ],
+  "invariants": [
+    "48 tasks, standard answers and 114 required evidence intervals unchanged",
+    "32 scoped pairs, 54 scoped evidence intervals, reference/relation annotations unchanged",
+    "800 requests, model, budgets, source bytes, v1 files unchanged"
+  ]
+}

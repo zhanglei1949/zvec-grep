@@ -4,7 +4,7 @@ use super::super::profile;
 use super::super::schema::{self, ImportRow, MetadataRow};
 use super::{
     GraphDbStore, GraphError, GraphErrorKind, GraphLimits, GraphResult, check_metadata,
-    codec::{FactRows, Mutation},
+    codec::{FactRows, Mutation, catalog_digest},
 };
 use crate::{
     processing::{ProcessingContext, stable_digest},
@@ -33,8 +33,8 @@ pub struct ImportBudget {
 impl Default for ImportBudget {
     fn default() -> Self {
         Self {
-            max_batch_rows: 256,
-            max_batch_bytes: 256 * 1024,
+            max_batch_rows: 4096,
+            max_batch_bytes: 4 * 1024 * 1024,
         }
     }
 }
@@ -208,6 +208,14 @@ impl GraphDbStore {
     }
     /// Recompute the persisted prefix; progress alone never proves fact effects.
     pub fn inspect_import(&self, context: &ProcessingContext) -> GraphResult<ImportProgress> {
+        self.inspect_import_expected(context, None)
+    }
+
+    fn inspect_import_expected(
+        &self,
+        context: &ProcessingContext,
+        expected: Option<(&FactCatalog, &str)>,
+    ) -> GraphResult<ImportProgress> {
         let _stage = profile::stage("import.inspect");
         context.check()?;
         self.with_read(|tx, options| {
@@ -235,12 +243,20 @@ impl GraphDbStore {
                 check_metadata(&metadata)?;
                 let catalog = rows.decode(&metadata[0], context)?;
                 if rows.digest()? != metadata[0].rows_digest
-                    || stable_digest(&catalog)? != r.facts_digest
+                    || catalog_digest(&catalog)? != r.facts_digest
                     || metadata[0].content_digest != r.facts_digest
                     || r.plan_digest != plan.initial.plan_digest
                     || r.total_rows != r.committed_rows
                 {
                     return Err(invalid());
+                }
+                if let Some((expected, plan)) = expected {
+                    if r.plan_digest != plan {
+                        return Err(conflict());
+                    }
+                    if *expected != catalog {
+                        return Err(GraphError::local(GraphErrorKind::RecoveryRequired));
+                    }
                 }
             } else if !metadata.is_empty() {
                 return Err(invalid());
@@ -286,9 +302,9 @@ impl GraphDbStore {
         }
         let mutations = rows.mutations();
         let plan = profile::measure("import.plan", || {
-            Plan::new(&mutations, stable_digest(catalog)?, budget, context)
+            Plan::new(&mutations, catalog_digest(catalog)?, budget, context)
         })?;
-        admit()?;
+        profile::measure("import.admit", &mut admit)?;
         self.with_write(|tx, options| {
             let existing = ImportRow::read(tx, options)?;
             if existing.is_empty() {
@@ -301,18 +317,18 @@ impl GraphDbStore {
             }
             Ok(())
         })?;
-        let persisted = self.inspect_import(context)?;
+        let persisted =
+            self.inspect_import_expected(context, Some((catalog, &plan.initial.plan_digest)))?;
         if persisted.plan_digest != plan.initial.plan_digest {
             return Err(conflict());
         }
         if persisted.finalized {
             return Ok(persisted);
         }
-        for i in
-            usize::try_from(persisted.completed_batches).map_err(|_| invalid())?..plan.batches.len()
-        {
+        let completed = usize::try_from(persisted.completed_batches).map_err(|_| invalid())?;
+        for i in completed..plan.batches.len() {
             context.check()?;
-            admit()?;
+            profile::measure("import.admit", &mut admit)?;
             let batch = &plan.batches[i];
             let expected = plan.at(i);
             let next = plan.at(i + 1);
@@ -344,7 +360,7 @@ impl GraphDbStore {
         })?;
         let mut complete = plan.at(plan.batches.len());
         complete.finalized = true;
-        admit()?;
+        profile::measure("import.admit", &mut admit)?;
         self.with_write(|tx, options| {
             if progress(tx, options)? != plan.at(plan.batches.len()) {
                 return Err(conflict());
@@ -364,20 +380,18 @@ impl GraphDbStore {
             advance(tx, options, &complete)
         })?;
         // No post-commit cancellation override of a finalized fact effect.
-        self.inspect_import(&ProcessingContext {
+        let confirmation = ProcessingContext {
             cancellation: tokio_util::sync::CancellationToken::default(),
             deadline: None,
             ..context.clone()
-        })
-        .map_err(|error| super::GraphError {
-            kind: error.kind,
-            outcome: Some(super::GraphOutcome::Committed),
-            stage: "facts_confirm".into(),
-            native_kind: None,
-            transaction_code: None,
-            mutation_code: None,
-            cleanup: None,
-            cause: Some(Box::new(error)),
-        })
+        };
+        self.inspect_import_expected(&confirmation, Some((catalog, &plan.initial.plan_digest)))
+            .map_err(|error| {
+                let mut failure = super::GraphError::local(error.kind);
+                failure.outcome = Some(super::GraphOutcome::Committed);
+                failure.stage = "facts_confirm".into();
+                failure.cause = Some(Box::new(error));
+                failure
+            })
     }
 }

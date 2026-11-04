@@ -4,7 +4,7 @@ use super::{
     Arc, BuildRecord, Candidate, EngineError, EngineResult, GraphDbStore, GraphHead, GraphPolicy,
     GraphWorkMode, IndexStore, PathBuf, TextState, WorkspaceIndexStorageOptions, WorkspaceManifest,
     attempt, bound_matches, check_context, committed_recovery, confirmation_diagnostics, context,
-    fingerprint, graph_state, read_record, rules_fingerprint,
+    fingerprint, graph_state, read_record,
 };
 use crate::api::index::graph::{GraphRecoveryAction, GraphRecoveryOptions, GraphRecoveryResult};
 use crate::storage::graph_state::TextPhase;
@@ -92,7 +92,7 @@ fn evidence_error(error: &zg_knowledge::graph::GraphError) -> EngineError {
     }
 }
 fn invalid() -> EngineError {
-    EngineError::storage_failure("graph recovery_required: candidate evidence is inconsistent")
+    EngineError::recovery_required("graph recovery_required: candidate evidence is inconsistent")
 }
 fn storage_path(home: &Path, generation: &str) -> EngineResult<PathBuf> {
     let mut path = home.to_path_buf();
@@ -174,6 +174,8 @@ fn validate_record(record: &BuildRecord, id: &str) -> EngineResult<()> {
             .base_head
             .as_ref()
             .is_some_and(|s| !graph_state::valid_uuid(s))
+        || (record.semantic.is_some()
+            && record.rules_fingerprint != record.expected_rules_fingerprint()?)
     {
         return Err(invalid());
     }
@@ -214,7 +216,7 @@ fn reconcile(
             return Ok(discarded_result(discard, generation));
         }
         if options.action != GraphRecoveryAction::Discard {
-            return Err(EngineError::storage_failure(
+            return Err(EngineError::recovery_required(
                 "candidate discard recovery_required",
             ));
         }
@@ -383,6 +385,16 @@ fn reconcile(
             .push("import_incomplete_retry_requires_new_build".into());
     }
     let policy = GraphPolicy::read(home)?;
+    let configuration_current = match active {
+        Some(manifest) => crate::graph_facts::module_roots::configuration::inputs_match(
+            &manifest.workspace.root,
+            &record.configuration_inputs,
+        )?,
+        None => false,
+    };
+    if !configuration_current {
+        result.diagnostics.push("configuration_not_current".into());
+    }
     let state = TextState::read(storage_home)?;
     let policy_matches = policy.as_ref().is_some_and(|p| {
         p.policy_fingerprint == record.policy_fingerprint && p.configuration.scope.enabled()
@@ -408,12 +420,13 @@ fn reconcile(
                 .all(|f| f.record.storage_generation == generation);
         text.close()?;
         result.eligible = proof.is_some()
+            && configuration_current
             && state_matches
             && policy_matches
             && sources_match
             && valid
             && (selected || head.as_ref().map(|h| &h.graph_build_id) == record.base_head.as_ref())
-            && record.rules_fingerprint == rules_fingerprint()?;
+            && record.rules_fingerprint == record.expected_rules_fingerprint()?;
     }
     // Read-only inspection never repairs a dirty fence, checkpoints or writes
     // attempt metadata. A writable reopen independently verifies durable proof.
@@ -514,7 +527,7 @@ fn resume_candidate(
     check_context(&ctx)?;
     let storage = storage_path(home, generation)?;
     if DiscardRecord::read(&storage, &options.graph_build_id)?.is_some() {
-        return Err(EngineError::storage_failure(
+        return Err(EngineError::recovery_required(
             "candidate discard recovery_required",
         ));
     }
@@ -569,6 +582,10 @@ fn resume_candidate(
         .ok_or_else(|| EngineError::resource_busy("graph resume requires current sources"))?;
     let manifest = active.ok_or_else(invalid)?;
     let policy = GraphPolicy::read(home)?.ok_or_else(invalid)?;
+    crate::graph_facts::module_roots::configuration::validate_inputs(
+        &manifest.workspace.root,
+        &record.configuration_inputs,
+    )?;
     if policy.policy_fingerprint != record.policy_fingerprint
         || !policy.configuration.scope.enabled()
     {
@@ -637,6 +654,7 @@ fn resume_candidate(
     let candidate = Candidate::open(manifest, &policy, operation.clone(), &record.graph_build_id)?;
     let previous = candidate.previous()?;
     let catalog = candidate.collect(&inputs, Vec::new(), previous.as_ref())?;
+    let catalog = super::semantic::apply(&record, previous.as_ref(), catalog, &ctx)?;
     let mut diagnostics = candidate.resume(&record, &catalog)?;
     drop(candidate);
     // The candidate is committed here. Use independent bounded native/context

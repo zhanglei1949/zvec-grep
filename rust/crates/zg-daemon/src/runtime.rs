@@ -149,7 +149,7 @@ pub(crate) async fn run_server(
 
 async fn health() -> Json<Value> {
     Json(
-        json!({ "status": "ok", "protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":if ZvecGrep::supports_explore(){vec!["explore.code.v1", "augment.code.v1", "constrain.code.v1"]}else{vec![]} }),
+        json!({ "status": "ok", "protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":if ZvecGrep::supports_explore(){vec!["explore.code.v1", "explore.semantic.v1", "augment.code.v1", "constrain.code.v1"]}else{vec![]} }),
     )
 }
 

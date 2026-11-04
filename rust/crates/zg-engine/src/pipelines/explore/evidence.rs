@@ -1,12 +1,17 @@
 //! Request-owned snapshots; every source or stored entity is read once.
 use super::Lease;
 use crate::domain::{Content, Entity, EntityId};
-use std::{collections::HashMap, io::Read, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    io::Read,
+    sync::Arc,
+};
 use zg_knowledge::{
     graph::GraphDbStore,
     query::{
-        BudgetUsage, ByteSpan, EvidenceProvider, EvidenceRead, EvidenceRef, GraphReader,
-        KgReadView, QueryError, QueryErrorKind, QueryResult, RequestContext, SourceRecord,
+        BudgetUsage, ByteSpan, EvidenceProvider, EvidenceRead, EvidenceRef, KgReadView, QueryError,
+        QueryErrorKind, QueryResult, RequestContext, SourceRecord,
     },
 };
 const MAX_RETAINED_BYTES: usize = 256 << 20;
@@ -18,37 +23,95 @@ struct Snapshots<'a> {
     reader: &'a GraphDbStore,
     context: &'a RequestContext,
     files: HashMap<String, Option<String>>,
-    entities: HashMap<String, Entity>,
+    entities: HashMap<String, Cow<'a, Entity>>,
+    sources: HashMap<String, Option<Arc<SourceRecord>>>,
+    verified_entities: Option<&'a BTreeMap<String, Entity>>,
     retained: usize,
 }
 fn unavailable(reason: &'static str) -> QueryError {
     QueryError::new(QueryErrorKind::ViewMismatch, "evidence", reason)
 }
+impl HostEvidence<'_> {
+    pub(super) fn read_evidence_with_entities(
+        &self,
+        view: &KgReadView<Arc<Lease>>,
+        references: &[EvidenceRef],
+        context: &RequestContext,
+        entities: &BTreeMap<String, Entity>,
+    ) -> QueryResult<Vec<EvidenceRead>> {
+        let mut snapshots = Snapshots::new(view, self.reader, context, Some(entities))?;
+        references.iter().map(|r| snapshots.read(r)).collect()
+    }
+}
 impl EvidenceProvider<Arc<Lease>> for HostEvidence<'_> {
+    fn read_semantic_evidence(
+        &self,
+        view: &KgReadView<Arc<Lease>>,
+        references: &[zg_knowledge::semantic::SourceEvidence],
+        context: &RequestContext,
+    ) -> QueryResult<Vec<Option<EvidenceRead>>> {
+        let mut snapshots = Snapshots::new(view, self.reader, context, None)?;
+        references
+            .iter()
+            .map(|evidence| {
+                let Some(locator) = &evidence.locator else {
+                    return Ok(None);
+                };
+                let source = snapshots.source(&evidence.source.source_id)?;
+                if source.as_ref().is_none_or(|source| {
+                    source.record.content_hash.as_ref() != Some(&evidence.source.source_version)
+                }) {
+                    return Ok(Some(EvidenceRead::Unavailable {
+                        reference: locator.clone(),
+                        reason: "versioned_source_not_available".into(),
+                    }));
+                }
+                snapshots.read(locator).map(Some)
+            })
+            .collect()
+    }
     fn read_evidence(
         &self,
         view: &KgReadView<Arc<Lease>>,
         references: &[EvidenceRef],
         context: &RequestContext,
     ) -> QueryResult<Vec<EvidenceRead>> {
+        let mut snapshots = Snapshots::new(view, self.reader, context, None)?;
+        references.iter().map(|r| snapshots.read(r)).collect()
+    }
+}
+impl<'a> Snapshots<'a> {
+    fn new(
+        view: &'a KgReadView<Arc<Lease>>,
+        reader: &'a GraphDbStore,
+        context: &'a RequestContext,
+        verified_entities: Option<&'a BTreeMap<String, Entity>>,
+    ) -> QueryResult<Self> {
         let lease = view.lease();
         let actual = lease
             .read
             .graph_stamp(&lease.manifest)
             .map_err(|_| unavailable("view changed"))?;
         view.stamp().require_same(&actual)?;
-        let mut snapshots = Snapshots {
+        Ok(Self {
             lease,
-            reader: self.reader,
+            reader,
             context,
+            verified_entities,
             files: HashMap::new(),
             entities: HashMap::new(),
+            sources: HashMap::new(),
             retained: 0,
-        };
-        references.iter().map(|r| snapshots.read(r)).collect()
+        })
     }
-}
-impl Snapshots<'_> {
+    fn source(&mut self, id: &str) -> QueryResult<Option<Arc<SourceRecord>>> {
+        self.context.check()?;
+        if !self.sources.contains_key(id) {
+            let source = self.reader.find_source(id, self.context)?.map(Arc::new);
+            self.sources.insert(id.to_owned(), source);
+        }
+        Ok(self.sources[id].clone())
+    }
     fn retain(&mut self, bytes: usize) -> QueryResult<()> {
         self.retained = self
             .retained
@@ -65,21 +128,28 @@ impl Snapshots<'_> {
     }
     fn entity(&mut self, id: &str) -> QueryResult<&Entity> {
         if !self.entities.contains_key(id) {
-            let mut found = self
-                .lease
-                .read
-                .storage()
-                .graph_entities(&[id.to_owned()])
-                .map_err(|_| unavailable("mapped entity unavailable"))?;
-            let entity = found
-                .pop()
-                .ok_or_else(|| unavailable("mapped entity unavailable"))?;
-            if EntityId::new(entity.file_id, &entity.content, entity.source_range)
-                .map_err(|_| unavailable("invalid stored content"))?
-                != entity.id
+            let entity = if let Some(entity) =
+                self.verified_entities.and_then(|entities| entities.get(id))
             {
-                return Err(unavailable("stored content no longer matches identity"));
-            }
+                Cow::Borrowed(entity)
+            } else {
+                let mut found = self
+                    .lease
+                    .read
+                    .storage()
+                    .graph_entities(&[id.to_owned()])
+                    .map_err(|_| unavailable("mapped entity unavailable"))?;
+                let entity = found
+                    .pop()
+                    .ok_or_else(|| unavailable("mapped entity unavailable"))?;
+                if EntityId::new(entity.file_id, &entity.content, entity.source_range)
+                    .map_err(|_| unavailable("invalid stored content"))?
+                    != entity.id
+                {
+                    return Err(unavailable("stored content no longer matches identity"));
+                }
+                Cow::Owned(entity)
+            };
             if let Content::Text(content) = &entity.content {
                 self.retain(content.len())?;
             }
@@ -87,6 +157,7 @@ impl Snapshots<'_> {
         }
         self.entities
             .get(id)
+            .map(Cow::as_ref)
             .ok_or_else(|| unavailable("entity snapshot missing"))
     }
     fn mapped(
@@ -217,8 +288,13 @@ impl Snapshots<'_> {
     }
     fn read(&mut self, reference: &EvidenceRef) -> QueryResult<EvidenceRead> {
         self.context.check()?;
+        let Some(source) = self.source(&reference.source_id)? else {
+            return Ok(EvidenceRead::Unavailable {
+                reference: reference.clone(),
+                reason: "source_not_indexed".into(),
+            });
+        };
         reference.validate()?;
-        let source = self.reader.source(&reference.source_id, self.context)?;
         if source.raw_digest.as_ref() != Some(&reference.raw_digest)
             || source.decoded_digest.as_ref() != Some(&reference.decoded_digest)
         {

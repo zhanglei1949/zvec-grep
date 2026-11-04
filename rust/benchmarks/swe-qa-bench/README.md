@@ -4,6 +4,16 @@
 
 # SWE-QA benchmark
 
+The independent `sweqa20-zg-augment-agent-v1` protocol compares **zg-off** with
+**zg-augment** using OpenCode 1.18.4 and Qwen3.7-max. It retains the existing
+baseline/zvec-grep protocol. Run `python -m zg_bench.swe_qa.augment --help` for the
+local entry point; see the [protocol, commands and measurement definitions](README_CN.md#普通-zg知识图谱-augment-对照).
+It requires a Linux x64 Rust local package with the GraphDB feature, a successful
+10-trial smoke experiment before the 120-trial full run, and independent GLM-5.2
+scoring. A benchmark-only MCP bridge fixes the graph treatment; a usage relay
+reconciles cache-inclusive provider usage with OpenCode and Harbor. Raw evidence,
+failure states, task-paired bootstrap intervals and blind review packets are retained.
+
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
 the same Claude Code agent, Claude Opus 5 model, task prompt, repository commit,

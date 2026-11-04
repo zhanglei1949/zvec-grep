@@ -2669,6 +2669,43 @@ mod tests {
 
     struct UnknownModifiedScanner(NativeScanner);
 
+    #[derive(Clone, Copy)]
+    enum SourceFailure {
+        Discovery,
+        Deadline,
+        Cancelled,
+        Read,
+    }
+
+    struct UnavailableScanner(SourceFailure);
+
+    #[async_trait]
+    impl WorkspaceScannerPort for UnavailableScanner {
+        async fn discover(
+            &self,
+            request: &ScanRequest,
+            control: &TaskControl,
+        ) -> Result<ScanSnapshot, HostError> {
+            match self.0 {
+                SourceFailure::Discovery => Err(HostError::storage_failure(
+                    "fixture",
+                    "incomplete inventory",
+                )),
+                SourceFailure::Deadline => Err(HostError::deadline_exceeded("scan deadline")),
+                SourceFailure::Cancelled => Err(HostError::cancelled("scan cancelled")),
+                SourceFailure::Read => NativeScanner::default().discover(request, control).await,
+            }
+        }
+
+        async fn read_batch(
+            &self,
+            _: &ReadBatchRequest,
+            _: &TaskControl,
+        ) -> Result<Vec<HostSource>, HostError> {
+            Err(HostError::storage_failure("fixture", "source read failed"))
+        }
+    }
+
     #[async_trait]
     impl WorkspaceScannerPort for UnknownModifiedScanner {
         async fn discover(
@@ -3638,6 +3675,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn source_failures_do_not_confirm_deletion_or_remove_out_of_scope_files() {
+        for failure in [
+            SourceFailure::Discovery,
+            SourceFailure::Deadline,
+            SourceFailure::Cancelled,
+            SourceFailure::Read,
+        ] {
+            let directory = tempdir().expect("temporary directory");
+            let root = directory.path();
+            std::fs::write(root.join("first.txt"), "first").expect("first source");
+            std::fs::write(root.join("outside.txt"), "outside").expect("outside source");
+            let workspace = workspace(root);
+            let scanner = NativeScanner::default();
+            let storage = MemoryStorage::default();
+            let model = ConcurrentModel::new();
+            let mut context = IndexingContext {
+                workspace_index: &workspace,
+                storage: &storage,
+                scanner: &scanner,
+                embedding_models: &[&model],
+                embedding_concurrency: None,
+                on_progress: None,
+                signal: None,
+                changes: &[],
+                #[cfg(feature = "knowledge-graph")]
+                graph_capture: None,
+            };
+            index_workspace(&context).await.expect("initial index");
+            let before = storage.list_files().expect("stored inventory");
+            std::fs::write(root.join("first.txt"), "changed first source").expect("modify source");
+            let changes = [WorkspaceChange::Delete(PathBuf::from("first.txt"))];
+            let unavailable = UnavailableScanner(failure);
+            context.changes = &changes;
+            context.scanner = &unavailable;
+            let outcome = index_workspace(&context).await;
+            if let SourceFailure::Read = failure {
+                assert_eq!(outcome.expect("failed file result").files_failed, 1);
+            } else {
+                let error = outcome.expect_err("discovery failure");
+                assert_eq!(
+                    error.code(),
+                    match failure {
+                        SourceFailure::Deadline => EngineError::DEADLINE_EXCEEDED,
+                        SourceFailure::Cancelled => EngineError::CANCELLED,
+                        _ => EngineError::STORAGE_FAILURE,
+                    }
+                );
+            }
+            let after = storage.list_files().expect("inventory after failure");
+            assert_eq!(after.len(), 2);
+            for original in &before {
+                let retained = after
+                    .iter()
+                    .find(|file| file.id == original.id)
+                    .expect("source retained");
+                assert_eq!(retained.relative_path, original.relative_path);
+                if original.relative_path.as_path() == Path::new("outside.txt") {
+                    assert_eq!(retained, original);
+                }
+            }
+
+            context.scanner = &scanner;
+            let stale_hint = index_workspace(&context)
+                .await
+                .expect("confirm source still exists");
+            assert_eq!(stale_hint.files_deleted, 0);
+            std::fs::remove_file(root.join("first.txt")).expect("remove source");
+            let confirmed = index_workspace(&context).await.expect("confirm removal");
+            assert_eq!(confirmed.files_deleted, 1);
+            let remaining = storage.list_files().expect("remaining inventory");
+            assert_eq!(remaining.len(), 1);
+            assert_eq!(
+                remaining[0].relative_path.as_path(),
+                Path::new("outside.txt")
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn changed_paths_limit_diff_and_storage_mutation_scope() {
         let directory = tempdir().expect("temporary directory");
         let first_path = directory.path().join("first.txt");
@@ -4375,11 +4491,7 @@ mod tests {
             let Some(facts) = &file.facts else {
                 continue;
             };
-            let format = match facts.language {
-                zg_knowledge::relations::Language::Rust => FileFormat::Rust,
-                zg_knowledge::relations::Language::Python => FileFormat::Python,
-                zg_knowledge::relations::Language::Markdown => FileFormat::Markdown,
-            };
+            let format = crate::graph_facts::format(facts.language);
             let raw =
                 std::fs::read(directory.path().join(&file.record.path)).expect("verification read");
             let decoded = decode_index_text(&[format], &raw).expect("verification decode");

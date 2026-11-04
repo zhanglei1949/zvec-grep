@@ -6,7 +6,7 @@ use ::graphdb::{
 };
 use std::sync::Arc;
 
-pub const SCHEMA_VERSION: u64 = 4;
+pub const SCHEMA_VERSION: u64 = 7;
 
 type RawField = (
     &'static [u8],
@@ -114,6 +114,83 @@ impl BatchColumn for Option<bool> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub(super) struct NativeTime(i64);
+impl NativeTime {
+    pub fn from_millis(value: u64) -> GraphResult<Self> {
+        value
+            .checked_mul(1000)
+            .and_then(|v| i64::try_from(v).ok())
+            .map(Self)
+            .ok_or_else(|| super::GraphError::local(super::GraphErrorKind::InvalidInput))
+    }
+    pub fn millis(self) -> GraphResult<u64> {
+        if self.0 < 0 || self.0 % 1000 != 0 {
+            return Err(super::GraphError::local(
+                super::GraphErrorKind::IncompatibleFormat,
+            ));
+        }
+        Ok(self.0.cast_unsigned() / 1000)
+    }
+}
+impl ::graphdb::FromValue for NativeTime {
+    fn from_value(value: ::graphdb::Value) -> ::graphdb::Result<Self> {
+        Ok(Self(
+            <::graphdb::TimestampTz as ::graphdb::FromValue>::from_value(value)?.0,
+        ))
+    }
+    fn from_value_ref(value: ::graphdb::ValueRef<'_>) -> ::graphdb::Result<Self> {
+        Ok(Self(
+            <::graphdb::TimestampTz as ::graphdb::FromValue>::from_value_ref(value)?.0,
+        ))
+    }
+}
+impl ToParam for NativeTime {
+    fn bind<'a>(&'a self, sink: &mut ::graphdb::ParamSink<'a>) -> ::graphdb::Result<()> {
+        sink.set_owned(::graphdb::Value::TimestampTz(::graphdb::TimestampTz(
+            self.0,
+        )));
+        Ok(())
+    }
+}
+impl ::graphdb::TypedParam for NativeTime {
+    fn parameter_type() -> LogicalType {
+        LogicalType::TimestampTz
+    }
+}
+impl CanonicalScalar for NativeTime {
+    fn write_raw(row: &::graphdb::Row<'_>, index: usize, output: &mut Vec<u8>) -> GraphResult<()> {
+        write_scalar(output, &row.try_get::<Self>(index)?)
+    }
+}
+impl BatchColumn for NativeTime {
+    fn logical_type() -> LogicalType {
+        LogicalType::TimestampTz
+    }
+    fn column<'a>(values: impl Iterator<Item = &'a Self>) -> GraphResult<Column> {
+        Ok(values
+            .map(|v| ::graphdb::TimestampTz(v.0))
+            .collect::<Vec<_>>()
+            .into())
+    }
+}
+impl BatchColumn for Option<NativeTime> {
+    fn logical_type() -> LogicalType {
+        LogicalType::TimestampTz
+    }
+    fn column<'a>(values: impl Iterator<Item = &'a Self>) -> GraphResult<Column> {
+        let values = values.collect::<Vec<_>>();
+        Ok(Column::from(
+            values
+                .iter()
+                .map(|v| ::graphdb::TimestampTz(v.map_or(0, |v| v.0)))
+                .collect::<Vec<_>>(),
+        )
+        .with_validity(values.iter().map(|v| u8::from(v.is_some())).collect())?)
+    }
+}
+
 // Resolve the fixed row order at compile time. Raw field writers borrow the
 // native scalar window rather than copying strings into a second owned row.
 const fn ordered_indices<const N: usize>(fields: [&'static str; N]) -> [usize; N] {
@@ -150,7 +227,7 @@ const fn ordered_indices<const N: usize>(fields: [&'static str; N]) -> [usize; N
 
 // Domain row declarations generate parameterized statements, NOT a backend
 // Value/Rows port. All table/column names are static and caller-independent.
-macro_rules! table {
+macro_rules! row_record {
     ($name:ident, $table:literal, {$($field:ident : $ty:ty => $ddl:literal),+ $(,)?}) => {
         #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
         pub(super) struct $name { $(pub $field: $ty,)+ }
@@ -190,6 +267,17 @@ macro_rules! table {
                 output.push(b'}');
                 Ok(())
             }
+            pub fn decode_row(row: &::graphdb::Row<'_>) -> GraphResult<Self> {
+                Ok(Self { $($field: row.try_get(stringify!($field))?,)+ })
+            }
+        }
+    };
+}
+
+macro_rules! table {
+    ($name:ident, $table:literal, {$($field:ident : $ty:ty => $ddl:literal),+ $(,)?}) => {
+        row_record!($name, $table, {$($field: $ty => $ddl),+});
+        impl $name {
             #[allow(dead_code)] // Singleton publication tables use direct reads.
             pub fn scan<'a>(tx: &'a mut Transaction<'_>, options: &QueryOptions) -> GraphResult<::graphdb::OrderedScan<'a>> {
                 Ok(tx.scan_nodes(Self::NAME, &[$(stringify!($field)),+], options)?)
@@ -230,7 +318,7 @@ macro_rules! table {
                 let query = format!("MATCH (n:{}) WHERE n.{} > $after RETURN {} ORDER BY n.{} LIMIT 256", Self::NAME, fields[0], fields.iter().map(|f| format!("n.{f} AS {f}")).collect::<Vec<_>>().join(","), fields[0]);
                 let result = tx.query_with(&query, ::graphdb::params!{"after"=>after}, options)?;
                 let mut rows = result.rows(); let mut output = Vec::new();
-                while let Some(row) = rows.next()? { output.push(Self { $($field: row.try_get(stringify!($field))?,)+ }); }
+                while let Some(row) = rows.next()? { output.push(Self::decode_row(&row)?); }
                 Ok(output)
             }
             #[allow(dead_code)] // Only entity and source tables use selected reads.
@@ -241,7 +329,7 @@ macro_rules! table {
                 let query = format!("MATCH (n:{}) {} RETURN {} ORDER BY n.{} SKIP {offset} LIMIT 256", Self::NAME, clause, fields.iter().map(|f| format!("n.{f} AS {f}")).collect::<Vec<_>>().join(","), fields[0]);
                 let result = tx.query_with(&query, parameters, options)?;
                 let mut rows = result.rows(); let mut output = Vec::new();
-                while let Some(row) = rows.next()? { output.push(Self { $($field: row.try_get(stringify!($field))?,)+ }); }
+                while let Some(row) = rows.next()? { output.push(Self::decode_row(&row)?); }
                 Ok(output)
             }
             pub fn read(tx: &mut Transaction<'_>, options: &QueryOptions) -> GraphResult<Vec<Self>> {
@@ -250,12 +338,41 @@ macro_rules! table {
                 let result = tx.query_with(&query, (), options)?;
                 let mut rows = result.rows();
                 let mut output = Vec::new();
-                while let Some(row) = rows.next()? { output.push(Self { $($field: row.try_get(stringify!($field))?,)+ }); }
+                while let Some(row) = rows.next()? { output.push(Self::decode_row(&row)?); }
                 Ok(output)
             }
         }
     };
     (@key $first:ident $(,$rest:ident)*) => {stringify!($first)};
+}
+
+macro_rules! relation {
+    ($name:ident, $table:literal, $from:literal, $to:literal, {$($field:ident: $ty:ty => $ddl:literal),+ $(,)?}) => {
+        row_record!($name, $table, {source: String => "STRING", target: String => "STRING", $($field: $ty => $ddl),+});
+        impl $name {
+            pub fn ddl() -> String {
+                format!("CREATE REL TABLE {}(FROM {} TO {}{})", Self::NAME, $from, $to,
+                    [$(concat!(",", stringify!($field), " ", $ddl)),+].concat())
+            }
+            pub fn insert(&self, tx: &mut Transaction<'_>, options: &QueryOptions) -> GraphResult<()> {
+                let query = format!("MATCH (a:{} {{id:$source}}),(b:{} {{id:$target}}) CREATE (a)-[:{} {{{}}}]->(b)",
+                    $from, $to, Self::NAME, [$(concat!(stringify!($field), ":$", stringify!($field))),+].join(","));
+                tx.execute_with(&query, Params::named(vec![("source", &self.source as &dyn ToParam), ("target", &self.target as &dyn ToParam), $((stringify!($field), &self.$field as &dyn ToParam)),+]), options)?;
+                Ok(())
+            }
+            pub fn query(tx: &mut Transaction<'_>, options: &QueryOptions) -> GraphResult<::graphdb::QueryResult> {
+                let query = format!("MATCH (a:{})-[e:{}]->(b:{}) RETURN a.id AS source,b.id AS target,{} ORDER BY source,target,id", $from, Self::NAME, $to,
+                    [$(concat!("e.",stringify!($field)," AS ",stringify!($field))),+].join(","));
+                Ok(tx.query_with(&query, (), options)?)
+            }
+            pub fn read(tx: &mut Transaction<'_>, options: &QueryOptions) -> GraphResult<Vec<Self>> {
+                let result = Self::query(tx, options)?;
+                let mut rows=result.rows(); let mut output=Vec::new();
+                while let Some(row)=rows.next()? { output.push(Self::decode_row(&row)?); }
+                Ok(output)
+            }
+        }
+    };
 }
 
 table!(FileRow, "KgFile", {
@@ -286,6 +403,32 @@ table!(DiagnosticRow, "KgDiagnostic", { id: String => "STRING", file_path: Strin
 table!(CatalogRow, "KgCatalogRevision", { revision: String => "STRING", domain: String => "STRING", language: String => "STRING", namespace: String => "STRING", member_count: u64 => "UINT64", members_digest: String => "STRING", config_fingerprint: String => "STRING", selection_fingerprint: String => "STRING" });
 table!(MetadataRow, "KgFactMetadata", { id: String => "STRING", schema_version: u64 => "UINT64", schema_fingerprint: String => "STRING", facts_format_version: u64 => "UINT64", config_fingerprint: String => "STRING", selection_fingerprint: String => "STRING", content_digest: String => "STRING", rows_digest: String => "STRING" });
 
+table!(SemanticSourceRow, "KgSemanticSource", {
+    source_id: String => "STRING", source_version: String => "STRING", state: String => "STRING", semantic_version: Option<String> => "STRING"
+});
+table!(SemanticEntityRow, "KgSemanticEntity", {
+    id: String => "STRING", entity_id: String => "STRING", space_id: String => "STRING", kind: String => "STRING", name: String => "STRING", aliases_json: String => "STRING", attributes_json: String => "STRING"
+});
+table!(EpisodeRow, "KgEpisode", {
+    id: String => "STRING", episode_id: String => "STRING", space_id: String => "STRING", kind: String => "STRING", source_id: String => "STRING", source_version: String => "STRING", context: String => "STRING",
+    occurred_at: Option<NativeTime> => "TIMESTAMP_TZ", ingested_at: NativeTime => "TIMESTAMP_TZ", content_ref: String => "STRING", state: String => "STRING"
+});
+table!(ScalarFactRow, "KgScalarFact", {
+    id: String => "STRING", fact_id: String => "STRING", space_id: String => "STRING", subject: String => "STRING", predicate: String => "STRING", object_json: String => "STRING", context: String => "STRING",
+    state: String => "STRING", supersedes: Option<String> => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", attributes_json: String => "STRING"
+});
+table!(AssociationRow, "KgSourceAssociation", {
+    id: String => "STRING", target_type: String => "STRING", target_space_id: String => "STRING", target_id: String => "STRING", source_id: String => "STRING", source_version: String => "STRING", role: String => "STRING", locator_json: Option<String> => "STRING"
+});
+table!(DeferredMentionRow, "KgDeferredMention", { id: String => "STRING", data: String => "STRING" });
+table!(SemanticChangeRow, "KgSemanticChange", {
+    id: String => "STRING", target_type: String => "STRING", target_space_id: String => "STRING", target_id: String => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", data: String => "STRING"
+});
+table!(SemanticOperationRow, "KgSemanticOperation", { id: String => "STRING", data: String => "STRING" });
+relation!(SemanticRelationRow, "KgSemanticRelation", "KgSemanticEntity", "KgSemanticEntity", {
+    id: String => "STRING", fact_id: String => "STRING", space_id: String => "STRING", predicate: String => "STRING", context: String => "STRING", state: String => "STRING", supersedes: Option<String> => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", attributes_json: String => "STRING"
+});
+
 pub const FACT_TABLES: &[&str] = &[
     "KgFile",
     "KgEntity",
@@ -295,6 +438,14 @@ pub const FACT_TABLES: &[&str] = &[
     "KgAnchor",
     "KgDiagnostic",
     "KgCatalogRevision",
+    "KgSemanticSource",
+    "KgSemanticEntity",
+    "KgEpisode",
+    "KgScalarFact",
+    "KgSourceAssociation",
+    "KgDeferredMention",
+    "KgSemanticChange",
+    "KgSemanticOperation",
 ];
 pub const STRUCTURE_TABLES: &[&str] = &["KgScope", "KgBinding", "KgDiagnostic"];
 pub const STRUCTURE_RELATIONS: &[&str] = &[
@@ -308,6 +459,8 @@ pub const BUSINESS_RELATIONS: &[(&str, &str)] = &[
     ("KgCalls", "calls"),
     ("KgImports", "imports"),
     ("KgLinks", "links"),
+    ("KgExtends", "extends"),
+    ("KgImplements", "implements"),
 ];
 pub const RELATIONS: &[(&str, &str, &str, &str)] = &[
     ("KgContains", "KgEntity", "KgEntity", ""),
@@ -336,6 +489,24 @@ pub const RELATIONS: &[(&str, &str, &str, &str)] = &[
     ("KgDiagOf", "KgDiagnostic", "KgFile", ""),
     ("KgAnchorOf", "KgAnchor", "KgEntity", ""),
     ("KgMemberOf", "KgFile", "KgCatalogRevision", ""),
+    (
+        "KgExtends",
+        "KgEntity",
+        "KgEntity",
+        ", ref_id STRING, data STRING",
+    ),
+    (
+        "KgImplements",
+        "KgEntity",
+        "KgEntity",
+        ", ref_id STRING, data STRING",
+    ),
+    (
+        "KgMentions",
+        "KgEntity",
+        "KgSemanticEntity",
+        ", ref_id STRING, data STRING",
+    ),
 ];
 
 #[must_use]
@@ -350,6 +521,15 @@ pub fn statements() -> Vec<String> {
         DiagnosticRow::ddl(),
         CatalogRow::ddl(),
         MetadataRow::ddl(),
+        SemanticSourceRow::ddl(),
+        SemanticEntityRow::ddl(),
+        EpisodeRow::ddl(),
+        ScalarFactRow::ddl(),
+        AssociationRow::ddl(),
+        DeferredMentionRow::ddl(),
+        SemanticChangeRow::ddl(),
+        SemanticOperationRow::ddl(),
+        SemanticRelationRow::ddl(),
     ]
     .into_iter()
     .collect::<Vec<_>>();

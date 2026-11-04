@@ -2,14 +2,15 @@ use serde::{Deserialize, Serialize};
 
 use super::{NodeRef, QueryError, QueryResult, nonempty, source_id};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryDomain {
     Code,
     Documents,
+    Semantic,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RelationKind {
     Contains,
@@ -20,7 +21,9 @@ pub enum RelationKind {
     Implements,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
     Incoming,
@@ -31,7 +34,7 @@ pub enum Direction {
 
 pub use crate::relations::EntityKind;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "by", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Locator {
     Node {
@@ -69,7 +72,7 @@ impl Locator {
 }
 
 /// Path admission and result selection are intentionally separate.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SourceFilter {
     /// None means unrestricted; Some([]) is explicitly empty.
@@ -89,7 +92,7 @@ impl SourceFilter {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TraversalSpec {
     pub relations: Vec<RelationKind>,
@@ -136,7 +139,9 @@ impl TraversalSpec {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BodyRegion {
     #[default]
@@ -144,7 +149,7 @@ pub enum BodyRegion {
     Own,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScopeSpec {
     pub anchor: Locator,
@@ -164,7 +169,7 @@ const fn default_seeds() -> u32 {
     5
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum GraphQueryMode {
     Off {},
@@ -179,6 +184,11 @@ pub enum GraphQueryMode {
     },
 }
 impl GraphQueryMode {
+    #[must_use]
+    pub const fn is_off(&self) -> bool {
+        matches!(self, Self::Off {})
+    }
+
     pub fn validate(&self) -> QueryResult<()> {
         match self {
             Self::Off {} => Ok(()),
@@ -201,7 +211,7 @@ impl GraphQueryMode {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "by", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReferenceSelector {
     Id {
@@ -216,9 +226,12 @@ pub enum ReferenceSelector {
     },
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExploreOperation {
+    Semantic {
+        query: super::SemanticQuery,
+    },
     Locate {
         target: Locator,
     },
@@ -241,7 +254,7 @@ pub enum ExploreOperation {
     },
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExploreRequest {
     pub domain: QueryDomain,
@@ -253,9 +266,20 @@ pub struct ExploreRequest {
 }
 impl ExploreRequest {
     pub fn validate(&self) -> QueryResult<()> {
-        self.boundary.validate()?;
-        self.result_filter.validate()?;
+        if matches!(self.operation, ExploreOperation::Semantic { .. }) {
+            if self.domain != QueryDomain::Semantic {
+                return Err(QueryError::invalid(
+                    "semantic operation requires semantic domain",
+                ));
+            }
+            super::semantic::validate_sources(&self.boundary)?;
+            super::semantic::validate_sources(&self.result_filter)?;
+        } else {
+            self.boundary.validate()?;
+            self.result_filter.validate()?;
+        }
         match &self.operation {
+            ExploreOperation::Semantic { query } => query.validate(),
             ExploreOperation::Locate { target } => target.validate(),
             ExploreOperation::Neighbors {
                 anchor,
@@ -311,6 +335,12 @@ impl ExploreRequest {
         self.validate()?;
         view.require_graph()?;
         match &self.operation {
+            ExploreOperation::Semantic { query } => {
+                if let Some(anchor) = &query.anchor {
+                    anchor.validate_for(view)?;
+                }
+                Ok(())
+            }
             ExploreOperation::Locate { target } => target.validate_for(view),
             ExploreOperation::Neighbors { anchor, .. }
             | ExploreOperation::Expand { anchor, .. } => anchor.validate_for(view),

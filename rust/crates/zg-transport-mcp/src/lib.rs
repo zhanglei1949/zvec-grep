@@ -366,10 +366,10 @@ impl ZvecGrepMcpServer {
 impl ZvecGrepMcpServer {
     #[tool(
         name = "zvec_grep_explore",
-        description = "Read published Rust/Python code relationships: locate, callers/callees via neighbors, expand, shortest_path and references. No refresh, indexing or model calls. Use returned view and evidence; an unavailable graph is an error.",
+        description = "Read published Rust/Python code relationships, including explicit extends/implements, or semantic objects, facts and provenance using domain=semantic and operation=semantic. Semantic history is explicit business corrections in the current graph. No refresh, indexing or model calls. Use returned view and verified evidence; unavailable evidence is explicit.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<zg_engine::api::explore::ExploreResult>(),
         annotations(
-            title = "Explore code relationships",
+            title = "Explore graph relationships",
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
@@ -1243,9 +1243,9 @@ fn normalize_filter_names<T>(
 impl SearchInput {
     fn into_request(self) -> Result<ContextOptions, String> {
         let graph = self.graph.unwrap_or_default();
-        graph.validate().map_err(|e| e.message().to_owned())?;
+        graph.validate().map_err(|e| e.to_string())?;
         if let Some(execution) = self.graph_execution {
-            execution.validate().map_err(|e| e.message().to_owned())?;
+            execution.validate().map_err(|e| e.to_string())?;
             if graph.is_off() {
                 return Err("graphExecution requires a graph query mode".into());
             }

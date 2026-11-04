@@ -1,0 +1,722 @@
+{
+  "status": "R0_source_and_artifact_handoff_passed",
+  "base_commit": "6bdf59bd2451761320f73a6e8f9f8cc6ac5cdec4",
+  "restored_source": "/var/folders/gr/58jc_vbx2j5_x_lc6628t2t80000gn/T/zg-four-language-ef89wa_f/baseline",
+  "verified_overlay_files": 153,
+  "deleted": [
+    "rust/crates/zg-engine/src/api/context/graph/knowledge.rs"
+  ],
+  "restored_files": [
+    {
+      "path": "benchmarks/zg-retrieval/README.md",
+      "sha256": "7b5babc6ad3205ac8b6efcf36a180dda0a049db3655f5159919191699e0d45b7"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-code-v8.json",
+      "sha256": "4b64035835144ce310b4a5c2cad55065bc3cd2259cd0b9894057447c3fc4659b"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-code-v9.json",
+      "sha256": "d093170334e31e737b87efac6b7e949f14823e03cbf845279a3cc626f2dae9f0"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/core/g4.mjs",
+      "sha256": "16d63034ea0ab4cbe442a55004c15ede26ff259556c3be95229ede6143f4459c"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/data/g4-code-v2.json",
+      "sha256": "9fc86e5a16652dfc01642ae7ad478ddcd770268947dfd49338cdf8d7c61309af"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/data/m7-six-languages-v1.json",
+      "sha256": "748d32155adba2c6ad3888779f56ebaae20656d617db347cf5149315cab57ad6"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/engines/zg/g4-parse.mjs",
+      "sha256": "6b1a369519979fd840d25c7cb41859cd387085bb8cfa3e4d5771d1d43479d735"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/engines/zg/g4-report.mjs",
+      "sha256": "dcf7a6fc4c45e01053682b7e784448cfadcaa5461d3e6cdac43f0b8ebe8d354c"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/engines/zg/g4-run.mjs",
+      "sha256": "3bdc4d9430b9d3b8689b5d7071fd0fd6e9652b765e629acd6e207347a8bde866"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/engines/zg/m7-run.mjs",
+      "sha256": "8bddda38cd3eedebcc9fbe1ea85be068745f89c48070938dcb7b5317561ee0c2"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/report.mjs",
+      "sha256": "0b23279e305bb543fa5f6fc10e7eedf853c5fd86e0cb92c96fe09db6040b8414"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/run.mjs",
+      "sha256": "d0cf755cd704aaf65de5a0d6de2570c1d29203d5dc3aca0e2762477918cd5690"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/test/g4.test.mjs",
+      "sha256": "b8996032a0449fc4b6e8af9027b75cd2ea8e4e9e5e0a9a6811408cd216d07913"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/tools/g4-labels-v2.py",
+      "sha256": "5171e865eda32371f99a0899a7d1e671f0d42ae47d8eb01156d191836fab9d2e"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/tools/m7-labels.py",
+      "sha256": "d5a119d1b9ccf1f19d06b2fbd8439149e7c9abca32a076453ae985a9e03d9e33"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/tools/m7_api.rs",
+      "sha256": "05f1955e2e79c8cf4b0c5c109e7f9107b43f48a370d52a856f8ef760ffe51af3"
+    },
+    {
+      "path": "knowledge/CODE_GRAPH_REFINEMENT_REPORT.md",
+      "sha256": "614e3b51e2d3fb8d8d6839570831304e7ddfdb5674a36d000c2bc2f7c4ab4697"
+    },
+    {
+      "path": "knowledge/COMMON_MODEL_AND_EIGHT_LANGUAGE_PLAN.md",
+      "sha256": "04c46bbd2bfb6c533b40c718eeb35656719cbe32427defdfc4e4b27ebcb91b57"
+    },
+    {
+      "path": "knowledge/G3_IMPLEMENTATION_PLAN.md",
+      "sha256": "7d70ba6c2daa4e34bfe2d694b9b3c62319261f588448330c0f773f0b40d7fe21"
+    },
+    {
+      "path": "knowledge/M0_BASELINE_HANDOFF_REPORT.md",
+      "sha256": "ea1c29e21cdc5f8d55791afa229fc03dc42766d1dc909c062da6287cdf41889d"
+    },
+    {
+      "path": "knowledge/M1_TYPE_OWNERSHIP_AND_CONTRACT.md",
+      "sha256": "7839b10d27399475be39587e72f409af5886091c5f2ff7da4bc1a6ab9ed77bca"
+    },
+    {
+      "path": "knowledge/M2_CORRECTION_AND_RECOVERY_REPORT.md",
+      "sha256": "e9b3f030eefaa0994ced2d78f679efe6a99e86cc8b208c17352995f70f7d2b13"
+    },
+    {
+      "path": "knowledge/M2_CURRENT_STORAGE_REPORT.md",
+      "sha256": "ae874566515be5c9f9debaf644562e1308f8bcdb05b3ab0510f60ea508531354"
+    },
+    {
+      "path": "knowledge/M2_SOURCE_MAINTENANCE_REPORT.md",
+      "sha256": "583657692845adb0a5b6c57702b9f3d672c1de77b214ad3b27695a0fb8c6fd9c"
+    },
+    {
+      "path": "knowledge/M2_SOURCE_SCOPE_REPORT.md",
+      "sha256": "e77f56ef56449126a9bcac2093765cd1b4fa05fd4d1efc5a3bff43cb969731e7"
+    },
+    {
+      "path": "knowledge/M3_UNIFIED_QUERY_REPORT.md",
+      "sha256": "59acb19c4a15065b436d9ee0c8a45ae6438f2fcee11291b9e7c9c3e5b85bc0aa"
+    },
+    {
+      "path": "knowledge/M4_M6_LANGUAGE_GRAPH_REPORT.md",
+      "sha256": "fdf17941fcfb5f3ead7354c3ae294ec2733a420eaef4084cfc89f49fc04b5c60"
+    },
+    {
+      "path": "knowledge/M7_SIX_LANGUAGE_ACCEPTANCE_REPORT.md",
+      "sha256": "45bfbb60ded04402e9c63252974881e58df66ca76c1734f44942a71ee4fb7672"
+    },
+    {
+      "path": "knowledge/QUERY_RECALL_REPORT.md",
+      "sha256": "f0b48b6994ab1fd2cad363c23e99d972c92b9896a2f1e8b36bc29d08f0ef4e51"
+    },
+    {
+      "path": "knowledge/README.md",
+      "sha256": "22377f12fa01322f0631346a19f4b1d600efc069ab8ef16328911e71604013df"
+    },
+    {
+      "path": "knowledge/S2_ACCEPTANCE_MATRIX.md",
+      "sha256": "d52d5db22bf04d6e6c331dda8f1dfe1454dd9101646eb9e88ac0bfe6ce18bbc2"
+    },
+    {
+      "path": "rust/Cargo.lock",
+      "sha256": "f9272f03fd081260b109b48d4ca413d9ce9de4282d6907dae5e87dad9a6534af"
+    },
+    {
+      "path": "rust/README.md",
+      "sha256": "42c2613c59525e4022cc1c0c54ab24161017c8dfb89a5523f6081ff38ad8afb9"
+    },
+    {
+      "path": "rust/benchmarks/graph-build/batch_compare.py",
+      "sha256": "08ce8fd3d7a53166f831a4d66421136ef0e10b0a7da3f4d251758f4eda95730f"
+    },
+    {
+      "path": "rust/benchmarks/graph-build/fixtures/README.md",
+      "sha256": "6dea8a01f03aa5a4c65df8931cc7f126f60d66b092f3f2c7054ef0e4d6c76a89"
+    },
+    {
+      "path": "rust/benchmarks/graph-build/runner.py",
+      "sha256": "47092e3336228f3f4760afba7c08230ee6fd5c666be14e690ef126641ea5edcd"
+    },
+    {
+      "path": "rust/benchmarks/graph-build/test_runner.py",
+      "sha256": "361c2274ff0303b8f6978e444015a0830a6e9c7fc6d405152e76d7db982cd755"
+    },
+    {
+      "path": "rust/crates/zg-cli/src/query_graph.rs",
+      "sha256": "dcf803bb7d60aff40231fb650b87f888c87a5704e40ade44e2fd753021b95f35"
+    },
+    {
+      "path": "rust/crates/zg-daemon-protocol/src/lib.rs",
+      "sha256": "387a650d5b853187ed9e81c18ee2d680ac87c956a76749a286945540452f294f"
+    },
+    {
+      "path": "rust/crates/zg-daemon/src/lib.rs",
+      "sha256": "4eafaabdcee04d2de0d12705729fd6ca13562bf48c062e6a945b344bbce03fc5"
+    },
+    {
+      "path": "rust/crates/zg-daemon/src/runtime.rs",
+      "sha256": "fc172f15f807cfcfb92acd8dde9f7a8756a2639086512f1db1c74f0d1347d6db"
+    },
+    {
+      "path": "rust/crates/zg-engine/Cargo.toml",
+      "sha256": "c43996fcf2c42ded0eac261893f07faa6a94e1c1ef74f55b2da0e607241c668b"
+    },
+    {
+      "path": "rust/crates/zg-engine/examples/graph_audit.rs",
+      "sha256": "43ceb19f05c5d55edbc244b43cd04b3f7c34300f501e0fccf00b0c70cdb0b5df"
+    },
+    {
+      "path": "rust/crates/zg-engine/examples/graph_semantic_seed.rs",
+      "sha256": "58fd980dd76385af6c059190d5f56f081f456b24f77c0406cd9826e9b9673495"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/api/context.rs",
+      "sha256": "cb6e03d901f63a8eb64da2b61be44b08698387b884344b0aa23bc875d8e80d5a"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/api/context/graph.rs",
+      "sha256": "687fd8ee8105eb53bc009bd008977933a7dfa3d45c990eac9c0489b8adeec222"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/api/context/graph_result.rs",
+      "sha256": "983dccc4570649781f23404c9d2aa86ea39714bcfaef4dc7246622636b2243ba"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/api/explore.rs",
+      "sha256": "45f15fd7dd9f16751302a3386980df4b1a6996fb3b4ca575d7d85c5284d21362"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/api/index/graph.rs",
+      "sha256": "1eaabecf442f5671bb415d84c6611922a4c8f70c2c3ac0cf665c20b473922f56"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/error.rs",
+      "sha256": "d7fa1c42fd2ea539f898894e5239b7e5224b4e8ebb58dc9e56791f055d4d0d51"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/binding.rs",
+      "sha256": "a236f5799ebc8dafc6e48b550c3a0ea6c547c8240e7dfadb229d8136bc1dd2aa"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code.rs",
+      "sha256": "9d6779725095c23d63c8c0b1c34f079654fe682b4f01ac86bd23ec46f0f789a7"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code/compiled.rs",
+      "sha256": "9ef107697970c96f4aa37163a105fbbe576805d28ed9d35e798547c613f611cc"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code/compiled/c_family.rs",
+      "sha256": "cb854d179c1d190b692d353800843616e0ed15bed79f4af5b3f4583f4bdae215"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code/compiled/go.rs",
+      "sha256": "75988e71068ff38f01dc93ace23c181339e7b67c8380e4bdcf53b94ac0e1f870"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code/compiled/java.rs",
+      "sha256": "42b725505f046fc26bf7db96f4e0e0863cea0bed6c08d9a9d6943ccefb578d85"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code/rust.rs",
+      "sha256": "a840ffb136efe9d5808b603a24e0655872acab61ad9e65d085fb9107160b1768"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/code/type_relations.rs",
+      "sha256": "004e29633608c7b4bfa4418377e8c192c7b3f51208b72b5809ee11d8bc32a91e"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/mod.rs",
+      "sha256": "0637b0ea773374b9f6c46a5aa42e4bb624cc298bb9f2b03a552f04f94f5a41a8"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/module_roots.rs",
+      "sha256": "e93eb190dfa6b25d094f0efccf4dc5cc8f90c82e39847a738b8385a8a534e586"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/module_roots/configuration.rs",
+      "sha256": "e69b58f97d4c242c00bd4ed9b5297132d9391306c59f4bcae69e3ef710f40b4a"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/graph_facts/module_roots/configuration_tests.rs",
+      "sha256": "3e0219cee071f95be6b7edd63796f9c0585a2f79b444c48529f483e63c28426b"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/lib.rs",
+      "sha256": "0c2b6a3906d36158367a8af6ed097441084168cd4a091149ed8388e14f90c250"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_augment.rs",
+      "sha256": "6ed13b739116f2fea22d5068b7520355f280995e485266d00bb73f6ae71c4b8f"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_explore.rs",
+      "sha256": "f27436d47a701ed557b60e93f5737dc3dbc68ab8bd5ff263b0071cd30381e58d"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_indexing.rs",
+      "sha256": "7da2827e465db7d9514f6edeb796d11cc9099485bd73fbfb5f12acbaa05d7cc7"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_languages.rs",
+      "sha256": "f0d24a607661fd231d43f5937a495c52611f93950d518fd618c54062348860fa"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_semantic_recovery.rs",
+      "sha256": "607c7621d2b38865cd7e54124ceac9e3b26ba7832204ebbb516e0b14e0a7d151"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_semantic_sources.rs",
+      "sha256": "a041655d455c4bb8a402037b9a929f580b47bc9b0eb86bbb12d12f126d4ade39"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/explore/augmentation.rs",
+      "sha256": "56a6225212e200cc7b721cbd6934fa1bf45dd4f13df767d5d2655f4ef350cad4"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/explore/augmentation/result.rs",
+      "sha256": "ae4113ea0cf6d59f17896efd0ea5ff7fc16c79fbe23d2dd1512ecaa6abf7387b"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/explore/constrain.rs",
+      "sha256": "6f217f1da7a5faddaff306ede326190297867af56a22cd1a25e878c889f1af6e"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/explore/evidence.rs",
+      "sha256": "ae453f5ac539c7410a4eaf7901ca0c03530614cbc5714cf6c4cb238722936951"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/explore/mod.rs",
+      "sha256": "752b6104ef52b6ced7457f5707809173b330f7a7d70651b7f3417bda0c44b76d"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/graph.rs",
+      "sha256": "b1738e9ec1452d39f109296d58a766462a7d63b6dc1240e7b624f7452d44efbe"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/graph/coverage.rs",
+      "sha256": "6cb72edecbeea7ad656d946d6f852f85cb99610458de5d2e80e38fb2255fe1bf"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/graph/recovery.rs",
+      "sha256": "573e9c9d311f64b8550a02df93ef3c8b9f8da1faacf97321bcc3114b06e3d3a9"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/graph/retention_tests.rs",
+      "sha256": "f7ed8ee95e7b7aea639d7e2dfc849459d81108780554d15c4e5b17ce7fb993d8"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/graph/semantic.rs",
+      "sha256": "6705b872cf47645637dc1743e805357418566c92e38b29221caf6b6bcfea0885"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/graph/text_recovery.rs",
+      "sha256": "140e530824ec054994d8d44e76be6d2be673f271bbfa196793dbbf6972da3faf"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/pipeline.rs",
+      "sha256": "c34b072563720725fa8e28ba030ba806c3fde1e979dff4404e7ed427169af62d"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/pipelines/indexing/service.rs",
+      "sha256": "e75e8702031042ce084ca20c098b05d99c488c1dd770dc9f60ede0853000ce40"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/service.rs",
+      "sha256": "12a854c22b417cc2bb878ca55ad9dd4569aca7aec594015bc6a319eea2285304"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/graph_state.rs",
+      "sha256": "bf0d8b2ad0cbb8f34875cbd74a5cf16ccf0a1e5c2dc5362649b0501e0a4f4a87"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/graph_state/build_record.rs",
+      "sha256": "280b7f7491baa782a4d56bc23c5ed4ae9d3814a4396c135bc2d3319f574f9c89"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/graph_state/discard.rs",
+      "sha256": "9b59034ea52b66fc99f39554d3c32a89d5ed750b569c3511fd11485aac14f8d0"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/graph_state/discard/tests.rs",
+      "sha256": "877f4a457af0b0ce879dfdd5cb5b9508c608f02565532f6d36f72bb34c042c0a"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/graph_state/tests.rs",
+      "sha256": "95068365d8501cb1e7b4a6f315eb534b63c71efa56475f04d93c6659a117e7f9"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/read_session.rs",
+      "sha256": "b4abb1214579509629ca34ae73c4240edbf3b15634c694190af944b82917e469"
+    },
+    {
+      "path": "rust/crates/zg-engine/src/storage/read_session/graph.rs",
+      "sha256": "66f83d51a8a822013b3222e1c9a50da2463d8e3922ac96c53bab3ad4a9bdb85f"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/explore_contracts.rs",
+      "sha256": "18d62d17238c8739e74e2bcafd6624891147070bede534635ddd7a868e96bb51"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/fixtures/compiled-languages-v1.json",
+      "sha256": "dbc82bbdb9ee2b29373755b5b01e6690fd5c435da3bc84f2461e2ce6649d6804"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/fixtures/graph-api-schema-m3.json",
+      "sha256": "e2e1b2f7144891666597d0ac8bcc241f09bc331f9cb4db1387b39cae05373c9c"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/fixtures/graph-api-schema-m4-m6.json",
+      "sha256": "a132a9fd01e292c54bdbb50841b043dc2d38c4ce622ca16c7044c07c6b372f1f"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/fixtures/graph-api-schema.json",
+      "sha256": "d36fd903aa05c9036bdba9aa2ae4f203e770269f6bf4dde4f0320ab32c103619"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/graph_binding.rs",
+      "sha256": "443bc183d795e55f3b7c7ece660642a7b872406334a22f18b61475d8b873fcda"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/graph_facts.rs",
+      "sha256": "f4a21b6255b147620083f48167c07fb43cf032eb15ecf02fcce68ef0e05b0e9a"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/graph_facts/compiled.rs",
+      "sha256": "4089bad837c92f7ee85597d37868665d21f84c9acc1d69ccad127fe530868f5b"
+    },
+    {
+      "path": "rust/crates/zg-engine/tests/graph_query_contracts.rs",
+      "sha256": "ac625be3229e42c066c82b4957c9cc407498ff13cb130c7432fa3665b64e6613"
+    },
+    {
+      "path": "rust/crates/zg-host-native/src/api.rs",
+      "sha256": "7cab14e286c710b104dafbf82135c7d8aa545b15da0e200e90a06910d257e290"
+    },
+    {
+      "path": "rust/crates/zg-host-native/src/scanner.rs",
+      "sha256": "1bb1cd0be03583e914eb9ea766f5d01d47867111e451f288ca1270b1067c9a22"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/Cargo.toml",
+      "sha256": "6011655edd9bf84dfe8ab1e1c548c4c18d58b0aa3e825197aeefe2fc8772952f"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/README.md",
+      "sha256": "ce813a20679a85c505be88b9c292a5f505aed8d82b476f053b164282d21ff80a"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/error.rs",
+      "sha256": "e679a80f17c2d9414ea5118c06513729f683a7e506695dc3b8a550ed705c5244"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/build.rs",
+      "sha256": "cb135078d58d0d984485dda0ca18373621d93179293a65ca4b0170ac08cd6326"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb.rs",
+      "sha256": "f5cde19c3e0515fa7d197d56902789838e94cad2dc2a74e9ce107f8913d5a4c9"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/codec.rs",
+      "sha256": "0454ce2bd574ac0d3e642e70626bcdf6a396fea9c11c0d62e4d1de4845b41e99"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/codec/semantic.rs",
+      "sha256": "c442a81d4474f57fe661c11f1acf275455a9f671f7caa0e1645d99ea494d5038"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/control_tests.rs",
+      "sha256": "fbb224cab16906eeaa7158a725973321e5a1173d37e98f96e0fd842011ea819c"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/import.rs",
+      "sha256": "c96b28ba6c38d9eb5ec1fa2d0a29f6190ba55c00cae313389af6a80bbc131c9d"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/import_tests.rs",
+      "sha256": "d538e578b2b44b1b2a04b22ba8e2246ef4953f6757bb7327ab9891597f3c4a02"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/read.rs",
+      "sha256": "35698869f5e23b490de29731cb74e495842c0662c048bf7c7075409889d86546"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/semantic_query_tests.rs",
+      "sha256": "1c57c9221dfeb80f0998f001a0a98e7f3b86c6aafa3aaa7d174517a9343649ea"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/semantic_tests.rs",
+      "sha256": "bc806ba782826edce36c0d1ad8f5052d271eede1eeb2b28a38b25ae43fe7bc7c"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/source_tests.rs",
+      "sha256": "966a65708e7f9136d4b77d9bf6c518bf10d3f9a2318e605f127ba674d064f75b"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/graphdb/tests.rs",
+      "sha256": "c0bc2b6bffa4cc6adf1711564a34e1834c9ecd599aa50419368dc3ba5be0fb0b"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/mod.rs",
+      "sha256": "bd32953f3f07c10d0526becf382f715b57136be9d57a26c00e0c05ff1f166e5b"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/graph/schema.rs",
+      "sha256": "d9cc15934c10899609a9a641761bbb0d3002786e7825f2e6f3637471535bf5bf"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/lib.rs",
+      "sha256": "866260298b3a8ad335dc5cfc2419c21f27f611bcb1f45a0b7b7a86f4c05b935b"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/processing.rs",
+      "sha256": "d733dbaa35940f5bf049ab1a03f299a262cefdaed8e22320616dfb8f7e3c2204"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/execution.rs",
+      "sha256": "91cd3e488ec00eb4eff50b608af027f36907ec7293ca3069404257b70f0b18cb"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/explore.rs",
+      "sha256": "f762e57425811530f1f4a9f1b4f5d20267b7fa9fbb7df7fd2ad3aae546c5cf5a"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/explore/scope.rs",
+      "sha256": "13c5565b99af6834a2c413c96480d91329ca01c4eb6d9dce36cbaddf8fa7e37d"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/explore/scope/mapping.rs",
+      "sha256": "e24f73a4d413f0047a162ec1c7d6405f1d8d381917a719cf89b3fa430b86cb71"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/mod.rs",
+      "sha256": "788d3a62659da3ba1c94e0e2aac043adf44cf009015cebdd982aecf9f68c25d5"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/reader.rs",
+      "sha256": "e78309ab6ca6ef341b8e245fe24c56b5392107532373de7bf30aef4d025843d7"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/request.rs",
+      "sha256": "67a8d386065f9e9fad5601b98b96a83540ae17fee0697e7849e01245b585e16c"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/result.rs",
+      "sha256": "e49bb9e9d47e2bcd15827cc63058d1c6fcfab7f0611d87275185ba96979ad959"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/semantic.rs",
+      "sha256": "de99f3aecbb6912d9da5d6679e6274e1a708438ba0fb62eb6d1ea1c2b75d9a3b"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/semantic_read.rs",
+      "sha256": "c66548bf71ccc0a1f7ff543c65bf933df95ae53c262f4c56d9b0c2da44cb0fc1"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/query/view.rs",
+      "sha256": "d5e939e385529e55dee0ac0608a0f856ca00254ebd8794ad8f8f4a5e03ef6e34"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/bound.rs",
+      "sha256": "9e2ca0d32ea9fcaa5e21228e5d9dc45df89f8e32b357ca9cf9a0ad8bf5911f02"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/code.rs",
+      "sha256": "4f18e920f138964de788f6b34a6a65a166f699f2f8d340db1ffa063001cb3ba9"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/code/lookup.rs",
+      "sha256": "7ee1ea8bfc5ba7469e0e223b8dc496de8b11b629a37e3b36b4069feefc7ef9ed"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/code/lookup/compiled.rs",
+      "sha256": "c78f24d3ca28d6d69e39d5440daa1cd15c6bb68860b784a9007db3c27c2380cb"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/markdown.rs",
+      "sha256": "3bb5a1d328b7130df2a517ec05c564534f2eb8699d5c6fe10dfd1eb4a2722cf6"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/mod.rs",
+      "sha256": "d097a8ef74d93a4153906d98494acfd6eb423e9c02d298e8551a03bd0ee93955"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/catalog.rs",
+      "sha256": "bbaa0a000ab74e3cf01b2c40b35a18297de9a2312be6b652408cfa2fa6f8ed0e"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/changes.rs",
+      "sha256": "2c8335228efe47daaeb463c3c94827edc093d280287de59ea21e624f994b205d"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/corrections.rs",
+      "sha256": "31757c29846392ffd03ed47a0f5d5bba2866d39b4d0a1d6a58afd10000e913ab"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/identity.rs",
+      "sha256": "7b702bed5508fd7e5be9b961c2e7d85784ded217b30756eaa78e049864430762"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/input.rs",
+      "sha256": "d86d1812d21942abb080120f99ea723c1fa0a586e56b3250dadbc0e58ab3f4bd"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/maintenance.rs",
+      "sha256": "c4a04c781eba48cf7919fe43479b3a88d5abd12c93f45c18f0be67d3f0eaa380"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/mod.rs",
+      "sha256": "f0c399972538b8a84100ce6aeebca6a3eff2c228a8a64d748d31bccac6cdfe9b"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/semantic/records.rs",
+      "sha256": "e166feebbb0e1fe086d0b2faf3289b7d750bfa75138dbf9bc0db23ff15470fd4"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/contracts.rs",
+      "sha256": "5ef05f75ff24efdc7ae834a93f3b9615e1e6888d2a74c1d40b8f1b65b7176d63"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/explore.rs",
+      "sha256": "a38bee5f5184c7c332db9487c7987cc75fefd9eaf7855bea641f8db488404c24"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/fixtures/semantic-source-changes-v1.json",
+      "sha256": "883bfb19bc5021cd5f2f1687d0d96c5ef43538e9fdf321bb3687e11d6eac9d61"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/fixtures/semantic-source-maintenance-v1.json",
+      "sha256": "3d2ed70ccf4d742a432b77faa32efa5f3c05a8a12fd5b86ff9169bb76b1356b2"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/semantic_contracts.rs",
+      "sha256": "3f68e1f883d9dbdae30fab2d5ccb30acb46b6f9f18be04fc0413c2efd45ee89d"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/semantic_maintenance.rs",
+      "sha256": "9de71cad507975e671fbfb177492edeaa53d367f50cd1708a3c1f5d3d2aa58fe"
+    },
+    {
+      "path": "rust/crates/zg-knowledge/tests/semantic_sources.rs",
+      "sha256": "e28fc863569ff5c92afc2e03ad0c86a546d770aa013c22762158933ba4a76381"
+    },
+    {
+      "path": "rust/crates/zg-transport-mcp/src/lib.rs",
+      "sha256": "706684c1ad51a85125e691ac3ace536eeba1086604c0c97f32f2f25df007c1db"
+    }
+  ],
+  "restoration_inputs": [
+    {
+      "path": "knowledge/archive/s2-m7/source.patch",
+      "sha256": "3dabf93cd25297dddabf6dddee78cf1c4b470e6005b56d25c61526de9261a5d6"
+    },
+    {
+      "path": "knowledge/archive/s2-m7/source-new-files.tar.gz",
+      "sha256": "d13842c5cbc4ac988739489c3a13b979280710c103981226d8647b8d6107b82e"
+    },
+    {
+      "path": "knowledge/archive/query-recall/query.patch",
+      "sha256": "bf55bac7094f0ceb0e1135708b12b1e0479fafead1a6ea6933a080e190853dc2"
+    }
+  ],
+  "binary": {
+    "path": "/var/folders/gr/58jc_vbx2j5_x_lc6628t2t80000gn/T/zg-query-recall-zd11myft/target/release/zg",
+    "sha256": "dc148fee65c8d5b950a122e429569d1c4629fa26c2adf6cd715b7d5b931ac86a",
+    "package_bytes_match": true,
+    "version_smoke_passed": true
+  },
+  "package": {
+    "path": "/var/folders/gr/58jc_vbx2j5_x_lc6628t2t80000gn/T/zg-query-recall-zd11myft/artifacts/candidate.tgz",
+    "sha256": "61c755ee32969e4e2b615248df726099ca3aa290e50a49934ac5a31bd4804c59"
+  },
+  "native_library": {
+    "path": "/var/folders/gr/58jc_vbx2j5_x_lc6628t2t80000gn/T/zg-query-recall-zd11myft/artifacts/candidate-package/package/bin/libzvec_c_api.dylib",
+    "sha256": "4b5acd0e232412c8c046a387571e9363b99b18896a437b9833a150fb3bdd6a6c",
+    "graphdb_commit": "c1a77be7d3327fdd72b1be23be8b2aac1dc2f8ae"
+  },
+  "model": {
+    "id": "local/potion-code-16m-v2",
+    "path": "/private/tmp/zg-next/model-cache",
+    "files": [
+      {
+        "path": "model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/model.safetensors",
+        "sha256": "75cf7a6c2171b230ad19b1e7d8e0b1aee86da5a02af8e7cacedd9921d227623c",
+        "bytes": 32490072
+      },
+      {
+        "path": "model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/tokenizer/tokenizer.json",
+        "sha256": "107bbdcbad4bff1d299b7a4c3a2fb17c52890688b7dd0e4c9deab79d3c4f3d45",
+        "bytes": 1024340
+      },
+      {
+        "path": "model2vec/minishlab--potion-code-16M-v2/e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b/tokenizer/tokenizer_config.json",
+        "sha256": "81336c4a13050c6487eee83879338202a16638fbf49b5b0231a9deee1231b0c1",
+        "bytes": 42
+      }
+    ],
+    "prior_manifest_sha256": "b85bd61ee81c5d895d7711b0507a721243f08a645146f1e8cc80633fe757ced8",
+    "matches_previous_query_run": true
+  },
+  "protocol_reference": {
+    "path": "benchmarks/zg-retrieval/configs/g4-code-v9.json",
+    "sha256": "d093170334e31e737b87efac6b7e949f14823e03cbf845279a3cc626f2dae9f0"
+  },
+  "concurrent_preserved": [
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/bound.rs",
+      "workspace_sha256": "6e7de3088d8a9f9e4b21b6c2c5439944303259e988d4888a16cce52af4d7ee84",
+      "baseline_sha256": "9e2ca0d32ea9fcaa5e21228e5d9dc45df89f8e32b357ca9cf9a0ad8bf5911f02",
+      "excluded_from_baseline": true
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/code.rs",
+      "workspace_sha256": "4e822bb481cb09bd9c41253c283f5d720b803ec9bd194f65beb44a95bda1e3b7",
+      "baseline_sha256": "4f18e920f138964de788f6b34a6a65a166f699f2f8d340db1ffa063001cb3ba9",
+      "excluded_from_baseline": true
+    },
+    {
+      "path": "rust/crates/zg-knowledge/src/relations/markdown.rs",
+      "workspace_sha256": "99ca4116cbb60a74923b07eb2984c5cdc2fa5c5125888f6c0ebe091d1c3c5bf5",
+      "baseline_sha256": "3bb5a1d328b7130df2a517ec05c564534f2eb8699d5c6fe10dfd1eb4a2722cf6",
+      "excluded_from_baseline": true
+    }
+  ],
+  "environment": {
+    "system": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": null,
+    "cpu_unavailable_reason": "sandbox denied sysctl machdep.cpu.brand_string; preparation attempt retained in logs"
+  },
+  "known_limitations": [
+    "copied package path SIGKILL unresolved; original hash-verified build path used",
+    "readonly proxima digest drift remains open; per-run storage invariants must still be checked",
+    "concurrent deadline failures remain separately tracked",
+    "no new corpus indexed or new question executed during R0/R1",
+    "build-cost gates deferred"
+  ],
+  "toolchain": {
+    "python": "Python 3.15.2",
+    "node": "v26.13.0",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "required_rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "future_build_environment": {
+      "RUSTUP_TOOLCHAIN": "1.98.0",
+      "CARGO_INCREMENTAL": "0"
+    }
+  }
+}

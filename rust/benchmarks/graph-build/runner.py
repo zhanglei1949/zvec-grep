@@ -28,7 +28,7 @@ DISK_INTERVAL = 0.050
 EXTENSIONS = {
     ".rs", ".py", ".pyi", ".pyw", ".md", ".markdown", ".ts", ".tsx",
     ".mjs", ".js", ".jsx", ".c", ".h", ".cc", ".cpp", ".hpp", ".go",
-    ".java", ".json", ".toml", ".yaml", ".yml", ".txt",
+    ".java", ".json", ".toml", ".yaml", ".yml", ".txt", ".C", ".H", ".cxx", ".hxx", ".hh",
 }
 EXCLUDED_PARTS = {
     ".git", ".zvec-grep", "target", "thirdparty", "node_modules", "dist",
@@ -98,6 +98,8 @@ def measured(command: list[str], *, env: dict[str, str], workspace: Path | None,
              stdout_path: Path, stderr_path: Path) -> dict[str, Any]:
     before = logical_bytes(workspace) if workspace else 0
     graph_before = graph_builds_bytes(workspace) if workspace else 0
+    free_before = shutil.disk_usage(workspace or stdout_path.parent).free
+    minimum_free = free_before
     started = time.monotonic()
     with stdout_path.open("w") as stdout, stderr_path.open("w") as stderr:
         process = subprocess.Popen(command, env=env, stdout=stdout, stderr=stderr)
@@ -113,6 +115,7 @@ def measured(command: list[str], *, env: dict[str, str], workspace: Path | None,
                 rss_samples += 1
             elapsed = time.monotonic() - started
             if workspace and elapsed >= next_disk:
+                minimum_free = min(minimum_free, shutil.disk_usage(workspace).free)
                 peak_disk = max(peak_disk, logical_bytes(workspace))
                 if workspace:
                     peak_graph = max(peak_graph, graph_builds_bytes(workspace))
@@ -135,6 +138,9 @@ def measured(command: list[str], *, env: dict[str, str], workspace: Path | None,
         "observed_peak_workspace_bytes": peak_disk,
         "observed_peak_workspace_delta_bytes": peak_disk - before,
         "graph_builds_bytes_before": graph_before,
+        "free_disk_bytes_before": free_before,
+        "free_disk_bytes_after": shutil.disk_usage(workspace or stdout_path.parent).free,
+        "observed_min_free_disk_bytes": minimum_free,
         "observed_peak_graph_builds_bytes": peak_graph,
         "observed_peak_graph_builds_delta_bytes": peak_graph - graph_before,
         "rss_samples": rss_samples, "disk_samples": disk_samples,
@@ -151,7 +157,8 @@ def inventory(source: Path) -> list[dict[str, Any]]:
     records = []
     for raw in sorted(filter(None, listed)):
         relative = Path(os.fsdecode(raw))
-        if any(part in EXCLUDED_PARTS for part in relative.parts) or relative.suffix not in EXTENSIONS:
+        if (any(part in EXCLUDED_PARTS for part in relative.parts)
+                or (relative.suffix not in EXTENSIONS and relative.name != "go.mod")):
             continue
         path = source / relative
         if not path.is_file() or path.is_symlink():
@@ -176,7 +183,7 @@ def graph_options(source: Path, records: list[dict[str, Any]]) -> dict[str, Any]
                             if Path(record["path"]).suffix in {".py", ".pyi", ".pyw"}})
     roots.extend({"root": group, "language": "python", "namespace": f"python-{group}",
                   "module_prefix": [], "layout": "flat"} for group in python_groups)
-    return {"scope": "both", "module_roots": roots, "rules": {"version": "zg-relations-v1"}}
+    return {"scope": "both", "module_roots": roots}
 
 
 def disk_breakdown(workspace: Path) -> dict[str, Any]:
@@ -288,6 +295,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     default_repo = Path(__file__).resolve().parents[3]
     parser.add_argument("--repo", type=Path, default=default_repo)
+    parser.add_argument("--corpus-root", type=Path, help="fixed source checkout shared by baseline and candidate; defaults to --repo")
+    parser.add_argument("--graph-options", type=Path, help="frozen explicit GraphOptions; otherwise use the Rust/Python corpus mapping")
+    parser.add_argument("--binary", type=Path, help="already built host graph_build example; skips compilation")
+    parser.add_argument("--digest-test-binary", type=Path, help="fixed engine test executable for the catalog digest probe")
+    parser.add_argument("--rust-update-source", default="rust/crates/zg-engine/src/api/index/graph.rs",
+                        help="frozen Rust source changed by update_rust/delete_target")
     parser.add_argument("--output", type=Path, default=default_repo / "knowledge/.artifacts/graph-build/resources")
     parser.add_argument("--model-cache", type=Path, default=Path.home() / ".zvec-grep/models")
     parser.add_argument("--zvec-lib-dir", type=Path, default=Path("/tmp/zg-ann-fix/native-baseline/lib"))
@@ -314,9 +327,9 @@ def main() -> int:
                CARGO_BUILD_JOBS="14")
     env.pop("DYLD_PRINT_LIBRARIES", None)
     commands: list[dict[str, Any]] = []
-    engine = rust / "target/release/examples/graph_build"
-    digest_test = None
-    if not args.skip_build:
+    engine = args.binary.resolve() if args.binary else rust / "target/release/examples/graph_build"
+    digest_test = args.digest_test_binary.resolve() if args.digest_test_binary else None
+    if not args.skip_build and not args.binary:
         knowledge_build = ["cargo", "build", "--release", "-j", "14", "-p", "zg-knowledge",
                            "--features", "graphdb", "--example", "graph_build"]
         commands.append(run(knowledge_build, cwd=rust, env=env, log=output / "release-knowledge-build.log"))
@@ -351,10 +364,15 @@ def main() -> int:
     if digest_test is None:
         parser.error("missing Release engine test binary")
 
-    records = inventory(repo)
+    corpus_root = args.corpus_root.resolve() if args.corpus_root else repo
+    records = inventory(corpus_root)
     if not records:
         raise RuntimeError("empty L1 inventory")
-    options = graph_options(repo, records)
+    if any(name in scenarios for name in ("update_rust", "delete_target")):
+        if (args.rust_update_source not in {r["path"] for r in records}
+                or not args.rust_update_source.endswith(".rs")):
+            parser.error("--rust-update-source must be a selected relative Rust source")
+    options = json.loads(args.graph_options.read_text()) if args.graph_options else graph_options(corpus_root, records)
     if not options["module_roots"]:
         raise RuntimeError("no graph module roots")
     write_json(output / "graph-options.json", options)
@@ -366,7 +384,7 @@ def main() -> int:
         for record in records:
             destination = frozen / record["path"]
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(repo / record["path"], destination)
+            shutil.copy2(corpus_root / record["path"], destination)
         for record in records:
             assert sha256(frozen / record["path"]) == record["sha256"]
         corpus = {
@@ -425,7 +443,7 @@ def main() -> int:
             previous_build = setup_payload["result"]["graph"]["graph_build_id"] if setup_payload and scenario != "graph_only" else None
             previous_disk = disk_breakdown(workspace)
             if scenario == "update_rust":
-                target = "rust/crates/zg-engine/src/api/index/graph.rs"
+                target = args.rust_update_source
                 path = workspace / target
                 path.write_text(path.read_text() + "\n// G2.4 L1 measured single-file update.\n")
                 changes = [{"kind": "upsert", "path": target}]
@@ -439,7 +457,7 @@ def main() -> int:
                 (workspace / target).write_text("pub fn g2_4_l1_added() -> u8 { 4 }\n")
                 changes = [{"kind": "upsert", "path": target}]
             elif scenario == "delete_target":
-                target = "rust/crates/zg-engine/src/api/index/graph.rs"
+                target = args.rust_update_source
                 (workspace / target).unlink()
                 changes = [{"kind": "delete", "path": target}]
             graph_argument = "-" if scenario == "text_full" else graph_json
@@ -483,8 +501,11 @@ def main() -> int:
             else:
                 assert payload["result"].get("graph") is None
                 checks["text_baseline_without_graph"] = True
-            return {"scenario": scenario, "repeat": repeat, "measurement": measurement, "payload": payload,
-                    "checks": checks, "disk": disk_breakdown(workspace)}
+            record = {"scenario": scenario, "repeat": repeat, "measurement": measurement, "payload": payload,
+                      "checks": checks, "disk": disk_breakdown(workspace)}
+            if not args.keep_workspaces:
+                shutil.rmtree(workspace)
+            return record
 
         scenario_results: dict[str, Any] = {}
         for scenario in scenarios:

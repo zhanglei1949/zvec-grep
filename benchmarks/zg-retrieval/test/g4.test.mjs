@@ -18,6 +18,7 @@ import {
   scoreSearch,
   collectNodes,
   scoreExplore,
+  scoreBudgetBoundary,
 } from "../engines/zg/g4-parse.mjs";
 import { PublicMcp } from "../engines/zg/g4-rpc.mjs";
 import { aggregateG4 } from "../engines/zg/g4-report.mjs";
@@ -26,6 +27,214 @@ import { repositorySlug } from "../core/corpus.mjs";
 import { loadSuite } from "../core/suite.mjs";
 
 const suite = await loadG4Suite();
+
+test("v9 changes only visible-byte scoring and retains v8 inputs, calls and budgets", async () => {
+  const previous = await loadG4Suite("g4-code-v8"),
+    next = await loadG4Suite("g4-code-v9");
+  assert.deepEqual(next.inputs, previous.inputs);
+  assert.equal(next.protocol.evidence_scoring, "visible-bytes-v2");
+  const { id, evidence_scoring, ...rest } = next.protocol;
+  assert.deepEqual({ ...rest, id: previous.protocol.id }, previous.protocol);
+  const calls = g4CallPlan(next.tasks, next.protocol);
+  assert.equal(calls.length, 458);
+  assert.deepEqual(calls, g4CallPlan(previous.tasks, previous.protocol));
+  for (const call of calls) {
+    const task = next.tasks.find((t) => t.task_id === call.task_id);
+    assert.deepEqual(
+      g4Request(task, call, "/frozen", next.protocol),
+      g4Request(task, call, "/frozen", previous.protocol),
+    );
+  }
+});
+
+test("v9 credits only proven numbered empty-line newlines; old scoring stays unchanged", () => {
+  for (const source of ["a\n\nb", "a\r\n\r\nb", "\n\nx", "中\n\n🙂"]) {
+    const bytes = Buffer.from(source),
+      sources = new Map([["src/a.rs", bytes]]);
+    const lines = source
+      .split(/\r?\n/)
+      .map((s, i) => `${i + 1}\t${s}`)
+      .join("\n");
+    const parsed = parseGraphResponse(
+      text(
+        `freshness: fresh\n#1 matchedBy=fts src/a.rs:1-${source.split(/\r?\n/).length}\nsource:\n${lines}`,
+      ),
+      "augment",
+    );
+    const required = [
+      { path: "src/a.rs", sha256: sha256(bytes), start: 0, end: bytes.length },
+    ];
+    assert.equal(
+      coverage(required, visibleRanges(parsed, sources, true)).complete,
+      1,
+    );
+    assert.ok(
+      coverage(required, visibleRanges(parsed, sources)).covered_bytes <
+        bytes.length,
+    );
+  }
+  for (const [source, lines, covered] of [
+    [
+      "a\n\nb",
+      [
+        { line: 1, text: "a" },
+        { line: 2, text: "" },
+      ],
+      2,
+    ],
+    [
+      "a\n\nb",
+      [
+        { line: 1, text: "a" },
+        { line: 3, text: "b" },
+      ],
+      2,
+    ],
+    [
+      "a\n \nb",
+      [
+        { line: 1, text: "a" },
+        { line: 2, text: "" },
+        { line: 3, text: "b" },
+      ],
+      3,
+    ],
+    [
+      "abcdef\n\nb",
+      [
+        { line: 1, text: "abc" },
+        { line: 2, text: "" },
+        { line: 3, text: "b" },
+      ],
+      5,
+    ],
+    ["a\n", [{ line: 1, text: "a" }], 1],
+  ]) {
+    const bytes = Buffer.from(source),
+      sources = new Map([["src/a.rs", bytes]]);
+    const parsed = {
+      items: [{ path: "src/a.rs", source_lines: lines, unnumbered_source: [] }],
+    };
+    assert.equal(
+      coverage(
+        [
+          {
+            path: "src/a.rs",
+            sha256: sha256(bytes),
+            start: 0,
+            end: bytes.length,
+          },
+        ],
+        visibleRanges(parsed, sources, true),
+      ).covered_bytes,
+      covered,
+    );
+  }
+  const parsed = parseGraphResponse(
+    text(
+      "freshness: fresh\n#1 matchedBy=fts src/a.rs:1-3\nsource:\n1\ta\n...\n3\tb",
+    ),
+    "augment",
+  );
+  const bytes = Buffer.from("a\n\nb");
+  assert.equal(
+    coverage(
+      [{ path: "src/a.rs", sha256: sha256(bytes), start: 0, end: 4 }],
+      visibleRanges(parsed, new Map([["src/a.rs", bytes]]), true),
+    ).covered_bytes,
+    2,
+  );
+});
+
+test("v8 freezes corrected inputs and keeps v7 retrieval questions and budgets", async () => {
+  const next = await loadG4Suite("g4-code-v8");
+  assert.equal(g4CallPlan(next.tasks, next.protocol).length, 458);
+  assert.equal(
+    next.inputs.tasks.filter((t) => t.case_role === "normal").length,
+    43,
+  );
+  assert.equal(
+    next.inputs.tasks.filter((t) => t.case_role === "budget_boundary").length,
+    5,
+  );
+  assert.deepEqual(next.protocol.execution, suite.protocol.execution);
+  for (const task of next.inputs.tasks) {
+    const old = suite.inputs.tasks.find((t) => t.task_id === task.task_id);
+    assert.deepEqual(task.retrieval, old.retrieval);
+  }
+  const old = suite.inputs.tasks.find((t) => t.task_id === "requests:G4-24");
+  const fixed = next.inputs.tasks.find((t) => t.task_id === old.task_id);
+  assert.ok(
+    fixed.contract.must_not_resolve[0].start >
+      old.contract.must_not_resolve[0].start,
+  );
+  assert.equal(fixed.contract.must_not_resolve[0].quote, "dict_class");
+  for (const id of [
+    "ripgrep:G4-05",
+    "ripgrep:G4-19",
+    "ripgrep:G4-20",
+    "ripgrep:G4-23",
+  ]) {
+    const op = next.inputs.tasks.find((t) => t.task_id === id).explore_request
+      .operation;
+    const locators = [
+      op.anchor,
+      op.start,
+      op.target,
+      op.selector?.owner,
+    ].filter((x) => x?.name === "escape");
+    assert.equal(locators.length, 1);
+    assert.equal(locators[0].kind, "function");
+  }
+});
+
+test("budget negatives require the declared reason and still validate partial evidence", () => {
+  const task = {
+    budget_expectation: {
+      status: "product_error",
+      reason: "complete result exceeds output budget",
+    },
+  };
+  assert.equal(
+    scoreBudgetBoundary(
+      task,
+      { status: "product_error", text: "timeout" },
+      new Map(),
+    ).passed,
+    false,
+  );
+  assert.equal(
+    scoreBudgetBoundary(
+      task,
+      { status: "product_error", text: task.budget_expectation.reason },
+      new Map(),
+    ).passed,
+    true,
+  );
+  task.budget_expectation = { status: "partial", stop_reason: "output_budget" };
+  task.contract = { locations: ["unique"] };
+  const parsed = {
+    status: "success",
+    items: [],
+    graph: {
+      execution: { status: "partial", stop_reason: "output_budget" },
+      locations: [{ status: "unique" }],
+      evidence: [],
+    },
+  };
+  assert.equal(scoreBudgetBoundary(task, parsed, new Map()).passed, true);
+  parsed.graph.execution.status = "complete";
+  assert.equal(scoreBudgetBoundary(task, parsed, new Map()).passed, false);
+  parsed.graph.execution.status = "partial";
+  parsed.graph.locations = [];
+  assert.equal(scoreBudgetBoundary(task, parsed, new Map()).passed, false);
+  parsed.graph.locations = [{ status: "unique" }];
+  parsed.items = [{ path: "missing.rs", source_lines: [] }];
+  assert.throws(
+    () => scoreBudgetBoundary(task, parsed, new Map()),
+    /unrecorded source/,
+  );
+});
 const text = (value, isError = false) => ({
   isError,
   content: [{ type: "text", text: value }],
@@ -218,50 +427,65 @@ test("Constrain requires complete exact scope and reports leaked visible text", 
   );
 });
 test("blocked matrix can be replayed but cannot yield an all-green report", async (t) => {
-  const dir = await temporary(t);
-  await writeJson(join(dir, "suite.json"), {
-    identity: suite.identity,
-    protocol: suite.protocol,
-    inputs: suite.inputs,
-  });
-  for (const repo of suite.inputs.repositories) {
-    const p = join(dir, repositorySlug(repo.repository));
-    await mkdir(p);
-    const tasks = suite.tasks.filter((x) => x.repository === repo.repository);
-    await writeJson(join(p, "run.json"), {
-      commit: repo.commit,
-      suite: suite.identity,
-      status: "preparation_failed",
-      issues: ["graph not ready"],
+  for (const profile of ["g4-code-v7", "g4-code-v8", "g4-code-v9"]) {
+    const selected = await loadG4Suite(profile);
+    const dir = await temporary(t);
+    await writeJson(join(dir, "suite.json"), {
+      identity: selected.identity,
+      protocol: selected.protocol,
+      inputs: selected.inputs,
     });
-    await writeJson(
-      join(p, "calls.json"),
-      g4CallPlan(tasks, suite.protocol).map((c) => ({
-        ...c,
-        status: "blocked",
-        request: g4Request(
-          tasks.find((x) => x.task_id === c.task_id),
-          c,
-          "<unavailable>",
-          suite.protocol,
-        ),
-      })),
+    for (const repo of selected.inputs.repositories) {
+      const p = join(dir, repositorySlug(repo.repository));
+      await mkdir(p);
+      const tasks = selected.tasks.filter(
+        (x) => x.repository === repo.repository,
+      );
+      await writeJson(join(p, "run.json"), {
+        commit: repo.commit,
+        suite: selected.identity,
+        status: "preparation_failed",
+        issues: ["graph not ready"],
+      });
+      await writeJson(
+        join(p, "calls.json"),
+        g4CallPlan(tasks, selected.protocol).map((c) => ({
+          ...c,
+          status: "blocked",
+          request: g4Request(
+            tasks.find((x) => x.task_id === c.task_id),
+            c,
+            "<unavailable>",
+            selected.protocol,
+          ),
+        })),
+      );
+    }
+    const a = await aggregateG4(dir, profile),
+      b = await aggregateG4(dir, profile);
+    assert.deepEqual(a, b);
+    assert.equal(a.integrity_passed, false);
+    if (profile !== "g4-code-v7") {
+      assert.equal(
+        a.repositories.reduce((n, r) => n + r.budget_boundary.total, 0),
+        5,
+      );
+      assert.equal(
+        a.repositories.reduce((n, r) => n + r.budget_boundary.passed, 0),
+        0,
+      );
+    }
+    assert.equal(
+      a.repositories.reduce((n, r) => n + r.blocked_calls, 0),
+      458,
     );
+    const repo = selected.inputs.repositories[0],
+      p = join(dir, repositorySlug(repo.repository), "calls.json"),
+      rows = await readJson(p);
+    rows.pop();
+    await writeJson(p, rows);
+    await assert.rejects(aggregateG4(dir, profile), /missing call matrix/);
   }
-  const a = await aggregateG4(dir),
-    b = await aggregateG4(dir);
-  assert.deepEqual(a, b);
-  assert.equal(a.integrity_passed, false);
-  assert.equal(
-    a.repositories.reduce((n, r) => n + r.blocked_calls, 0),
-    458,
-  );
-  const repo = suite.inputs.repositories[0],
-    p = join(dir, repositorySlug(repo.repository), "calls.json"),
-    rows = await readJson(p);
-  rows.pop();
-  await writeJson(p, rows);
-  await assert.rejects(aggregateG4(dir), /missing call matrix/);
 });
 test("raw stdio client speaks public JSON-RPC and closes its owned child", async (t) => {
   const dir = await temporary(t),

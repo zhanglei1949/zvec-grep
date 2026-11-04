@@ -9,8 +9,8 @@ publish.workspace = true
 
 [features]
 default = []
-# Binding-independent relation fact inspection; persistence awaits graphdb.
-knowledge-graph = ["dep:zg-knowledge"]
+# Host fact capture is opt-in; shared pure Rust query contracts are always available.
+knowledge-graph = []
 # Candidate persistence/publication and read-only code exploration.
 knowledge-graph-graphdb = ["knowledge-graph", "zg-knowledge/graphdb"]
 # CUDA and Vulkan require their native toolchains at build time. Platform
@@ -59,7 +59,7 @@ zg-engine-macros = { path = "macros" }
 zg-host-native = { path = "../zg-host-native" }
 zg-markdown = { path = "../zg-markdown" }
 zg-storage = { path = "../zg-storage", features = ["zvec"] }
-zg-knowledge = { path = "../zg-knowledge", optional = true }
+zg-knowledge = { path = "../zg-knowledge" }
 zvec-rust.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -93,4 +93,12 @@ required-features = ["knowledge-graph"]
 
 [[example]]
 name = "graph_audit"
+required-features = ["knowledge-graph-graphdb"]
+
+[[example]]
+name = "graph_semantic_seed"
+required-features = ["knowledge-graph-graphdb"]
+
+[[example]]
+name = "m7_api"
 required-features = ["knowledge-graph-graphdb"]

@@ -73,7 +73,7 @@ pub(super) fn summarize(
     catalog: &FactCatalog,
     context: &ProcessingContext,
 ) -> EngineResult<BTreeMap<String, GraphDomainResult>> {
-    let roots = roots(&policy.configuration)?;
+    let roots = roots(&policy.configuration, &manifest.workspace.root)?;
     let by_source = catalog
         .files
         .iter()
@@ -103,15 +103,10 @@ pub(super) fn summarize(
                 check_context(context)?;
                 let formats =
                     FileFormat::from_path(&manifest.workspace.source_path(&file.relative_path))?;
-                let language = if formats.contains(&FileFormat::Markdown) {
-                    Some(Language::Markdown)
-                } else if formats.contains(&FileFormat::Rust) {
-                    Some(Language::Rust)
-                } else if formats.contains(&FileFormat::Python) {
-                    Some(Language::Python)
-                } else {
-                    None
-                };
+                let language = roots.language(
+                    &file.relative_path.to_path_buf().to_string_lossy(),
+                    &formats,
+                );
                 let Some(language) = language.filter(|l| (*l == Language::Markdown) == is_doc)
                 else {
                     continue;

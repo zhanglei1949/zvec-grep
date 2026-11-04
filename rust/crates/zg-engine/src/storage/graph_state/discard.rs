@@ -30,7 +30,7 @@ pub(crate) struct DiscardRecord {
     phase: Phase,
 }
 fn invalid() -> EngineError {
-    EngineError::storage_failure("graph discard recovery_required")
+    EngineError::recovery_required("graph discard recovery_required")
 }
 fn directory(path: &Path) -> EngineResult<bool> {
     match fs::symlink_metadata(path) {

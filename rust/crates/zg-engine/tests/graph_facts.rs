@@ -1,4 +1,6 @@
 #![cfg(feature = "knowledge-graph")]
+#[path = "graph_facts/compiled.rs"]
+mod compiled;
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
@@ -610,6 +612,81 @@ fn imported_decorated_functions_and_function_pointer_constants_do_not_become_sta
 }
 
 #[test]
+fn rust_nested_bare_import_uses_declared_module_without_root_fallback() {
+    let check = |lookup: &str| {
+        inspect(&[
+            input(
+                "src/relations/code.rs",
+                Language::Rust,
+                "mod lookup;use lookup::{module_path as path};use std::path::Path;pub fn resolve(){path();}",
+                &["relations", "code"],
+            ),
+            input(
+                "src/relations/code/lookup.rs",
+                Language::Rust,
+                lookup,
+                &["relations", "code", "lookup"],
+            ),
+            input(
+                "src/lookup.rs",
+                Language::Rust,
+                "pub fn module_path(){}",
+                &["lookup"],
+            ),
+        ])
+    };
+    let result = check("pub(super) fn module_path(){leaf();}fn leaf(){}");
+    assert!(result.files.iter().all(|f| f.complete));
+    let imported = result.references.iter().find(|r| r.reference.kind == RelationKind::Import
+        && matches!(&r.reference.lookup, Lookup::Import {path} if path.first().is_some_and(|p| p == "lookup"))).expect("import fact");
+    assert_eq!(imported.status, ResolutionStatus::Resolved);
+    assert_eq!(imported.candidates[0].path, "src/relations/code/lookup.rs");
+    assert!(
+        calls(&result)
+            .iter()
+            .all(|r| r.status == ResolutionStatus::Resolved)
+    );
+    assert_eq!(calls(&result).len(), 2);
+    assert!(result.references.iter().any(
+        |r| r.reference.kind == RelationKind::Import && r.status == ResolutionStatus::External
+    ));
+    for (lookup, status) in [
+        ("pub(super) fn removed(){}", ResolutionStatus::Unresolved),
+        (
+            "pub(super) fn module_path(){}pub(super) fn module_path(){}",
+            ResolutionStatus::Ambiguous,
+        ),
+    ] {
+        let changed = check(lookup);
+        assert_eq!(calls(&changed)[0].status, status);
+        assert!(
+            calls(&changed)[0]
+                .candidates
+                .iter()
+                .all(|t| t.path != "src/lookup.rs")
+        );
+    }
+}
+
+#[test]
+fn rust_bare_import_does_not_inherit_a_parent_module() {
+    let result = inspect(&[input(
+        "src/lib.rs",
+        Language::Rust,
+        "mod parent {mod lookup {pub(super) fn target(){}}mod child {use lookup::target;fn run(){target();}}}",
+        &[],
+    )]);
+    assert!(result.files[0].complete);
+    assert!(
+        result
+            .references
+            .iter()
+            .all(|r| r.status != ResolutionStatus::Resolved)
+    );
+    assert!(result.references.iter().all(|r| r.candidates.is_empty()));
+}
+
+#[test]
 fn rust_impl_members_do_not_shadow_free_function_lookup() {
     let result = inspect(&[input(
         "a.rs",
@@ -626,4 +703,151 @@ fn rust_impl_members_do_not_shadow_free_function_lookup() {
         .find(|n| n.id == c[0].candidates[0].node_id)
         .expect("definition");
     assert_eq!(target.qualified_name, ["helper"]);
+}
+
+#[test]
+fn explicit_type_relations_resolve_both_endpoints_and_keep_declaration_evidence() {
+    let result = inspect(&[
+        input(
+            "lib.rs",
+            Language::Rust,
+            "mod types; use crate::types::{Base, Child, Local}; impl Child for Local {}",
+            &[],
+        ),
+        input(
+            "types.rs",
+            Language::Rust,
+            "pub trait Base {} pub trait Child: Base {} pub struct Local;",
+            &["types"],
+        ),
+    ]);
+    let edges = result
+        .references
+        .iter()
+        .filter(|r| {
+            matches!(
+                r.reference.kind,
+                RelationKind::Extends | RelationKind::Implements
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(edges.len(), 2);
+    assert!(edges.iter().all(|r| r.status == ResolutionStatus::Resolved));
+    let implementation = edges
+        .iter()
+        .find(|r| r.reference.kind == RelationKind::Implements)
+        .expect("impl");
+    assert_eq!(implementation.source.path, "lib.rs");
+    assert_eq!(
+        implementation
+            .relation_source
+            .as_ref()
+            .expect("nominal owner")
+            .path,
+        "types.rs"
+    );
+    assert_eq!(implementation.candidates[0].path, "types.rs");
+    let python = inspect(&[input(
+        "a.py",
+        Language::Python,
+        "class Base: pass\nclass Child(Base): pass\n",
+        &["a"],
+    )]);
+    let relation = python
+        .references
+        .iter()
+        .find(|r| r.reference.kind == RelationKind::Extends)
+        .expect("base");
+    assert_eq!(relation.status, ResolutionStatus::Resolved);
+    assert!(
+        python.files[0]
+            .nodes
+            .iter()
+            .any(|n| n.id == relation.reference.owner && n.name == "Child")
+    );
+}
+
+#[test]
+fn type_relations_keep_missing_ambiguous_and_dynamic_targets_explicit() {
+    for source in [
+        "class MissingChild(Missing): pass\n",
+        "class Base: pass\nBase = factory()\nclass Child(Base): pass\n",
+        "class Child(factory()): pass\n",
+        "class Base: pass\nclass Base: pass\nclass Child(Base): pass\n",
+    ] {
+        let result = inspect(&[input("a.py", Language::Python, source, &["a"])]);
+        assert!(
+            result
+                .references
+                .iter()
+                .filter(|r| r.reference.kind == RelationKind::Extends)
+                .all(|r| r.status != ResolutionStatus::Resolved)
+        );
+    }
+    let result = inspect(&[input(
+        "lib.rs",
+        Language::Rust,
+        "trait Store {} struct Local; impl<T> Store for T {} impl Missing for Local {}",
+        &[],
+    )]);
+    assert!(
+        result
+            .references
+            .iter()
+            .filter(|r| r.reference.kind == RelationKind::Implements)
+            .all(|r| r.status != ResolutionStatus::Resolved)
+    );
+}
+
+#[test]
+fn explicit_trait_impl_reuses_nominal_alias_resolution_and_rejects_non_traits() {
+    let result = inspect(&[input(
+        "lib.rs",
+        Language::Rust,
+        "trait Store {} struct Local; type Alias = Local; impl Store for Alias {}",
+        &[],
+    )]);
+    let relation = result
+        .references
+        .iter()
+        .find(|r| r.reference.kind == RelationKind::Implements)
+        .expect("impl");
+    assert_eq!(relation.status, ResolutionStatus::Resolved);
+    assert!(result.files[0].nodes.iter().any(|n| Some(&n.id)
+        == relation.relation_source.as_ref().map(|s| &s.node_id)
+        && n.name == "Local"));
+    let invalid = inspect(&[input(
+        "lib.rs",
+        Language::Rust,
+        "struct Store; struct Local; impl Store for Local {}",
+        &[],
+    )]);
+    assert!(
+        invalid
+            .references
+            .iter()
+            .filter(|r| r.reference.kind == RelationKind::Implements)
+            .all(|r| r.status != ResolutionStatus::Resolved)
+    );
+}
+
+#[test]
+fn abstract_trait_methods_are_locatable_declarations_without_dispatch_inference() {
+    let result = inspect(&[input(
+        "lib.rs",
+        Language::Rust,
+        "trait Store {fn read(&self);} struct Local;impl Store for Local {fn read(&self){}}",
+        &[],
+    )]);
+    let signatures = result.files[0]
+        .nodes
+        .iter()
+        .filter(|n| n.name == "read")
+        .collect::<Vec<_>>();
+    assert_eq!(signatures.len(), 2);
+    assert!(
+        signatures
+            .iter()
+            .all(|n| n.entity_kind == zg_knowledge::relations::EntityKind::Method && !n.callable)
+    );
 }

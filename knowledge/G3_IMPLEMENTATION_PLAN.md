@@ -2,14 +2,14 @@
 
 历史运行记录已迁入[归档索引](archive/pre-g4-validation/README.md)；文中的旧 reports 路径指归档内位置，机器记录链接的标题保留原始路径。
 
-日期：2026-10-29。状态：**G3.0—G3.3 已完成；P0／P1／P2 已完成；P3 Release 默认预算验证通过，Debug 仍超时**。G2 已[带遗留项收尾](G2_ACCEPTANCE_REPORT.md)：代码域覆盖不足，构建成本未达标，业务模型与 TextMap 的交接已在 G3.1 完成。本计划保留其构建、发布、恢复和租约机制，先交付代码图查询，再复用接口接入文档图。
+日期：2026-10-30。状态：**G3.0—G3.3 的 Rust/Python 切片已完成；P0／P1／P2 已完成；P3 Release 默认预算验证通过，Debug 仍超时**。这不是 S2 八语言代码图或完整知识模型的验收结论。G2 已[带遗留项收尾](G2_ACCEPTANCE_REPORT.md)，本计划保留其构建、发布、恢复和租约机制。新版设计范围、代码入口和剩余验收见 [S2 验收矩阵](S2_ACCEPTANCE_MATRIX.md)。下文阶段运行记录保留原始时间与结论。
 
 G3.0 记录见[基础契约](G3_0_CONTRACTS_REPORT.md)，已交付能力见 [G3.1 记录](G3_1_IMPLEMENTATION_REPORT.md)。G3.2 与 G3.3 的 Rust／CLI／MCP／daemon 同请求对照、默认／原生受影响回归及静态检查已通过。本轮到 G3.3 为止，不推进 G3.4、G3.5。详见 [Augment 记录](G3_2_IMPLEMENTATION_REPORT.md) 和 [Constrain 记录](G3_3_IMPLEMENTATION_REPORT.md)。
 
 设计依据：
 
-- [KG 模块封装与接口设计](https://yuque.alibaba-inc.com/proxima-se/cg5gr6/khyqauxnxe0be129)：读取版本为 2026-10-27 08:50:07 UTC，以第 2—4 章的数据模型和查询语义为准。
-- [知识图谱 FY27 S2 规划](https://yuque.alibaba-inc.com/proxima-se/cg5gr6/fygih1gn6wy02z7h)：读取版本为 2026-10-27 07:29:54 UTC，用于范围、优先级和演进顺序。
+- [KG 模块封装与接口设计](https://yuque.alibaba-inc.com/proxima-se/cg5gr6/khyqauxnxe0be129)：最新核对版本为 2026-11-02 09:36:05 UTC。原实现采用 10 月 27 日版本；新增公共语义模型及八语言等差距逐项登记，不倒推为已实现。
+- [知识图谱 FY27 S2 规划](https://yuque.alibaba-inc.com/proxima-se/cg5gr6/fygih1gn6wy02z7h)：最新核对版本为 2026-11-02 07:48:25 UTC，用于 S2 交付范围与阶段依赖。
 - 本地代码核对基于 HEAD `b5ea18d8f031d7ccae992221b10d5cab242e4e17` 及当前未提交实验代码。源码事实只用于确定改动入口，不作为正式图谱模型的约束。
 
 规划文档中的 `query` 对应 zg 的 `context`。两份文档详略不同时，按配套接口设计收敛：公开结构化关系入口是 `explore`；KG 的 `query` 是可选便利接口；`locate / relations / expand / shortest_path` 是 explore 内部操作，不分别增加顶层服务入口。

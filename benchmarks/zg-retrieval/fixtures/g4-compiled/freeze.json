@@ -1,0 +1,142 @@
+{
+  "id": "g4-compiled-v1-r0-r1",
+  "status": "frozen-before-product-queries",
+  "frozen_at_utc": "2026-11-03T06:15:57.487852+00:00",
+  "product_queries_executed": 0,
+  "source_files": 25,
+  "main_code_files": 22,
+  "upstream_configuration_files": 1,
+  "boundary_only_source_files": 2,
+  "generated_configuration_files": 2,
+  "required_intervals": 114,
+  "scope_required_intervals": 54,
+  "language_summary": [
+    {
+      "language": "go",
+      "questions": 12,
+      "constrain_pairs": 8,
+      "multi_interval_questions": 11,
+      "cross_file_questions": 7,
+      "behavior_without_answer_name": 10,
+      "human_reviewed": false
+    },
+    {
+      "language": "java",
+      "questions": 12,
+      "constrain_pairs": 8,
+      "multi_interval_questions": 12,
+      "cross_file_questions": 9,
+      "behavior_without_answer_name": 9,
+      "human_reviewed": false
+    },
+    {
+      "language": "c",
+      "questions": 12,
+      "constrain_pairs": 8,
+      "multi_interval_questions": 11,
+      "cross_file_questions": 8,
+      "behavior_without_answer_name": 11,
+      "human_reviewed": false
+    },
+    {
+      "language": "cpp",
+      "questions": 12,
+      "constrain_pairs": 8,
+      "multi_interval_questions": 11,
+      "cross_file_questions": 6,
+      "behavior_without_answer_name": 10,
+      "human_reviewed": false
+    }
+  ],
+  "retrieval_call_matrix": {
+    "planned": 800,
+    "off": 400,
+    "augment": 240,
+    "constrain": 160,
+    "repetitions": 5,
+    "quality_repetition": 5,
+    "quality_observations": 160
+  },
+  "files": [
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-compiled-v1.json",
+      "sha256": "49f96361080c1f9665afc514dfbb8d476cd3bf44416dc1f15f8f9846e8be2962",
+      "bytes": 1187
+    },
+    {
+      "path": "benchmarks/zg-retrieval/data/g4-compiled-v1.json",
+      "sha256": "dcac8aef61e1c08716182483587f2bae6e068ab7717fa10f64d01387d483aa21",
+      "bytes": 408547
+    },
+    {
+      "path": "benchmarks/zg-retrieval/gold/g4-compiled-v1-spec.json",
+      "sha256": "401ac1f35ec45636e99c5889629ac56f15f786f9d881d715af36c1bc22cfb1ae",
+      "bytes": 98264
+    },
+    {
+      "path": "benchmarks/zg-retrieval/gold/g4-compiled-v1-answers.md",
+      "sha256": "d5fc44211ca4e63ceb5a9d85f90007cd25ce833c78fcc5d51eb50f3eb783835c",
+      "bytes": 44877
+    },
+    {
+      "path": "benchmarks/zg-retrieval/tools/g4-compiled-labels.py",
+      "sha256": "605fb9c9f8a0baec9e0c6961b6f54548684076c6715dbb353c5a94a04debe841",
+      "bytes": 11412
+    },
+    {
+      "path": "knowledge/archive/four-language-query-r0-r1/sources.tar.gz",
+      "sha256": "56410c3b2534560cd7168485187cf154559b3c74173a586ba741ec79cc99f7a5",
+      "bytes": 108504
+    },
+    {
+      "path": "knowledge/archive/four-language-query-r0-r1/dependency-audit.json",
+      "sha256": "965fcfdd823b677de0023bcde64f0fe3035216a34c1af801617e7677cab035d9",
+      "bytes": 18135
+    },
+    {
+      "path": "knowledge/archive/four-language-query-r0-r1/handoff.json",
+      "sha256": "71bf3a222d66415f28aef1379748a141bcd74ab10808243e3951b5d6219f2408",
+      "bytes": 29592
+    }
+  ],
+  "legacy_unchanged": [
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-code-v7.json",
+      "sha256": "d59d99e6261d5cce3507a5b09e261e3bc2ddb98cd552840e7aa4b01609f95428"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-code-v8.json",
+      "sha256": "4b64035835144ce310b4a5c2cad55065bc3cd2259cd0b9894057447c3fc4659b"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/configs/g4-code-v9.json",
+      "sha256": "d093170334e31e737b87efac6b7e949f14823e03cbf845279a3cc626f2dae9f0"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/data/g4-code-v1.json",
+      "sha256": "c4723452cfd313e4200ff6b90f91ba45f2e3d8b28f557e4cfe4245e1941c39c5"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/data/g4-code-v2.json",
+      "sha256": "9fc86e5a16652dfc01642ae7ad478ddcd770268947dfd49338cdf8d7c61309af"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/tools/g4-labels.py",
+      "sha256": "7c249ef99f0782f87ee1767cb3508e93d6532a6faf2c0d47c1220a3bf793b111"
+    },
+    {
+      "path": "benchmarks/zg-retrieval/tools/g4-labels-v2.py",
+      "sha256": "5171e865eda32371f99a0899a7d1e671f0d42ae47d8eb01156d191836fab9d2e"
+    }
+  ],
+  "budget": {
+    "nodes": 2000,
+    "edges": 10000,
+    "candidates": 5000,
+    "mapping_units": 5000,
+    "output_bytes": 65536,
+    "filter_bytes": 262144
+  },
+  "next_gate": "R2 runner registration, exact-slice materialization, default-budget and four-entrypoint boundary execution; not yet run",
+  "oracle_status": "agent_source_reviewed_not_human_reviewed;real source but not user-query-log sample"
+}

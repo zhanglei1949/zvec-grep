@@ -85,21 +85,21 @@ pub(crate) async fn run(
                 current.updated_epoch_ms = graph_state::now();
                 graph_state::write_record(&home.join("graph/STATE.json"), &current).map_err(
                     |_| {
-                        EngineError::storage_failure(
+                        EngineError::recovery_required(
                             "text recovery write requires recovery_required",
                         )
                     },
                 )?;
                 if TextState::read(&home)
                     .map_err(|_| {
-                        EngineError::storage_failure(
+                        EngineError::recovery_required(
                             "text recovery readback requires recovery_required",
                         )
                     })?
                     .as_ref()
                     != Some(&current)
                 {
-                    return Err(EngineError::storage_failure(
+                    return Err(EngineError::recovery_required(
                         "text recovery confirmation requires recovery_required",
                     ));
                 }

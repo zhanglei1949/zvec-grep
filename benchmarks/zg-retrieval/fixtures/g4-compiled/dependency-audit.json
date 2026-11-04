@@ -1,0 +1,558 @@
+[
+  {
+    "repository": "google/uuid",
+    "include_dependencies": [],
+    "import_dependencies": [
+      {
+        "source": "uuid.go",
+        "import": "bytes",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "crypto/rand",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "encoding/hex",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "errors",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "fmt",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "io",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "strings",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "uuid.go",
+        "import": "sync",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "util.go",
+        "import": "io",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "hash.go",
+        "import": "crypto/md5",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "hash.go",
+        "import": "crypto/sha1",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "hash.go",
+        "import": "hash",
+        "status": "external_standard_library"
+      },
+      {
+        "source": "marshal.go",
+        "import": "fmt",
+        "status": "external_standard_library"
+      }
+    ],
+    "unselected_same_package_files": [
+      "dce.go",
+      "doc.go",
+      "json_test.go",
+      "node.go",
+      "node_js.go",
+      "node_net.go",
+      "null.go",
+      "null_test.go",
+      "seq_test.go",
+      "sql.go",
+      "sql_test.go",
+      "time.go",
+      "uuid_test.go",
+      "version1.go",
+      "version4.go",
+      "version6.go",
+      "version7.go"
+    ],
+    "selection_reason": "Core text, binary and hash UUID behavior; platform/build-tag files and runtime/network generators excluded before queries."
+  },
+  {
+    "repository": "kuzudb/kuzu",
+    "include_dependencies": [],
+    "import_dependencies": [
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.util.Map",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.io.File",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.io.IOException",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.net.URL",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.nio.file.Files",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.nio.file.Path",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/main/java/com/kuzudb/Native.java",
+        "import": "java.nio.file.StandardCopyOption",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.math.BigDecimal",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.math.BigInteger",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.time.Duration",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.time.Instant",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.time.LocalDate",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.util.HashMap",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.util.Map",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "java.util.UUID",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "org.junit.jupiter.api.Test",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/ValueTest.java",
+        "import": "org.junit.jupiter.api.Assertions.*",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/DataTypeTest.java",
+        "import": "org.junit.jupiter.api.Test",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/DataTypeTest.java",
+        "import": "org.junit.jupiter.api.Assertions.*",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+        "import": "org.junit.jupiter.api.BeforeAll",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+        "import": "org.junit.jupiter.api.io.TempDir",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+        "import": "org.junit.jupiter.api.AfterAll",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+        "import": "org.junit.jupiter.api.Assertions.*",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+        "import": "java.nio.file.Path",
+        "status": "external_classpath_or_wildcard_unresolved"
+      },
+      {
+        "source": "tools/java_api/src/test/java/com/kuzudb/TestBase.java",
+        "import": "java.io.IOException",
+        "status": "external_classpath_or_wildcard_unresolved"
+      }
+    ],
+    "unselected_same_package_files": [
+      "tools/java_api/src/main/java/com/kuzudb/Connection.java",
+      "tools/java_api/src/main/java/com/kuzudb/Database.java",
+      "tools/java_api/src/main/java/com/kuzudb/FlatTuple.java",
+      "tools/java_api/src/main/java/com/kuzudb/InternalID.java",
+      "tools/java_api/src/main/java/com/kuzudb/KuzuList.java",
+      "tools/java_api/src/main/java/com/kuzudb/KuzuMap.java",
+      "tools/java_api/src/main/java/com/kuzudb/KuzuStruct.java",
+      "tools/java_api/src/main/java/com/kuzudb/PreparedStatement.java",
+      "tools/java_api/src/main/java/com/kuzudb/QueryResult.java",
+      "tools/java_api/src/main/java/com/kuzudb/QuerySummary.java",
+      "tools/java_api/src/main/java/com/kuzudb/ValueNodeUtil.java",
+      "tools/java_api/src/main/java/com/kuzudb/ValueRecursiveRelUtil.java",
+      "tools/java_api/src/main/java/com/kuzudb/ValueRelUtil.java",
+      "tools/java_api/src/main/java/com/kuzudb/Version.java",
+      "tools/java_api/src/main/java/com/kuzudb/package-info.java"
+    ],
+    "selection_reason": "Value/DataType wrappers, Native declarations and corresponding tests; other same-package types and JNI code remain outside the slice."
+  },
+  {
+    "repository": "apache/arrow-nanoarrow",
+    "include_dependencies": [
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "errno.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "stdarg.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "stddef.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "stdio.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "stdlib.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "string.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/utils.c",
+        "include": "nanoarrow/nanoarrow.h",
+        "target": "src/nanoarrow/nanoarrow.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/common/schema.c",
+        "include": "errno.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/schema.c",
+        "include": "inttypes.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/schema.c",
+        "include": "stdio.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/schema.c",
+        "include": "stdlib.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/schema.c",
+        "include": "string.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/schema.c",
+        "include": "nanoarrow/nanoarrow.h",
+        "target": "src/nanoarrow/nanoarrow.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/common/array_stream.c",
+        "include": "errno.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/array_stream.c",
+        "include": "nanoarrow/nanoarrow.h",
+        "target": "src/nanoarrow/nanoarrow.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_types.h",
+        "include": "stdint.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_types.h",
+        "include": "string.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_types.h",
+        "include": "nanoarrow/nanoarrow_config.h",
+        "target": null,
+        "status": "missing_or_generated_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_types.h",
+        "include": "stdio.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_types.h",
+        "include": "stdlib.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_buffer.h",
+        "include": "errno.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_buffer.h",
+        "include": "stdint.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_buffer.h",
+        "include": "string.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_buffer.h",
+        "include": "nanoarrow/common/inline_types.h",
+        "target": "src/nanoarrow/common/inline_types.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "errno.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "float.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "limits.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "stdint.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "string.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "nanoarrow/common/inline_buffer.h",
+        "target": "src/nanoarrow/common/inline_buffer.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/common/inline_array.h",
+        "include": "nanoarrow/common/inline_types.h",
+        "target": "src/nanoarrow/common/inline_types.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/nanoarrow.h",
+        "include": "stddef.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/nanoarrow.h",
+        "include": "stdint.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/nanoarrow.h",
+        "include": "stdlib.h",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/nanoarrow/nanoarrow.h",
+        "include": "nanoarrow/common/inline_types.h",
+        "target": "src/nanoarrow/common/inline_types.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/nanoarrow.h",
+        "include": "nanoarrow/common/inline_array.h",
+        "target": "src/nanoarrow/common/inline_array.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/nanoarrow/nanoarrow.h",
+        "include": "nanoarrow/common/inline_buffer.h",
+        "target": "src/nanoarrow/common/inline_buffer.h",
+        "status": "included_in_slice"
+      }
+    ],
+    "import_dependencies": [],
+    "unselected_same_package_files": [],
+    "selection_reason": "Allocation/schema/basic-stream components and their inline helper declarations; generated configuration headers are not fabricated."
+  },
+  {
+    "repository": "zhanglei1949/graphdb",
+    "include_dependencies": [
+      {
+        "source": "src/common/string_literal.cc",
+        "include": "graphdb/common/string_literal.h",
+        "target": "include/graphdb/common/string_literal.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/common/string_literal.cc",
+        "include": "algorithm",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/common/string_literal.cc",
+        "include": "cctype",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "src/common/string_literal.cc",
+        "include": "graphdb/common/types.h",
+        "target": "include/graphdb/common/types.h",
+        "status": "upstream_present_outside_slice"
+      },
+      {
+        "source": "src/common/error.cc",
+        "include": "graphdb/common/error.h",
+        "target": "include/graphdb/common/error.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "src/common/error.cc",
+        "include": "utility",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "include/graphdb/common/string_literal.h",
+        "include": "string",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "include/graphdb/common/string_literal.h",
+        "include": "graphdb/common/error.h",
+        "target": "include/graphdb/common/error.h",
+        "status": "included_in_slice"
+      },
+      {
+        "source": "include/graphdb/common/error.h",
+        "include": "cstddef",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "include/graphdb/common/error.h",
+        "include": "cstdint",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "include/graphdb/common/error.h",
+        "include": "optional",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "include/graphdb/common/error.h",
+        "include": "stdexcept",
+        "target": null,
+        "status": "external_system_header"
+      },
+      {
+        "source": "include/graphdb/common/error.h",
+        "include": "string",
+        "target": null,
+        "status": "external_system_header"
+      }
+    ],
+    "import_dependencies": [],
+    "unselected_same_package_files": [],
+    "selection_reason": "String decoding and structured diagnostics with their direct error declarations; types.h and compiler implementation stay outside the main slice; compiler/literals.cc retained only as a boundary."
+  }
+]

@@ -136,8 +136,7 @@ async fn graph_retention_discards_known_partial_schema_and_preserves_unknown() {
                     .recover_graph(options)
                     .await
                     .expect_err("unknown native proof is not guessed")
-                    .message()
-                    .contains("recovery_required")
+                    .is_recovery_required()
             );
             assert!(path.exists());
             continue;

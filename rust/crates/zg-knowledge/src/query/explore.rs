@@ -12,12 +12,15 @@ use super::{
 pub use augment::{AugmentResult, SeedExpansion, augment};
 pub use scope::{
     ScopeRegion, ScopeResolution, ScopeTextEntity, ScopeTextFragment, ScopeTextProvider, ScopeUnit,
-    resolve_scope,
+    resolve_scope, resolve_semantic_scope,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     time::Instant,
 };
+
+/// Reader page size shared by locate, neighbor and reference pagination.
+const PAGE: u16 = 256;
 
 fn permits(filters: &[&SourceFilter], source: &str) -> bool {
     filters.iter().all(|f| {
@@ -69,10 +72,10 @@ impl<R: GraphReader> Search<'_, R> {
             })?;
             let count = page.len();
             candidates.extend(page.into_iter().filter(|n| permits(boundary, &n.source_id)));
-            if count < 256 {
+            if count < usize::from(PAGE) {
                 break;
             }
-            offset += 256;
+            offset += u64::from(PAGE);
         }
         if matches!(locator, Locator::Position { .. })
             && let Some(size) = candidates.iter().map(|n| n.span.end - n.span.start).min()
@@ -101,7 +104,7 @@ impl<R: GraphReader> Search<'_, R> {
     }
     fn get_nodes(&self, ids: &[String]) -> QueryResult<Vec<EntityRecord>> {
         let mut out = Vec::new();
-        for batch in ids.chunks(256) {
+        for batch in ids.chunks(usize::from(PAGE)) {
             let page = self.reader.get_nodes(batch, self.ctx)?;
             self.ctx.charge(BudgetUsage {
                 nodes: page.len() as u64,
@@ -126,7 +129,7 @@ impl<R: GraphReader> Search<'_, R> {
         boundary: &[&SourceFilter],
     ) -> QueryResult<Vec<RelationRecord>> {
         let mut edges = BTreeMap::new();
-        for batch in frontier.chunks(256) {
+        for batch in frontier.chunks(usize::from(PAGE)) {
             for kind in kinds {
                 let mut offset = 0;
                 loop {
@@ -151,14 +154,20 @@ impl<R: GraphReader> Search<'_, R> {
                         .map(|n| n.id)
                         .collect::<BTreeSet<_>>();
                     for edge in page {
-                        if allowed.contains(&edge.source) && allowed.contains(&edge.target) {
+                        if allowed.contains(&edge.source)
+                            && allowed.contains(&edge.target)
+                            && edge
+                                .reference
+                                .as_ref()
+                                .is_none_or(|r| permits(boundary, &r.evidence.source_id))
+                        {
                             edges.insert(edge.id.clone(), edge);
                         }
                     }
-                    if count < 256 {
+                    if count < usize::from(PAGE) {
                         break;
                     }
-                    offset += 256;
+                    offset += u64::from(PAGE);
                 }
             }
         }
@@ -311,6 +320,9 @@ pub fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
     context: &RequestContext,
 ) -> QueryResult<ExploreResult> {
     request.validate_for(view.stamp())?;
+    if let ExploreOperation::Semantic { query } = &request.operation {
+        return super::semantic_read::explore(reader, evidence, view, request, query, context);
+    }
     view.require(&read_needs(request)?)?;
     let started = Instant::now();
     let mut s = Search {
@@ -352,6 +364,7 @@ pub fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
         ));
     }
     let mut result = ExploreResult {
+        semantic: None,
         view: view.stamp().clone(),
         locations: s.locations,
         nodes: s.nodes.into_values().collect(),
@@ -386,7 +399,64 @@ pub fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
     Ok(result)
 }
 
-fn account_output(
+fn trim_semantic(result: &mut ExploreResult) -> QueryResult<bool> {
+    if let Some(semantic) = &mut result.semantic {
+        if semantic.changes.pop().is_none()
+            && semantic.mentions.pop().is_none()
+            && semantic.objects.pop().is_none()
+        {
+            return Err(QueryError::new(
+                QueryErrorKind::ResourceExhausted,
+                "output",
+                "semantic result exceeds output budget",
+            ));
+        }
+        let ids = semantic
+            .objects
+            .iter()
+            .filter_map(|object| match &object.reference.object {
+                crate::semantic::ObjectId::SemanticEntity { identity }
+                | crate::semantic::ObjectId::Episode { identity }
+                | crate::semantic::ObjectId::Fact { identity } => Some(identity),
+                crate::semantic::ObjectId::SourceNode { .. } => None,
+            })
+            .collect::<BTreeSet<_>>();
+        semantic
+            .changes
+            .retain(|change| ids.contains(change.target()));
+        semantic.evidence.retain(|read| {
+            let reference = match read {
+                EvidenceRead::Verified { reference, .. }
+                | EvidenceRead::Unavailable { reference, .. } => reference,
+            };
+            semantic
+                .mentions
+                .iter()
+                .any(|mention| &mention.evidence == reference)
+        });
+        let used = semantic
+            .objects
+            .iter()
+            .flat_map(|o| o.provenance.iter().map(|p| &p.evidence.source.source_id))
+            .chain(
+                semantic
+                    .changes
+                    .iter()
+                    .map(|c| &c.evidence().source.source_id),
+            )
+            .chain(semantic.mentions.iter().map(|m| &m.evidence.source_id))
+            .collect::<BTreeSet<_>>();
+        semantic
+            .sources
+            .retain(|source| used.contains(&source.source.source_id));
+        result.execution.status = Completion::Partial;
+        result.execution.stop_reason = Some("output_budget".into());
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+pub(super) fn account_output(
     result: &mut ExploreResult,
     context: &RequestContext,
     list: bool,
@@ -394,27 +464,28 @@ fn account_output(
     loop {
         context.check()?;
         // Reserve the maximum width for qualification timing populated by the
-        // host after this pure operation. Other counters reach a fixed point.
+        // host. Resolve the shared byte counter's decimal width arithmetically
+        // after one serialization, including at a power-of-ten boundary.
+        let used = context.usage()?.output_bytes;
+        let available = context.limits().output_bytes.saturating_sub(used);
         let qualification = result.execution.qualification_micros;
         result.execution.qualification_micros = u64::MAX;
-        let mut bytes = 0;
-        loop {
-            result.execution.usage.output_bytes = context.usage()?.output_bytes + bytes;
-            let actual = serde_json::to_vec(result)
-                .map_err(|_| QueryError::invalid("result serialization failed"))?
-                .len() as u64;
+        result.execution.usage.output_bytes = 0;
+        let base = serde_json::to_vec(result)
+            .map_err(|_| QueryError::invalid("result serialization failed"))?
+            .len() as u64
+            - 1;
+        result.execution.qualification_micros = qualification;
+        result.execution.usage.output_bytes = used;
+        let mut bytes = base + 1;
+        while bytes <= available {
+            let actual = base + u64::from((used + bytes).ilog10()) + 1;
             if actual == bytes {
                 break;
             }
             bytes = actual;
         }
-        result.execution.qualification_micros = qualification;
-        if bytes
-            <= context
-                .limits()
-                .output_bytes
-                .saturating_sub(context.usage()?.output_bytes)
-        {
+        if bytes <= available {
             context.charge(BudgetUsage {
                 output_bytes: bytes,
                 ..Default::default()
@@ -428,6 +499,9 @@ fn account_output(
                 "output",
                 "complete result exceeds output budget",
             ));
+        }
+        if trim_semantic(result)? {
+            continue;
         }
         if result.references.pop().is_none() {
             if result.relations.pop().is_none() {
@@ -489,6 +563,9 @@ impl<R: GraphReader> Search<'_, R> {
         let boundary = [&request.boundary];
         let filter = [&request.result_filter];
         match &request.operation {
+            ExploreOperation::Semantic { .. } => {
+                unreachable!("semantic dispatch precedes code search")
+            }
             ExploreOperation::Locate { target } => {
                 self.locate(target, &boundary)?;
             }
@@ -591,6 +668,8 @@ impl<R: GraphReader> Search<'_, R> {
             ReferencePartition::Unresolved,
             ReferencePartition::Calls,
             ReferencePartition::Imports,
+            ReferencePartition::Extends,
+            ReferencePartition::Implements,
         ] {
             let mut offset = 0;
             loop {
@@ -611,10 +690,10 @@ impl<R: GraphReader> Search<'_, R> {
                     permits(boundary, &r.evidence.source_id)
                         && permits(filter, &r.evidence.source_id)
                 }));
-                if count < 256 {
+                if count < usize::from(PAGE) {
                     break;
                 }
-                offset += 256;
+                offset += u64::from(PAGE);
             }
         }
         self.references.sort_by(|a, b| a.id.cmp(&b.id));
@@ -709,16 +788,25 @@ fn read_needs(request: &ExploreRequest) -> QueryResult<GraphReadNeeds> {
         ));
     }
     let relations = match &request.operation {
-        ExploreOperation::Locate { .. } => vec![],
+        ExploreOperation::Semantic { .. } | ExploreOperation::Locate { .. } => vec![],
         ExploreOperation::Neighbors { relations, .. } => relations.clone(),
         ExploreOperation::Expand { traversal, .. }
         | ExploreOperation::ShortestPath { traversal, .. } => traversal.relations.clone(),
-        ExploreOperation::References { .. } => vec![RelationKind::Calls, RelationKind::Imports],
+        ExploreOperation::References { .. } => vec![
+            RelationKind::Calls,
+            RelationKind::Imports,
+            RelationKind::Extends,
+            RelationKind::Implements,
+        ],
     };
     if relations.iter().any(|k| {
         !matches!(
             k,
-            RelationKind::Contains | RelationKind::Calls | RelationKind::Imports
+            RelationKind::Contains
+                | RelationKind::Calls
+                | RelationKind::Imports
+                | RelationKind::Extends
+                | RelationKind::Implements
         )
     }) {
         return Err(QueryError::new(

@@ -4,13 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::{FACT_CONTRACT_VERSION, FileFacts, Language, ResolutionStatus, SourceVersion, Target};
+use super::{FileFacts, Language, ResolutionStatus, SourceVersion, Target};
 use crate::{
     Error, Result,
     processing::{ProcessingContext, stable_digest},
 };
 
-pub const FACTS_FORMAT_VERSION: u64 = 4;
+pub const FACTS_FORMAT_VERSION: u64 = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -232,7 +232,8 @@ pub fn synthetic_id(path: &str, kind: &str, ordinal: usize) -> Result<String> {
     if !matches!(kind, "scope" | "binding" | "diagnostic" | "anchor") {
         return Err(Error::InvalidInput("unknown ordinal identity kind"));
     }
-    stable_digest(&(FACT_CONTRACT_VERSION, path, kind, ordinal))
+    // Ordinal rows keep their v7 identity when the raw fact enum gains variants.
+    stable_digest(&("zg-relations-v2", path, kind, ordinal))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -253,6 +254,10 @@ impl CatalogKey {
             language: match f.language {
                 Language::Rust => "rust",
                 Language::Python => "python",
+                Language::Go => "go",
+                Language::Java => "java",
+                Language::C => "c",
+                Language::Cpp => "cpp",
                 Language::Markdown => "markdown",
             }
             .into(),
@@ -281,6 +286,8 @@ pub struct TargetVersion {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredResolution {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation_source: Option<TargetVersion>,
     pub file_path: String,
     pub reference_id: String,
     pub status: ResolutionStatus,
@@ -295,31 +302,50 @@ pub struct FactCatalog {
     pub resolutions: Vec<StoredResolution>,
     pub config_fingerprint: String,
     pub selection_fingerprint: String,
+    pub semantic: crate::semantic::SemanticCatalog,
 }
 impl FactCatalog {
     /// Reuses the G1 resolver; the stored read set is one revision per catalog,
     /// not reference × file edges. All host inventory participates in the
     /// selection digest, including unsupported targets and negative lookups.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "validate a complete catalog and compact the shared resolver read set in one place"
-    )]
     pub fn resolve(
         mut files: Vec<BoundFileFacts>,
         config_fingerprint: String,
         selection_fingerprint: String,
         context: &ProcessingContext,
     ) -> Result<Self> {
-        if !super::is_digest(&config_fingerprint) || !super::is_digest(&selection_fingerprint) {
+        files.sort_by(|a, b| a.record.path.cmp(&b.record.path));
+        let (catalogs, resolutions) =
+            Self::derive(&files, &config_fingerprint, &selection_fingerprint, context)?;
+        Ok(Self {
+            files,
+            catalogs,
+            resolutions,
+            config_fingerprint,
+            selection_fingerprint,
+            semantic: crate::semantic::SemanticCatalog::default(),
+        })
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "validate the whole inventory and compact the shared resolver read set in one place"
+    )]
+    fn derive(
+        files: &[BoundFileFacts],
+        config_fingerprint: &str,
+        selection_fingerprint: &str,
+        context: &ProcessingContext,
+    ) -> Result<(Vec<CatalogRevision>, Vec<StoredResolution>)> {
+        if !super::is_digest(config_fingerprint) || !super::is_digest(selection_fingerprint) {
             return Err(Error::InvalidInput("invalid catalog fingerprint"));
         }
-        files.sort_by(|a, b| a.record.path.cmp(&b.record.path));
         let mut paths = BTreeSet::new();
         let mut ids = BTreeSet::new();
         let mut groups: BTreeMap<CatalogKey, Vec<&BoundFileFacts>> = BTreeMap::new();
         let mut node_ids = BTreeSet::new();
         let mut reference_ids = BTreeSet::new();
-        for f in &files {
+        for f in files {
             f.validate(context)?;
             if !paths.insert(&f.record.path) || !ids.insert(f.record.file_id) {
                 return Err(Error::InvalidInput("duplicate host file identity"));
@@ -375,15 +401,15 @@ impl FactCatalog {
                     key: key.clone(),
                     members: members.iter().map(|f| f.record.path.clone()).collect(),
                     members_digest,
-                    config_fingerprint: config_fingerprint.clone(),
-                    selection_fingerprint: selection_fingerprint.clone(),
+                    config_fingerprint: config_fingerprint.to_string(),
+                    selection_fingerprint: selection_fingerprint.to_string(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let eligible: Vec<_> = files
+        let eligible: Vec<&FileFacts> = files
             .iter()
             .filter(|f| f.record.index_status == IndexStatus::Indexed)
-            .filter_map(|f| f.facts.clone())
+            .filter_map(|f| f.facts.as_ref())
             .collect();
         let indexed_paths: Vec<_> = files
             .iter()
@@ -392,7 +418,7 @@ impl FactCatalog {
             .collect();
         let file_map: BTreeMap<_, _> = files.iter().map(|f| (f.record.path.as_str(), f)).collect();
         let mut resolutions = Vec::new();
-        let mut collect = |r: super::ResolvedReference| -> Result<()> {
+        let mut collect = |r: super::ResolvedReference, _: &[&FileFacts]| -> Result<()> {
             let source = file_map[r.source.path.as_str()];
             let key = CatalogKey::for_facts(
                 source
@@ -427,6 +453,20 @@ impl FactCatalog {
                 })
                 .collect::<Result<Vec<_>>>()?;
             resolutions.push(StoredResolution {
+                relation_source: r
+                    .relation_source
+                    .map(|target| {
+                        let file = file_map
+                            .get(target.path.as_str())
+                            .ok_or(Error::Provider("missing relation source file"))?;
+                        Ok(TargetVersion {
+                            node_id: target.node_id,
+                            source: target.version,
+                            text_revision: file.record.text_revision,
+                            entity_ids_digest: file.record.entity_ids_digest.clone(),
+                        })
+                    })
+                    .transpose()?,
                 file_path: r.source.path,
                 reference_id: r.reference.id,
                 status: r.status,
@@ -441,25 +481,203 @@ impl FactCatalog {
         resolutions
             .sort_by(|a, b| (&a.file_path, &a.reference_id).cmp(&(&b.file_path, &b.reference_id)));
         context.check_output(resolutions.len().saturating_add(files.len()))?;
-        Ok(Self {
-            files,
-            catalogs,
-            resolutions,
-            config_fingerprint,
-            selection_fingerprint,
-        })
+        Ok((catalogs, resolutions))
+    }
+
+    pub fn with_semantic(
+        mut self,
+        mut semantic: crate::semantic::SemanticCatalog,
+        context: &ProcessingContext,
+    ) -> Result<Self> {
+        semantic.normalize()?;
+        self.semantic = semantic;
+        self.validate_semantic(context)?;
+        Ok(self)
+    }
+
+    /// Keep the validated base directory while rebuilding source structure.
+    /// A changed binding retains its evidence as an auxiliary, never a live edge.
+    pub fn inherit_semantic(
+        mut self,
+        previous: &Self,
+        observed_sources: &[crate::semantic::SourceChange],
+        context: &ProcessingContext,
+    ) -> Result<Self> {
+        previous.validate_semantic(context)?;
+        self.semantic = previous.semantic.clone();
+        let mut observed = BTreeSet::new();
+        for change in observed_sources {
+            context.check()?;
+            change.source().validate()?;
+            if !observed.insert(&change.source().source_id) {
+                return Err(Error::InvalidInput("duplicate observed source"));
+            }
+            if matches!(
+                change,
+                crate::semantic::SourceChange::Upsert {
+                    semantic: Some(_),
+                    ..
+                }
+            ) {
+                return Err(Error::InvalidInput(
+                    "complete semantic input must use apply_sources",
+                ));
+            }
+            self.semantic.change_source(change)?;
+        }
+        if !self.semantic.mentions.is_empty() {
+            let (nodes, references) = Self::semantic_bindings(&self.files);
+            for mention in std::mem::take(&mut self.semantic.mentions) {
+                context.check()?;
+                if mention_bound(&mention, &nodes, &references) {
+                    self.semantic.mentions.push(mention);
+                } else {
+                    self.semantic.deferred_mentions.push(mention);
+                }
+            }
+        }
+        self.semantic.normalize()?;
+        self.validate_semantic(context)?;
+        Ok(self)
+    }
+
+    pub fn apply_sources(
+        mut self,
+        input: &crate::semantic::SemanticInput,
+        context: &ProcessingContext,
+    ) -> Result<Self> {
+        let files: BTreeMap<_, _> = self
+            .files
+            .iter()
+            .map(|file| (file.record.path.as_str(), file))
+            .collect();
+        for evidence in input
+            .fact_changes
+            .iter()
+            .filter(|change| {
+                !self.semantic.changes.iter().any(|record| {
+                    matches!(record, crate::semantic::SemanticChange::Fact { change: saved } if saved == *change)
+                })
+            })
+            .map(crate::semantic::FactChange::evidence)
+            .chain(input.episode_withdrawals.iter().filter_map(|change| {
+                (!self.semantic.changes.iter().any(|record| {
+                    matches!(record, crate::semantic::SemanticChange::Episode { change: saved } if saved == change)
+                }))
+                .then_some(&change.evidence)
+            }))
+        {
+            context.check()?;
+            if let Some(file) = files.get(evidence.source.source_id.as_str()) {
+                if file.record.index_status != IndexStatus::Indexed
+                    || file.record.content_hash.as_ref()
+                        != Some(&evidence.source.source_version)
+                {
+                    return Err(Error::Conflict("correction file version conflicts"));
+                }
+                if let Some(locator) = &evidence.locator {
+                    let facts = file.facts.as_ref().ok_or(Error::InvalidInput(
+                        "correction source positions are unavailable",
+                    ))?;
+                    if locator.raw_digest != facts.version.raw_digest
+                        || locator.decoded_digest != facts.version.decoded_digest
+                        || facts.nodes.first().is_none_or(|node| {
+                            locator.span.start < node.span.start as u64
+                                || locator.span.end > node.span.end as u64
+                        })
+                    {
+                        return Err(Error::Conflict("correction source binding mismatch"));
+                    }
+                }
+            }
+        }
+        self.semantic = self.semantic.apply_sources(input, context)?;
+        self.validate_semantic(context)?;
+        Ok(self)
+    }
+
+    pub(crate) fn validate_semantic(&self, context: &ProcessingContext) -> Result<()> {
+        self.semantic.validate(context)?;
+        if self.semantic.mentions.is_empty() {
+            return Ok(());
+        }
+        let (nodes, references) = Self::semantic_bindings(&self.files);
+        for mention in &self.semantic.mentions {
+            context.check()?;
+            if !mention_bound(mention, &nodes, &references) {
+                return Err(Error::InvalidInput("mention source binding mismatch"));
+            }
+        }
+        Ok(())
+    }
+
+    fn semantic_bindings(
+        files: &[BoundFileFacts],
+    ) -> (
+        BTreeMap<&str, (&FileFacts, &super::FactNode)>,
+        BTreeSet<&str>,
+    ) {
+        let files: BTreeMap<_, _> = files
+            .iter()
+            .filter_map(|file| {
+                file.facts
+                    .as_ref()
+                    .map(|facts| (file.record.path.as_str(), facts))
+            })
+            .collect();
+        let nodes: BTreeMap<_, _> = files
+            .values()
+            .flat_map(|facts| {
+                facts
+                    .nodes
+                    .iter()
+                    .map(move |node| (node.id.as_str(), (*facts, node)))
+            })
+            .collect();
+        let references: BTreeSet<_> = files
+            .values()
+            .flat_map(|f| f.references.iter().map(|r| r.id.as_str()))
+            .collect();
+        (nodes, references)
     }
 
     pub fn validate(&self, context: &ProcessingContext) -> Result<()> {
-        let expected = Self::resolve(
-            self.files.clone(),
-            self.config_fingerprint.clone(),
-            self.selection_fingerprint.clone(),
+        if !self
+            .files
+            .is_sorted_by(|a, b| a.record.path <= b.record.path)
+        {
+            return Err(Error::Provider("inconsistent candidate catalog"));
+        }
+        let (catalogs, resolutions) = Self::derive(
+            &self.files,
+            &self.config_fingerprint,
+            &self.selection_fingerprint,
             context,
         )?;
-        if &expected != self {
+        self.validate_semantic(context)?;
+        let mut semantic = self.semantic.clone();
+        semantic.normalize()?;
+        if semantic != self.semantic || catalogs != self.catalogs || resolutions != self.resolutions
+        {
             return Err(Error::Provider("inconsistent candidate catalog"));
         }
         Ok(())
     }
+}
+
+fn mention_bound(
+    mention: &crate::semantic::Mention,
+    nodes: &BTreeMap<&str, (&FileFacts, &super::FactNode)>,
+    references: &BTreeSet<&str>,
+) -> bool {
+    nodes
+        .get(mention.owner_id.as_str())
+        .is_some_and(|(facts, owner)| {
+            !references.contains(mention.ref_id.as_str())
+                && mention.evidence.source_id == facts.version.path
+                && mention.evidence.raw_digest == facts.version.raw_digest
+                && mention.evidence.decoded_digest == facts.version.decoded_digest
+                && mention.evidence.span.start >= owner.span.start as u64
+                && mention.evidence.span.end <= owner.span.end as u64
+        })
 }

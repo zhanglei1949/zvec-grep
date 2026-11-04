@@ -26,11 +26,13 @@ pub(in crate::pipelines) struct PreparedScope {
     pub resolution: kg::ScopeResolution,
     pub units: Vec<kg::ScopeUnit>,
     pub entities: BTreeMap<String, Entity>,
+    evidence: Vec<crate::api::context::graph_result::GraphEvidence>,
 }
-const MAX_SCOPE_BODY_BYTES: usize = 256 << 20;
+const MAX_SCOPE_BODY_BYTES: u64 = 256 << 20;
 struct Text<'a> {
     store: &'a crate::storage::IndexStore,
-    bytes: std::cell::Cell<usize>,
+    bytes: std::cell::Cell<u64>,
+    entities: std::cell::RefCell<BTreeMap<String, Entity>>,
 }
 impl kg::ScopeTextProvider for Text<'_> {
     fn text_entities(
@@ -50,15 +52,11 @@ impl kg::ScopeTextProvider for Text<'_> {
             })?
             .into_iter()
             .map(|entity| {
-                let bytes = if let Content::Text(body) = &entity.content {
-                    body.len()
-                } else {
-                    0
-                };
+                let metadata = text_entity(&entity, ctx)?;
                 let used = self
                     .bytes
                     .get()
-                    .checked_add(bytes)
+                    .checked_add(metadata.content_bytes)
                     .filter(|n| *n <= MAX_SCOPE_BODY_BYTES)
                     .ok_or_else(|| {
                         kg::QueryError::new(
@@ -68,7 +66,10 @@ impl kg::ScopeTextProvider for Text<'_> {
                         )
                     })?;
                 self.bytes.set(used);
-                text_entity(&entity, ctx)
+                self.entities
+                    .borrow_mut()
+                    .insert(entity.id.as_str().to_owned(), entity);
+                Ok(metadata)
             })
             .collect()
     }
@@ -184,6 +185,7 @@ fn prepare(
     options: &ContextOptions,
     ctx: &kg::RequestContext,
     signal: tokio_util::sync::CancellationToken,
+    include_evidence: bool,
 ) -> EngineResult<PreparedScope> {
     let GraphQueryMode::Constrain { scope } = &options.graph else {
         return Err(EngineError::internal("expected constrain"));
@@ -192,44 +194,25 @@ fn prepare(
         EngineError::storage_failure(format!("scope cancellation unavailable: {e}"))
     })?;
     let _watch = NativeWatch::new(ctx, signal.clone(), control.clone())?;
-    let selected = qualify(read, manifest, admission, ctx, signal, control)?;
-    let lease = &selected.provider.lease;
-    let mut resolution = kg::resolve_scope(
-        &lease.reader,
-        &Text {
-            store: lease.read.storage(),
-            bytes: std::cell::Cell::new(0),
-        },
-        &selected.view,
-        &scope.clone().into(),
+    let selected = qualify(
+        read,
+        manifest,
+        admission,
         ctx,
-    )
-    .map_err(query_error)?;
+        signal,
+        control,
+        kg::QueryDomain::Code,
+    )?;
+    let lease = &selected.provider.lease;
+    let text = Text {
+        store: lease.read.storage(),
+        bytes: std::cell::Cell::new(0),
+        entities: std::cell::RefCell::new(BTreeMap::new()),
+    };
+    let mut resolution =
+        kg::resolve_scope(&lease.reader, &text, &selected.view, scope, ctx).map_err(query_error)?;
     resolution.execution.qualification_micros = selected.qualification_micros;
-    let ids = resolution
-        .scope
-        .units()
-        .iter()
-        .map(|u| u.entity_id.clone())
-        .collect::<std::collections::BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    let mut entities = BTreeMap::new();
-    let mut retained = 0_usize;
-    for batch in ids.chunks(256) {
-        for entity in lease.read.storage().graph_entities(batch)? {
-            let bytes = if let Content::Text(body) = &entity.content {
-                body.len()
-            } else {
-                0
-            };
-            retained = retained
-                .checked_add(bytes)
-                .filter(|n| *n <= MAX_SCOPE_BODY_BYTES)
-                .ok_or_else(|| EngineError::resource_busy("scope body budget exhausted"))?;
-            entities.insert(entity.id.as_str().into(), entity);
-        }
-    }
+    let entities = text.entities.into_inner();
     let files = lease.read.storage().list_files()?;
     let allowed = resolve_filtered_file_ids(
         &lease.root,
@@ -261,10 +244,114 @@ fn prepare(
     }
     ctx.check().map_err(query_error)?;
     validate_scope_filter(lease, &units, options, ctx)?;
+    let evidence = if include_evidence {
+        call_evidence(
+            &selected.view,
+            &lease.reader,
+            &resolution,
+            &units,
+            &entities,
+            ctx,
+        )?
+    } else {
+        Vec::new()
+    };
     Ok(PreparedScope {
         resolution,
         units,
         entities,
+        evidence,
+    })
+}
+
+fn call_evidence(
+    view: &kg::KgReadView<Arc<super::Lease>>,
+    reader: &zg_knowledge::graph::GraphDbStore,
+    resolution: &kg::ScopeResolution,
+    units: &[kg::ScopeUnit],
+    entities: &BTreeMap<String, Entity>,
+    ctx: &kg::RequestContext,
+) -> EngineResult<Vec<crate::api::context::graph_result::GraphEvidence>> {
+    let mut refs = BTreeMap::new();
+    for reference in resolution
+        .relations
+        .iter()
+        .filter(|r| r.kind == kg::RelationKind::Calls)
+        .filter_map(|r| r.reference.as_ref())
+    {
+        for unit in units {
+            if unit.source_id != reference.evidence.source_id {
+                continue;
+            }
+            let span = unit.source_spans[0];
+            if span.start > reference.evidence.span.start || span.end < reference.evidence.span.end
+            {
+                continue;
+            }
+            let Content::Text(body) = &entities[&unit.entity_id].content else {
+                continue;
+            };
+            let call_start = unit.content_span.start + reference.evidence.span.start - span.start;
+            let call_end = unit.content_span.start + reference.evidence.span.end - span.start;
+            let window = call_window(body, unit.content_span, call_start, call_end)?;
+            let mut evidence = reference.evidence.clone();
+            evidence.span = kg::ByteSpan {
+                start: span.start + window.start - unit.content_span.start,
+                end: span.start + window.end - unit.content_span.start,
+            };
+            evidence.reference_id = None;
+            refs.insert(
+                (
+                    evidence.source_id.clone(),
+                    evidence.span.start,
+                    evidence.span.end,
+                ),
+                evidence,
+            );
+        }
+    }
+    super::evidence::HostEvidence { reader }
+        .read_evidence_with_entities(view, &refs.into_values().collect::<Vec<_>>(), ctx, entities)
+        .map_err(query_error)?
+        .into_iter()
+        .map(|read| match read {
+            kg::EvidenceRead::Verified { reference, content } => {
+                Ok(crate::api::context::graph_result::GraphEvidence::Verified {
+                    reference,
+                    content,
+                })
+            }
+            kg::EvidenceRead::Unavailable { .. } => Err(EngineError::resource_busy(
+                "scope call evidence unavailable",
+            )),
+        })
+        .collect()
+}
+
+fn call_window(body: &str, unit: kg::ByteSpan, start: u64, end: u64) -> EngineResult<kg::ByteSpan> {
+    let before = kg::ByteSpan {
+        start: unit.start,
+        end: start,
+    }
+    .slice(body)
+    .map_err(query_error)?;
+    let after = kg::ByteSpan {
+        start: end,
+        end: unit.end,
+    }
+    .slice(body)
+    .map_err(query_error)?;
+    let begin = before
+        .rmatch_indices('\n')
+        .nth(2)
+        .map_or(unit.start, |(i, _)| unit.start + i as u64 + 1);
+    let finish = after
+        .match_indices('\n')
+        .nth(2)
+        .map_or(unit.end, |(i, _)| end + i as u64 + 1);
+    Ok(kg::ByteSpan {
+        start: begin,
+        end: finish,
     })
 }
 
@@ -333,7 +420,7 @@ impl GraphExecution {
         let ctx = self.scope_context()?;
         let signal = self.work_signal.clone();
         let result = tokio::task::spawn_blocking(move || {
-            prepare(read, manifest, admission, &options, &ctx, signal)
+            prepare(read, manifest, admission, &options, &ctx, signal, true)
         })
         .await
         .map_err(|_| EngineError::internal("scope worker failed"))?;
@@ -365,7 +452,7 @@ impl GraphExecution {
         let count = scope.units.len();
         let mut graph = GraphSupplement {
             scope: Some(GraphScope {
-                anchor: convert(&scope.resolution.location)?,
+                anchor: scope.resolution.location.clone(),
                 complete: true,
                 exact_filter: true,
                 recall_exhaustive: false,
@@ -375,26 +462,20 @@ impl GraphExecution {
                 empty_reason: empty_reason.map(str::to_owned),
             }),
             status: GraphStatus::Complete,
-            view: Some(convert(scope.resolution.scope.view())?),
+            view: Some(scope.resolution.scope.view().clone()),
             seeds: vec![],
             skipped: vec![],
             expansions: vec![],
-            nodes: convert(scope.resolution.nodes)?,
-            relations: convert(scope.resolution.relations)?,
-            evidence: vec![],
+            nodes: scope.resolution.nodes,
+            relations: scope.resolution.relations,
+            evidence: scope.evidence,
             diagnostics: vec![],
-            execution: Some(convert(scope.resolution.execution)?),
+            execution: Some(scope.resolution.execution),
         };
         super::augmentation::result::account(&mut graph, &self.context)?;
         result.graph = Some(graph);
         self.check()
     }
-}
-fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(value: T) -> EngineResult<U> {
-    serde_json::from_value(
-        serde_json::to_value(value).map_err(|_| EngineError::internal("scope serialization"))?,
-    )
-    .map_err(|_| EngineError::internal("scope conversion"))
 }
 
 /// No lost-lease scope is reused for execution; this probe only suppresses an
@@ -402,7 +483,7 @@ fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(value: T) -> Eng
 pub(crate) fn inspect_scope(
     options: &ContextOptions,
 ) -> EngineResult<crate::authorization::ConstrainPreflight> {
-    let execution: kg::ExecutionOptions = convert(options.graph_execution.unwrap_or_default())?;
+    let execution: kg::ExecutionOptions = options.graph_execution.unwrap_or_default();
     let signal = options.signal.clone().unwrap_or_default();
     let ctx = kg::RequestContext::new(
         execution.budget,
@@ -418,7 +499,7 @@ pub(crate) fn inspect_scope(
     )?;
     Ok(crate::authorization::ConstrainPreflight {
         empty: scope.units.is_empty(),
-        usage: convert(ctx.usage().map_err(query_error)?)?,
+        usage: ctx.usage().map_err(query_error)?,
         elapsed_micros: started.elapsed().as_micros().try_into().unwrap_or(u64::MAX),
         qualification_micros: scope.resolution.execution.qualification_micros,
         query_micros: scope.resolution.execution.query_micros,
@@ -463,6 +544,7 @@ fn probe(options: &ContextOptions, ctx: &kg::RequestContext) -> EngineResult<Pre
         options,
         ctx,
         signal,
+        false,
     )?;
     if text_proof(&read, &manifest)? != expected {
         return Err(EngineError::storage_failure("scope text view changed"));
@@ -470,4 +552,23 @@ fn probe(options: &ContextOptions, ctx: &kg::RequestContext) -> EngineResult<Pre
     read.close()?;
     ctx.check().map_err(query_error)?;
     Ok(scope)
+}
+
+#[cfg(test)]
+mod call_context_tests {
+    use super::*;
+    #[test]
+    fn call_context_preserves_utf8_crlf_and_scope_boundaries() {
+        let text = "outside\n中\r\na\r\ncall(\r\n value);\r\nnext();\r\noutside";
+        let start = text.find("call").expect("call") as u64;
+        let unit = kg::ByteSpan {
+            start: 8,
+            end: text.rfind("outside").expect("end") as u64,
+        };
+        let window = call_window(text, unit, start, start + 4).expect("window");
+        assert!(window.start >= unit.start && window.end <= unit.end);
+        let body = window.slice(text).expect("slice");
+        assert!(body.contains("call(\r\n value);\r\nnext();"));
+        assert!(!body.contains("outside"));
+    }
 }

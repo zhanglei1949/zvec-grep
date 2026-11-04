@@ -4,6 +4,15 @@ use serde::Serialize;
 use serde_json::Value;
 use std::{collections::BTreeMap, time::Instant};
 
+pub(crate) fn identifier(value: &str) -> Result<()> {
+    if value.trim().is_empty() || value.len() > 4096 || value.contains('\0') {
+        return Err(Error::InvalidInput(
+            "expected a non-empty bounded identifier",
+        ));
+    }
+    Ok(())
+}
+
 pub fn stable_digest<T: Serialize>(value: &T) -> Result<String> {
     Ok(zg_storage::sha256_hex(canonical_json(value)?.as_bytes()))
 }

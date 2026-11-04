@@ -391,28 +391,32 @@ fn walk(
     control: &BlockingControl,
 ) -> Result<(), HostError> {
     control.check()?;
-    let Ok(read_directory) = fs::read_dir(current_path) else {
-        return Ok(());
-    };
-    let mut entries: Vec<_> = read_directory.filter_map(Result::ok).collect();
+    let read_directory = fs::read_dir(current_path)
+        .map_err(|error| scan_error("scan directory", current_path, &error))?;
+    let mut entries = read_directory
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| scan_error("enumerate directory", current_path, &error))?;
     entries.sort_by_key(fs::DirEntry::file_name);
 
     for entry in entries {
         control.check()?;
         let absolute_path = entry.path();
+        if !scope.includes_file(&absolute_path) && !scope.intersects_directory(&absolute_path) {
+            continue;
+        }
         let relative_path = absolute_path.strip_prefix(&root.path).map_err(|error| {
             HostError::internal(format!("scanner produced an out-of-root path: {error}"))
         })?;
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
+        let file_type = entry
+            .file_type()
+            .map_err(|error| scan_error("inspect entry", &absolute_path, &error))?;
         let (is_directory, is_file) = if file_type.is_symlink() {
             if !root.follow {
                 continue;
             }
-            fs::metadata(&absolute_path).map_or((false, false), |metadata| {
-                (metadata.is_dir(), metadata.is_file())
-            })
+            let metadata = fs::metadata(&absolute_path)
+                .map_err(|error| scan_error("inspect symlink target", &absolute_path, &error))?;
+            (metadata.is_dir(), metadata.is_file())
         } else {
             (file_type.is_dir(), file_type.is_file())
         };
@@ -427,9 +431,8 @@ fn walk(
             {
                 continue;
             }
-            let Ok(canonical) = fs::canonicalize(&absolute_path) else {
-                continue;
-            };
+            let canonical = fs::canonicalize(&absolute_path)
+                .map_err(|error| scan_error("resolve directory", &absolute_path, &error))?;
             if !visited.insert(canonical) {
                 continue;
             }
@@ -463,6 +466,13 @@ fn walk(
     Ok(())
 }
 
+fn scan_error(operation: &str, path: &Path, error: &std::io::Error) -> HostError {
+    HostError::storage_failure(
+        "scanner",
+        format!("could not {operation} {}: {error}", path.display()),
+    )
+}
+
 fn read_file_info(
     root: &RootSpec,
     absolute_path: &Path,
@@ -471,9 +481,8 @@ fn read_file_info(
     control: &BlockingControl,
 ) -> Result<Option<DiscoveredFile>, HostError> {
     control.check()?;
-    let Ok(metadata) = fs::metadata(absolute_path) else {
-        return Ok(None);
-    };
+    let metadata = fs::metadata(absolute_path)
+        .map_err(|error| scan_error("inspect source", absolute_path, &error))?;
     if !metadata.is_file() {
         return Ok(None);
     }
@@ -670,6 +679,49 @@ mod tests {
     use std::{fs::FileTimes, time::Duration};
 
     use super::*;
+
+    #[test]
+    fn incomplete_directory_scan_is_an_error_instead_of_an_empty_inventory() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let root = RootSpec::new(
+            directory.path().to_path_buf(),
+            Arc::new(crate::AllowAllPaths),
+        );
+        let result = walk(
+            &root,
+            &ScanScope::new(&[]).expect("scope"),
+            &directory.path().join("removed-during-scan"),
+            0,
+            &mut HashSet::new(),
+            &mut Vec::new(),
+            &mut ScanDiagnostics::default(),
+            &BlockingControl {
+                cancellation: tokio_util::sync::CancellationToken::new(),
+                deadline: None,
+            },
+        );
+        assert!(matches!(result, Err(HostError::StorageFailure { .. })));
+    }
+
+    #[test]
+    fn failed_file_inspection_does_not_confirm_source_removal() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let root = RootSpec::new(
+            directory.path().to_path_buf(),
+            Arc::new(crate::AllowAllPaths),
+        );
+        let result = read_file_info(
+            &root,
+            &directory.path().join("removed-during-scan.rs"),
+            Path::new("removed-during-scan.rs"),
+            &mut ScanDiagnostics::default(),
+            &BlockingControl {
+                cancellation: tokio_util::sync::CancellationToken::new(),
+                deadline: None,
+            },
+        );
+        assert!(matches!(result, Err(HostError::StorageFailure { .. })));
+    }
 
     #[test]
     fn source_snapshot_uses_metadata_from_the_read_handle() {

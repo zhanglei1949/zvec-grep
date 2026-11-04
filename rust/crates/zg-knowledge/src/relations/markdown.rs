@@ -130,18 +130,22 @@ pub fn resolve_documents(
     context: &ProcessingContext,
 ) -> Result<Vec<ResolvedReference>> {
     let mut output = Vec::new();
-    visit_documents(files, indexed_paths, context, |r| {
+    let facts: Vec<&FileFacts> = files.iter().collect();
+    visit_documents(&facts, indexed_paths, context, |mut r, documents| {
+        r.dependencies = super::code::dependencies(documents);
         output.push(r);
         Ok(())
     })?;
     Ok(output)
 }
 
+/// Emits each resolution with the document set it was resolved against; only
+/// callers that publish the G1 read set turn those into `dependencies`.
 pub(crate) fn visit_documents(
-    files: &[FileFacts],
+    files: &[&FileFacts],
     indexed_paths: &[String],
     context: &ProcessingContext,
-    mut emit: impl FnMut(ResolvedReference) -> Result<()>,
+    mut emit: impl FnMut(ResolvedReference, &[&FileFacts]) -> Result<()>,
 ) -> Result<()> {
     for f in files {
         f.validate_structure(context)?;
@@ -149,14 +153,11 @@ pub(crate) fn visit_documents(
     for path in indexed_paths {
         super::validate_path(path)?;
     }
-    let documents: Vec<_> = files
+    let documents: Vec<&FileFacts> = files
         .iter()
+        .copied()
         .filter(|f| f.language == Language::Markdown)
         .collect();
-    let dependencies = documents
-        .iter()
-        .map(|f| f.version.clone())
-        .collect::<Vec<_>>();
     let mut emitted = 0usize;
     let mut output_cost = 0usize;
     for file in &documents {
@@ -166,31 +167,29 @@ pub(crate) fn visit_documents(
                 continue;
             };
             if !file.complete {
-                output_cost = output_cost.saturating_add(1 + dependencies.len());
+                output_cost = output_cost.saturating_add(1 + documents.len());
                 context.check_output(output_cost)?;
-                emit(resolved(
-                    file,
-                    reference,
-                    Vec::new(),
-                    ResolutionStatus::Unresolved,
-                    "incomplete_parse",
-                    dependencies.clone(),
-                ))?;
+                emit(
+                    resolved(
+                        file,
+                        reference,
+                        Vec::new(),
+                        ResolutionStatus::Unresolved,
+                        "incomplete_parse",
+                    ),
+                    &documents,
+                )?;
                 continue;
             }
             let (path, anchor) = match link_target(&file.version.path, destination) {
                 Ok(target) => target,
                 Err((status, reason)) => {
-                    output_cost = output_cost.saturating_add(1 + dependencies.len());
+                    output_cost = output_cost.saturating_add(1 + documents.len());
                     context.check_output(output_cost)?;
-                    emit(resolved(
-                        file,
-                        reference,
-                        Vec::new(),
-                        status,
-                        reason,
-                        dependencies.clone(),
-                    ))?;
+                    emit(
+                        resolved(file, reference, Vec::new(), status, reason),
+                        &documents,
+                    )?;
                     emitted += 1;
                     context.check_output(emitted)?;
                     continue;
@@ -223,16 +222,12 @@ pub(crate) fn visit_documents(
             } else {
                 "explicit_document_link"
             };
-            output_cost = output_cost.saturating_add(1 + dependencies.len() + candidates.len());
+            output_cost = output_cost.saturating_add(1 + documents.len() + candidates.len());
             context.check_output(output_cost)?;
-            emit(resolved(
-                file,
-                reference,
-                candidates,
-                missing,
-                reason,
-                dependencies.clone(),
-            ))?;
+            emit(
+                resolved(file, reference, candidates, missing, reason),
+                &documents,
+            )?;
             emitted += 1;
             context.check_output(emitted)?;
         }

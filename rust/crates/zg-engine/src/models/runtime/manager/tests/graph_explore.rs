@@ -1,4 +1,8 @@
 //! Real indexing and both native stores; explore uses a fresh model-free engine.
+#[path = "graph_languages.rs"]
+mod languages;
+#[path = "graph_semantic_recovery.rs"]
+mod semantic_recovery;
 use super::graph_indexing::*;
 use super::*;
 use crate::EngineError;
@@ -20,6 +24,88 @@ fn named(name: &str) -> Locator {
         source_id: None,
         kind: None,
     }
+}
+
+#[tokio::test]
+async fn nested_bare_import_publishes_and_reopens_two_hop_path_without_models() {
+    let dir = tempfile::tempdir().expect("workspace");
+    std::fs::create_dir_all(dir.path().join("src/code")).expect("modules");
+    for (path, text) in [
+        ("src/lib.rs", "mod code;mod lookup;"),
+        (
+            "src/code.rs",
+            "mod lookup;use lookup::{module_path as path};pub fn resolve(){path();}",
+        ),
+        (
+            "src/code/lookup.rs",
+            "pub(super) fn module_path(){leaf();}fn leaf(){}",
+        ),
+        ("src/lookup.rs", "pub fn module_path(){}"),
+    ] {
+        std::fs::write(dir.path().join(path), text).expect("source");
+    }
+    let manager = models(&Arc::new(AtomicUsize::new(0)));
+    let service = WorkspaceIndexService::with_test_registry();
+    service
+        .index(&manager, options(dir.path()))
+        .await
+        .expect("text");
+    let home = active(dir.path()).storage_home();
+    let before = text_hashes(&home.join("storage"));
+    let zero =
+        ModelRuntimeManager::with_factory(|_, _, _| panic!("graph-only must not acquire models"));
+    service
+        .index(
+            &zero,
+            crate::api::index::IndexOptions {
+                root: Some(dir.path().into()),
+                graph: Some(policy()),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("graph-only");
+    assert_eq!(text_hashes(&home.join("storage")), before);
+    drop(service);
+    let engine = crate::ZvecGrep::new();
+    let imports = engine
+        .explore(request(
+            dir.path(),
+            ExploreOperation::Neighbors {
+                anchor: Locator::Position {
+                    source_id: "src/code.rs".into(),
+                    byte_offset: 0,
+                    kind: Some(EntityKind::File),
+                },
+                relations: vec![RelationKind::Imports],
+                direction: Direction::Outgoing,
+            },
+        ))
+        .await
+        .expect("persisted import");
+    assert_eq!(imports.relations.len(), 1);
+    assert!(
+        imports
+            .nodes
+            .iter()
+            .any(|n| n.source_id == "src/code/lookup.rs" && n.name == "module_path")
+    );
+    let path = engine
+        .explore(request(
+            dir.path(),
+            ExploreOperation::ShortestPath {
+                start: named("resolve"),
+                target: named("leaf"),
+                traversal: TraversalSpec::default(),
+            },
+        ))
+        .await
+        .expect("two-hop path after reopen");
+    assert_eq!(path.paths.len(), 1);
+    assert_eq!(path.paths[0].relations.len(), 2);
+    assert_eq!(engine.runtime_snapshot().loaded_models, 0);
+    assert_eq!(text_hashes(&home.join("storage")), before);
+    engine.close();
 }
 #[tokio::test]
 async fn explore_real_published_view_preserves_occurrences_and_avoids_models() {
@@ -718,4 +804,409 @@ async fn assert_coverage_queries(root: &std::path::Path) {
     assert_eq!(engine.runtime_snapshot().loaded_models, 0);
     engine.close();
     drop(engine);
+}
+
+fn semantic_input(name: &str) -> zg_knowledge::semantic::SemanticInput {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../zg-knowledge/tests/fixtures/semantic-source-changes-v1.json"
+    )))
+    .expect("frozen inputs");
+    serde_json::from_value(
+        fixture["cases"]
+            .as_array()
+            .expect("cases")
+            .iter()
+            .find(|case| case["name"] == name)
+            .expect("case")["input"]
+            .clone(),
+    )
+    .expect("input")
+}
+fn semantic_options(
+    root: &std::path::Path,
+    name: &str,
+) -> crate::api::index::graph::SemanticBuildOptions {
+    let manifest = active(root);
+    let head = crate::storage::graph_state::GraphHead::read(&manifest.storage_home())
+        .expect("head")
+        .expect("selected");
+    crate::api::index::graph::SemanticBuildOptions {
+        root: Some(root.into()),
+        generation: manifest.storage_generation.expect("generation"),
+        operation_id: uuid::Uuid::new_v4().to_string(),
+        expected_graph_build_id: head.graph_build_id,
+        input: semantic_input(name),
+        lock_timeout_ms: None,
+        signal: None,
+    }
+}
+fn semantic_request(root: &std::path::Path, history: bool) -> ExploreOptions {
+    let mut options = request(
+        root,
+        ExploreOperation::Semantic {
+            query: SemanticQuery {
+                space_id: "workspace".into(),
+                anchor: None,
+                context: Some("project-a".into()),
+                name: None,
+                kind: None,
+                predicate: Some("owner".into()),
+                history,
+                direction: Direction::Both,
+            },
+        },
+    );
+    options.request.domain = QueryDomain::Semantic;
+    options
+}
+fn fact_ids(result: &ExploreResult) -> Vec<&str> {
+    result
+        .semantic
+        .as_ref()
+        .expect("semantic output")
+        .objects
+        .iter()
+        .filter_map(|o| match &o.record {
+            SemanticValue::Fact(f) => Some(f.identity.id.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "keep replay, source retirement, cached episode withdrawal and reopen in one admitted lifecycle"
+)]
+async fn m3_semantic_operations_publish_reopen_and_keep_predecessors_retired() {
+    let dir = tempfile::tempdir().expect("workspace");
+    std::fs::create_dir(dir.path().join("src")).expect("src");
+    std::fs::write(dir.path().join("src/a.rs"), "fn entry() {}\n").expect("source");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = WorkspaceIndexService::with_test_registry();
+    let mut initial = options(dir.path());
+    initial.graph = Some(policy());
+    service
+        .index(&models(&calls), initial)
+        .await
+        .expect("index");
+    let before = text_hashes(&active(dir.path()).storage_home().join("storage"));
+    drop(service);
+    let engine = crate::ZvecGrep::new();
+    engine.enable_read_session_cache().expect("cache");
+    let mut operation = semantic_options(dir.path(), "initial");
+    let source = operation.input.sources[0].source().clone();
+    let episode_id = zg_knowledge::semantic::Identity {
+        space_id: "workspace".into(),
+        id: "episode".into(),
+    };
+    operation
+        .input
+        .episodes
+        .push(zg_knowledge::semantic::Episode {
+            identity: episode_id.clone(),
+            kind: "meeting".into(),
+            source: source.clone(),
+            context: "project-a".into(),
+            occurred_at_ms: None,
+            ingested_at_ms: 1,
+            content_ref: "host:episode".into(),
+            state: zg_knowledge::semantic::EpisodeState::Active,
+        });
+    engine
+        .apply_semantics(operation.clone())
+        .await
+        .expect("semantic write");
+    assert_eq!(
+        engine
+            .apply_semantics(operation.clone())
+            .await
+            .expect("same attempt")
+            .mode,
+        "semantic_replayed"
+    );
+    let mut conflict = operation;
+    conflict.input = semantic_input("second-source");
+    assert!(engine.apply_semantics(conflict).await.is_err());
+    let original = engine
+        .explore(semantic_request(dir.path(), false))
+        .await
+        .expect("current F1");
+    assert_eq!(fact_ids(&original), ["f1"]);
+    engine
+        .apply_semantics(semantic_options(dir.path(), "explicit-correction"))
+        .await
+        .expect("correction");
+    assert_eq!(
+        fact_ids(
+            &engine
+                .explore(semantic_request(dir.path(), false))
+                .await
+                .expect("current F2")
+        ),
+        ["f2"]
+    );
+    let mut removal = semantic_options(dir.path(), "explicit-correction");
+    removal.input.sources = vec![zg_knowledge::semantic::SourceChange::Delete {
+        source: removal.input.sources[0].source().clone(),
+    }];
+    removal.input.fact_changes.clear();
+    engine
+        .apply_semantics(removal)
+        .await
+        .expect("withdraw source");
+    assert!(
+        fact_ids(
+            &engine
+                .explore(semantic_request(dir.path(), false))
+                .await
+                .expect("unsupported F2")
+        )
+        .is_empty()
+    );
+    let mut stale = semantic_request(dir.path(), false);
+    if let ExploreOperation::Semantic { query } = &mut stale.request.operation {
+        query.anchor = original
+            .semantic
+            .expect("original")
+            .objects
+            .into_iter()
+            .find(|o| matches!(o.record, SemanticValue::Fact(_)))
+            .map(|o| o.reference);
+    }
+    assert!(engine.explore(stale).await.is_err());
+    let mut all = semantic_request(dir.path(), false);
+    if let ExploreOperation::Semantic { query } = &mut all.request.operation {
+        query.predicate = None;
+    }
+    assert!(
+        engine
+            .explore(all.clone())
+            .await
+            .expect("active episode")
+            .semantic
+            .expect("semantic")
+            .objects
+            .iter()
+            .any(|o| matches!(o.record, SemanticValue::Episode(_)))
+    );
+    let mut withdrawal = semantic_options(dir.path(), "initial");
+    withdrawal.input.sources.clear();
+    withdrawal
+        .input
+        .episode_withdrawals
+        .push(zg_knowledge::semantic::EpisodeWithdrawal {
+            target: episode_id,
+            expected_state: zg_knowledge::semantic::EpisodeState::Active,
+            context: "project-a".into(),
+            changed_at_ms: 2,
+            evidence: zg_knowledge::semantic::SourceEvidence {
+                source,
+                locator: None,
+            },
+        });
+    engine
+        .apply_semantics(withdrawal)
+        .await
+        .expect("withdraw episode");
+    assert!(
+        engine
+            .explore(all)
+            .await
+            .expect("fresh cached view")
+            .semantic
+            .expect("semantic")
+            .objects
+            .iter()
+            .all(|o| !matches!(o.record, SemanticValue::Episode(_)))
+    );
+    assert_eq!(engine.runtime_snapshot().loaded_models, 0);
+    engine.close();
+    let reopened = crate::ZvecGrep::new();
+    assert!(
+        fact_ids(
+            &reopened
+                .explore(semantic_request(dir.path(), false))
+                .await
+                .expect("reopen current")
+        )
+        .is_empty()
+    );
+    let history = reopened
+        .explore(semantic_request(dir.path(), true))
+        .await
+        .expect("reopen history");
+    assert_eq!(fact_ids(&history), ["f1", "f2"]);
+    assert_eq!(history.semantic.expect("history").changes.len(), 1);
+    assert_eq!(
+        text_hashes(&active(dir.path()).storage_home().join("storage")),
+        before
+    );
+    reopened.close();
+}
+
+#[tokio::test]
+async fn m3_type_relations_publish_with_real_endpoints_and_declaration_positions() {
+    let dir = tempfile::tempdir().expect("workspace");
+    std::fs::create_dir(dir.path().join("src")).expect("src");
+    std::fs::write(
+        dir.path().join("src/lib.rs"),
+        "mod types;use crate::types::{Local,Child};impl Child for Local {}\n",
+    )
+    .expect("impl source");
+    std::fs::write(
+        dir.path().join("src/types.rs"),
+        "pub trait Base {} pub trait Child: Base {} pub struct Local;\n",
+    )
+    .expect("types");
+    let mut configuration = policy();
+    configuration.module_roots = vec![crate::api::index::graph::GraphModuleRoot {
+        root: "src".into(),
+        language: crate::api::index::graph::GraphLanguage::Rust,
+        namespace: "fixture".into(),
+        module_prefix: vec![],
+        layout: crate::api::index::graph::PackageLayout::Flat,
+    }];
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = WorkspaceIndexService::with_test_registry();
+    let mut initial = options(dir.path());
+    initial.graph = Some(configuration);
+    service
+        .index(&models(&calls), initial)
+        .await
+        .expect("index");
+    drop(service);
+    let engine = crate::ZvecGrep::new();
+    let reply = engine
+        .explore(request(
+            dir.path(),
+            ExploreOperation::Expand {
+                anchor: named("Local"),
+                traversal: TraversalSpec {
+                    relations: vec![RelationKind::Implements, RelationKind::Extends],
+                    min_hops: 1,
+                    max_hops: 2,
+                    ..Default::default()
+                },
+            },
+        ))
+        .await
+        .expect("type expansion");
+    assert_eq!(reply.relations.len(), 2);
+    assert!(
+        reply
+            .nodes
+            .iter()
+            .chain(reply.locations.iter().flat_map(|l| &l.candidates))
+            .any(|n| n.name == "Base")
+    );
+    let implementation = reply
+        .relations
+        .iter()
+        .find(|r| r.kind == RelationKind::Implements)
+        .expect("impl");
+    assert_eq!(
+        implementation
+            .reference
+            .as_ref()
+            .expect("declaration")
+            .evidence
+            .source_id,
+        "src/lib.rs"
+    );
+    assert!(
+        reply
+            .nodes
+            .iter()
+            .chain(reply.locations.iter().flat_map(|l| &l.candidates))
+            .any(|n| n.node.node_id == implementation.source && n.name == "Local")
+    );
+    let refs = engine
+        .explore(request(
+            dir.path(),
+            ExploreOperation::References {
+                selector: ReferenceSelector::Source {
+                    source_id: "src/lib.rs".into(),
+                },
+            },
+        ))
+        .await
+        .expect("type references");
+    assert!(
+        refs.references
+            .iter()
+            .any(|r| r.kind == RelationKind::Implements)
+    );
+    engine.close();
+}
+
+#[tokio::test]
+async fn m3_python_base_updates_publish_missing_and_ambiguous_references() {
+    use zg_knowledge::relations::ResolutionStatus;
+    let dir = tempfile::tempdir().expect("workspace");
+    std::fs::create_dir(dir.path().join("src")).expect("src");
+    let path = dir.path().join("src/a.py");
+    let mut configuration = policy();
+    configuration.module_roots = vec![crate::api::index::graph::GraphModuleRoot {
+        root: "src".into(),
+        language: crate::api::index::graph::GraphLanguage::Python,
+        namespace: "fixture".into(),
+        module_prefix: vec![],
+        layout: crate::api::index::graph::PackageLayout::Flat,
+    }];
+    let service = WorkspaceIndexService::with_test_registry();
+    let manager = models(&Arc::new(AtomicUsize::new(0)));
+    for (source, expected) in [
+        (
+            "class Base: pass\nclass Child(Base): pass\n",
+            ResolutionStatus::Resolved,
+        ),
+        ("class Child(Base): pass\n", ResolutionStatus::Unresolved),
+        (
+            "class Base: pass\nclass Base: pass\nclass Child(Base): pass\n",
+            ResolutionStatus::Ambiguous,
+        ),
+    ] {
+        std::fs::write(&path, source).expect("source version");
+        let mut index = options(dir.path());
+        index.graph = Some(configuration.clone());
+        assert!(
+            service
+                .index(&manager, index)
+                .await
+                .expect("publish")
+                .graph
+                .expect("graph")
+                .graph_selected
+        );
+        let engine = crate::ZvecGrep::new();
+        let references = engine
+            .explore(request(
+                dir.path(),
+                ExploreOperation::References {
+                    selector: ReferenceSelector::Source {
+                        source_id: "src/a.py".into(),
+                    },
+                },
+            ))
+            .await
+            .expect("published references");
+        let bases = references
+            .references
+            .iter()
+            .filter(|r| r.kind == RelationKind::Extends)
+            .collect::<Vec<_>>();
+        assert_eq!(bases.len(), 1);
+        assert_eq!(bases[0].status, expected);
+        assert_eq!(
+            bases[0].target.is_some(),
+            expected == ResolutionStatus::Resolved
+        );
+        assert_eq!(
+            bases[0].evidence.span.slice(source).expect("base location"),
+            "Base"
+        );
+        assert_eq!(engine.runtime_snapshot().loaded_models, 0);
+        engine.close();
+    }
 }

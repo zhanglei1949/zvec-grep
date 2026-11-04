@@ -1,9 +1,12 @@
 //! Typed fact rows and versioned JSON attributes; no AST/body storage.
+mod semantic;
 use super::super::{
-    GraphError, GraphErrorKind, GraphResult,
+    GraphError, GraphErrorKind, GraphResult, profile,
     schema::{
-        AnchorRow, BindingRow, CatalogRow, DiagnosticRow, FileRow, MetadataRow, NodeRow, RELATIONS,
-        ReferenceRow, STRUCTURE_RELATIONS, ScopeRow,
+        AnchorRow, AssociationRow, BindingRow, CatalogRow, DeferredMentionRow, DiagnosticRow,
+        EpisodeRow, FileRow, MetadataRow, NodeRow, RELATIONS, ReferenceRow, STRUCTURE_RELATIONS,
+        ScalarFactRow, ScopeRow, SemanticChangeRow, SemanticEntityRow, SemanticOperationRow,
+        SemanticRelationRow, SemanticSourceRow,
     },
 };
 use super::StoreCounts;
@@ -24,6 +27,59 @@ use std::{collections::BTreeMap, sync::Arc};
 
 fn invalid() -> GraphError {
     GraphError::local(GraphErrorKind::IncompatibleFormat)
+}
+
+// Stream the v7 canonical field order while materializing only one source or
+// resolution as a JSON Value at a time, rather than a second complete catalog.
+pub(super) fn catalog_digest(catalog: &FactCatalog) -> GraphResult<String> {
+    let FactCatalog {
+        files,
+        catalogs,
+        resolutions,
+        config_fingerprint,
+        selection_fingerprint,
+        semantic,
+    } = catalog;
+    let mut output = String::from("{\"catalogs\":[");
+    macro_rules! values {
+        ($items:expr) => {
+            for (index, item) in $items.iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                output.push_str(&canonical_json(item)?);
+            }
+        };
+    }
+    values!(catalogs);
+    output.push_str("],\"config_fingerprint\":");
+    output.push_str(&canonical_json(config_fingerprint)?);
+    output.push_str(",\"files\":[");
+    values!(files);
+    output.push_str("],\"resolutions\":[");
+    values!(resolutions);
+    output.push_str("],\"selection_fingerprint\":");
+    output.push_str(&canonical_json(selection_fingerprint)?);
+    output.push_str(",\"semantic\":{\"associations\":[");
+    values!(&semantic.associations);
+    output.push_str("],\"changes\":[");
+    values!(&semantic.changes);
+    output.push_str("],\"deferred_mentions\":[");
+    values!(&semantic.deferred_mentions);
+    output.push_str("],\"entities\":[");
+    values!(&semantic.entities);
+    output.push_str("],\"episodes\":[");
+    values!(&semantic.episodes);
+    output.push_str("],\"facts\":[");
+    values!(&semantic.facts);
+    output.push_str("],\"last_operation\":");
+    output.push_str(&canonical_json(&semantic.last_operation)?);
+    output.push_str(",\"mentions\":[");
+    values!(&semantic.mentions);
+    output.push_str("],\"sources\":[");
+    values!(&semantic.sources);
+    output.push_str("]}}");
+    Ok(zg_storage::sha256_hex(output.as_bytes()))
 }
 fn number(value: usize) -> GraphResult<u64> {
     u64::try_from(value).map_err(|_| invalid())
@@ -64,6 +120,8 @@ pub(super) struct Edge {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(in crate::graph) struct ResolvedReference {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation_source: Option<crate::relations::bound::TargetVersion>,
     pub reference: ReferenceRow,
     pub target: crate::relations::bound::TargetVersion,
     pub catalog_revision: String,
@@ -81,6 +139,15 @@ pub(super) enum Mutation<'a> {
     Scope(&'a ScopeRow),
     Binding(&'a BindingRow),
     Diagnostic(&'a DiagnosticRow),
+    SemanticSource(&'a SemanticSourceRow),
+    SemanticEntity(&'a SemanticEntityRow),
+    Episode(&'a EpisodeRow),
+    ScalarFact(&'a ScalarFactRow),
+    Association(&'a AssociationRow),
+    DeferredMention(&'a DeferredMentionRow),
+    SemanticChange(&'a SemanticChangeRow),
+    SemanticOperation(&'a SemanticOperationRow),
+    SemanticRelation(&'a SemanticRelationRow),
     Edge(&'a Edge),
 }
 fn chained_digest(
@@ -101,7 +168,7 @@ fn chained_digest(
 }
 
 impl Mutation<'_> {
-    /// The existing v4 digest chain, with the same canonical JSON bytes.
+    /// The v7 row digest chain, checked against the typed canonical oracle.
     /// Only the scratch allocation is reused; this is not a new hash format.
     #[cfg(test)]
     pub(super) fn update_digest(
@@ -128,6 +195,15 @@ impl Mutation<'_> {
             Self::Scope(value) => row!("Scope", value),
             Self::Binding(value) => row!("Binding", value),
             Self::Diagnostic(value) => row!("Diagnostic", value),
+            Self::SemanticSource(value) => row!("SemanticSource", value),
+            Self::SemanticEntity(value) => row!("SemanticEntity", value),
+            Self::Episode(value) => row!("Episode", value),
+            Self::ScalarFact(value) => row!("ScalarFact", value),
+            Self::Association(value) => row!("Association", value),
+            Self::SemanticChange(value) => row!("SemanticChange", value),
+            Self::SemanticOperation(value) => row!("SemanticOperation", value),
+            Self::DeferredMention(value) => row!("DeferredMention", value),
+            Self::SemanticRelation(value) => row!("SemanticRelation", value),
             Self::Edge(value) => {
                 scratch.extend_from_slice(b"\"Edge\":");
                 // Edge's declaration already follows canonical key order.
@@ -136,6 +212,13 @@ impl Mutation<'_> {
         }
         scratch.extend_from_slice(b"}]");
         Ok(zg_storage::sha256_hex(scratch))
+    }
+}
+fn edge_reference_id(name: &str, payload: &str) -> GraphResult<String> {
+    if name == "KgMentions" {
+        Ok(unjson::<crate::semantic::Mention>(payload)?.ref_id)
+    } else {
+        Ok(unjson::<ResolvedReference>(payload)?.reference.id)
     }
 }
 impl Edge {
@@ -176,16 +259,11 @@ impl Edge {
                     .map(|edge| {
                         edge.version
                             .as_ref()
-                            .map(|version| unjson::<ResolvedReference>(version))
+                            .map(|version| edge_reference_id(name, version))
                             .transpose()
                     })
                     .collect::<GraphResult<Vec<_>>>()?;
-                columns.push(Column::strings(
-                    resolved
-                        .iter()
-                        .map(|value| value.as_ref().map(|value| value.reference.id.clone()))
-                        .collect(),
-                ));
+                columns.push(Column::strings(resolved));
                 columns.push(Column::strings(
                     chunk.iter().map(|edge| edge.version.clone()).collect(),
                 ));
@@ -236,7 +314,7 @@ impl Edge {
         if let Some(version) = &self.version {
             tx.execute_with(
                 &query,
-                params! {"source"=>&self.source,"target"=>&self.target,"version"=>version,"ref_id"=>&unjson::<ResolvedReference>(version)?.reference.id},
+                params! {"source"=>&self.source,"target"=>&self.target,"version"=>version,"ref_id"=>&edge_reference_id(&self.name, version)?},
                 options,
             )?;
         } else {
@@ -259,33 +337,53 @@ pub(super) struct FactRows {
     anchors: Vec<AnchorRow>,
     diagnostics: Vec<DiagnosticRow>,
     catalogs: Vec<CatalogRow>,
+    semantic_sources: Vec<SemanticSourceRow>,
+    semantic_entities: Vec<SemanticEntityRow>,
+    episodes: Vec<EpisodeRow>,
+    scalar_facts: Vec<ScalarFactRow>,
+    associations: Vec<AssociationRow>,
+    semantic_relations: Vec<SemanticRelationRow>,
+    deferred_mentions: Vec<DeferredMentionRow>,
+    changes: Vec<SemanticChangeRow>,
+    operations: Vec<SemanticOperationRow>,
     edges: Vec<Edge>,
 }
 impl FactRows {
     pub(super) fn digest(&self) -> GraphResult<String> {
-        let mut digest = crate::processing::stable_digest(&"kg-rows-v4")?;
-        for row in self.mutations() {
+        let mut digest = crate::processing::stable_digest(&"kg-rows-v7")?;
+        for row in self.iter_mutations() {
             digest = crate::processing::stable_digest(&(digest, row))?;
         }
         Ok(digest)
     }
     pub(super) fn mutations(&self) -> Vec<Mutation<'_>> {
-        let mut rows = Vec::with_capacity(self.cost());
-        macro_rules! append {
-            ($field:ident,$variant:ident) => {
-                rows.extend(self.$field.iter().map(Mutation::$variant));
-            };
-        }
-        append!(files, File);
-        append!(nodes, Node);
-        append!(references, Reference);
-        append!(anchors, Anchor);
-        append!(catalogs, Catalog);
-        append!(scopes, Scope);
-        append!(bindings, Binding);
-        append!(diagnostics, Diagnostic);
-        append!(edges, Edge);
-        rows
+        self.iter_mutations().collect()
+    }
+    fn iter_mutations(&self) -> impl Iterator<Item = Mutation<'_>> {
+        self.files
+            .iter()
+            .map(Mutation::File)
+            .chain(self.nodes.iter().map(Mutation::Node))
+            .chain(self.references.iter().map(Mutation::Reference))
+            .chain(self.anchors.iter().map(Mutation::Anchor))
+            .chain(self.catalogs.iter().map(Mutation::Catalog))
+            .chain(self.scopes.iter().map(Mutation::Scope))
+            .chain(self.bindings.iter().map(Mutation::Binding))
+            .chain(self.diagnostics.iter().map(Mutation::Diagnostic))
+            .chain(self.semantic_sources.iter().map(Mutation::SemanticSource))
+            .chain(self.semantic_entities.iter().map(Mutation::SemanticEntity))
+            .chain(self.episodes.iter().map(Mutation::Episode))
+            .chain(self.scalar_facts.iter().map(Mutation::ScalarFact))
+            .chain(self.associations.iter().map(Mutation::Association))
+            .chain(self.deferred_mentions.iter().map(Mutation::DeferredMention))
+            .chain(self.changes.iter().map(Mutation::SemanticChange))
+            .chain(self.operations.iter().map(Mutation::SemanticOperation))
+            .chain(
+                self.semantic_relations
+                    .iter()
+                    .map(Mutation::SemanticRelation),
+            )
+            .chain(self.edges.iter().map(Mutation::Edge))
     }
     fn edge(&mut self, name: &str, source: &str, target: &str, version: Option<String>) {
         self.edges.push(Edge {
@@ -361,11 +459,16 @@ impl FactRows {
                         .chain(n.qualified_name.iter())
                         .cloned()
                         .collect::<Vec<_>>()
-                        .join(if f.language == crate::relations::Language::Rust {
-                            "::"
-                        } else {
-                            "."
-                        }),
+                        .join(
+                            if matches!(
+                                f.language,
+                                crate::relations::Language::Rust | crate::relations::Language::Cpp
+                            ) {
+                                "::"
+                            } else {
+                                "."
+                            },
+                        ),
                     parent_id: n.parent.clone(),
                     path_addressable: n.path_addressable,
                     callable: n.callable,
@@ -401,6 +504,9 @@ impl FactRows {
                 let (kind, node, path, target_scope) = match &b.target {
                     BindingTarget::Node { id } => ("node", Some(id.clone()), None, None),
                     BindingTarget::Import { path } => ("import", None, Some(json(path)?), None),
+                    BindingTarget::PackageImport { path, alias } => {
+                        ("package_import", None, Some(json(&(path, alias))?), None)
+                    }
                     BindingTarget::GlobImport { path } => {
                         ("glob_import", None, Some(json(path)?), None)
                     }
@@ -458,12 +564,18 @@ impl FactRows {
                         crate::relations::RelationKind::Call => "KgCalls",
                         crate::relations::RelationKind::Import => "KgImports",
                         crate::relations::RelationKind::DocumentLink => "KgLinks",
+                        crate::relations::RelationKind::Extends => "KgExtends",
+                        crate::relations::RelationKind::Implements => "KgImplements",
                     };
                     rows.edge(
                         name,
-                        &reference.owner,
+                        resolution
+                            .relation_source
+                            .as_ref()
+                            .map_or(reference.owner.as_str(), |source| source.node_id.as_str()),
                         &target.node_id,
                         Some(json(&ResolvedReference {
+                            relation_source: resolution.relation_source.clone(),
                             reference: row,
                             target: target.clone(),
                             catalog_revision: resolution.catalog_revision.clone(),
@@ -516,6 +628,7 @@ impl FactRows {
                 rows.edge("KgMemberOf", member, &c.revision, None);
             }
         }
+        rows.encode_semantic(&catalog.semantic)?;
         rows.sort();
         Ok(rows)
     }
@@ -529,6 +642,17 @@ impl FactRows {
         self.diagnostics.sort_by(|a, b| a.id.cmp(&b.id));
         self.catalogs.sort_by(|a, b| a.revision.cmp(&b.revision));
         self.edges.sort();
+        self.semantic_sources
+            .sort_by(|a, b| a.source_id.cmp(&b.source_id));
+        self.semantic_entities.sort_by(|a, b| a.id.cmp(&b.id));
+        self.episodes.sort_by(|a, b| a.id.cmp(&b.id));
+        self.scalar_facts.sort_by(|a, b| a.id.cmp(&b.id));
+        self.associations.sort_by(|a, b| a.id.cmp(&b.id));
+        self.deferred_mentions.sort_by(|a, b| a.id.cmp(&b.id));
+        self.changes.sort_by(|a, b| a.id.cmp(&b.id));
+        self.operations.sort_by(|a, b| a.id.cmp(&b.id));
+        self.semantic_relations
+            .sort_by(|a, b| (&a.source, &a.target, &a.id).cmp(&(&b.source, &b.target, &b.id)));
     }
     pub(super) fn cost(&self) -> usize {
         self.files.len()
@@ -540,6 +664,15 @@ impl FactRows {
             + self.diagnostics.len()
             + self.catalogs.len()
             + self.edges.len()
+            + self.semantic_sources.len()
+            + self.semantic_entities.len()
+            + self.episodes.len()
+            + self.scalar_facts.len()
+            + self.associations.len()
+            + self.semantic_relations.len()
+            + self.deferred_mentions.len()
+            + self.changes.len()
+            + self.operations.len()
     }
 
     /// Import one logical `ImportPlan` batch without changing its boundaries or
@@ -572,7 +705,14 @@ impl FactRows {
                     .ok_or_else(invalid)?;
             }
         }
-        nodes!(File, FileRow);
+        // Source TextMap strings can exceed COPY's 128 KiB record limit.
+        // Parameterized inserts share this logical transaction and its budget.
+        for mutation in mutations {
+            if let Mutation::File(row) = mutation {
+                context.check()?;
+                row.insert(tx, options)?;
+            }
+        }
         nodes!(Node, NodeRow);
         nodes!(Reference, ReferenceRow);
         nodes!(Anchor, AnchorRow);
@@ -580,6 +720,21 @@ impl FactRows {
         nodes!(Scope, ScopeRow);
         nodes!(Binding, BindingRow);
         nodes!(Diagnostic, DiagnosticRow);
+        for mutation in mutations {
+            context.check()?;
+            match mutation {
+                Mutation::SemanticSource(row) => row.insert(tx, options)?,
+                Mutation::SemanticEntity(row) => row.insert(tx, options)?,
+                Mutation::Episode(row) => row.insert(tx, options)?,
+                Mutation::ScalarFact(row) => row.insert(tx, options)?,
+                Mutation::Association(row) => row.insert(tx, options)?,
+                Mutation::SemanticRelation(row) => row.insert(tx, options)?,
+                Mutation::DeferredMention(row) => row.insert(tx, options)?,
+                Mutation::SemanticChange(row) => row.insert(tx, options)?,
+                Mutation::SemanticOperation(row) => row.insert(tx, options)?,
+                _ => {}
+            }
+        }
         for &(name, source, target, properties) in RELATIONS {
             let edges = mutations
                 .iter()
@@ -617,6 +772,17 @@ impl FactRows {
         if include_structure {
             insert!(scopes, bindings, diagnostics);
         }
+        insert!(
+            semantic_sources,
+            semantic_entities,
+            episodes,
+            scalar_facts,
+            associations,
+            deferred_mentions,
+            changes,
+            operations,
+            semantic_relations
+        );
         for edge in &self.edges {
             context.check()?;
             if !include_structure && STRUCTURE_RELATIONS.contains(&edge.name.as_str()) {
@@ -627,6 +793,8 @@ impl FactRows {
         Ok(())
     }
     pub(super) fn read(tx: &mut Transaction<'_>, options: &QueryOptions) -> GraphResult<Self> {
+        let _stage = profile::stage("fact_rows.read");
+        profile::count("fact_rows.full_reads", 1);
         let mut rows = Self {
             files: FileRow::read(tx, options)?,
             nodes: NodeRow::read(tx, options)?,
@@ -636,6 +804,15 @@ impl FactRows {
             anchors: AnchorRow::read(tx, options)?,
             diagnostics: DiagnosticRow::read(tx, options)?,
             catalogs: CatalogRow::read(tx, options)?,
+            semantic_sources: SemanticSourceRow::read(tx, options)?,
+            semantic_entities: SemanticEntityRow::read(tx, options)?,
+            episodes: EpisodeRow::read(tx, options)?,
+            scalar_facts: ScalarFactRow::read(tx, options)?,
+            associations: AssociationRow::read(tx, options)?,
+            deferred_mentions: DeferredMentionRow::read(tx, options)?,
+            changes: SemanticChangeRow::read(tx, options)?,
+            operations: SemanticOperationRow::read(tx, options)?,
+            semantic_relations: SemanticRelationRow::read(tx, options)?,
             edges: Vec::new(),
         };
         for (name, source, target, props) in RELATIONS {
@@ -655,23 +832,20 @@ impl FactRows {
             let result = tx.query_with(&format!("MATCH (a:{source})-[e:{name}]->(b:{target}) RETURN a.{source_key},b.{target_key}{version}"), (), options)?;
             let mut cursor = result.rows();
             while let Some(r) = cursor.next()? {
-                if !props.is_empty()
-                    && unjson::<ResolvedReference>(&r.try_get::<String>(2)?)?
-                        .reference
-                        .id
-                        != r.try_get::<String>(3)?
-                {
-                    return Err(invalid());
-                }
+                let payload = if props.is_empty() {
+                    None
+                } else {
+                    let data = r.get_ref(2)?.as_str()?;
+                    if edge_reference_id(name, data)? != r.get_ref(3)?.as_str()? {
+                        return Err(invalid());
+                    }
+                    Some(data.to_owned())
+                };
                 rows.edge(
                     name,
-                    &r.try_get::<String>(0)?,
-                    &r.try_get::<String>(1)?,
-                    if props.is_empty() {
-                        None
-                    } else {
-                        Some(r.try_get(2)?)
-                    },
+                    r.get_ref(0)?.as_str()?,
+                    r.get_ref(1)?.as_str()?,
+                    payload,
                 );
             }
         }
@@ -679,6 +853,7 @@ impl FactRows {
         if rows.cost() > options.max_results {
             return Err(GraphError::local(GraphErrorKind::ResourceExhausted));
         }
+        profile::count("fact_rows.read_rows", number(rows.cost())?);
         Ok(rows)
     }
 
@@ -686,24 +861,69 @@ impl FactRows {
         let mut nodes = BTreeMap::new();
         macro_rules! count { ($($table:literal => $field:ident),+) => { $(nodes.insert($table.into(),number(self.$field.len())?);)+ }; }
         count!("KgFile"=>files,"KgEntity"=>nodes,"KgScope"=>scopes,"KgBinding"=>bindings,"KgUnresolvedRef"=>references,"KgAnchor"=>anchors,"KgDiagnostic"=>diagnostics,"KgCatalogRevision"=>catalogs);
+        count!("KgSemanticSource"=>semantic_sources,"KgSemanticEntity"=>semantic_entities,"KgEpisode"=>episodes,"KgScalarFact"=>scalar_facts,"KgSourceAssociation"=>associations,"KgDeferredMention"=>deferred_mentions,"KgSemanticChange"=>changes,"KgSemanticOperation"=>operations);
         let mut relations: BTreeMap<_, u64> =
             RELATIONS.iter().map(|r| (r.0.to_owned(), 0)).collect();
         for e in &self.edges {
             *relations.get_mut(&e.name).ok_or_else(invalid)? += 1;
         }
+        relations.insert(
+            "KgSemanticRelation".into(),
+            number(self.semantic_relations.len())?,
+        );
         Ok(StoreCounts { nodes, relations })
     }
 
     #[expect(
         clippy::too_many_lines,
-        reason = "reconstruct ordered structure and verify every redundant relation before accepting it"
+        reason = "keep typed source reconstruction and ordinal checks together"
     )]
-    pub(super) fn decode(
-        &self,
-        metadata: &MetadataRow,
-        context: &ProcessingContext,
-    ) -> GraphResult<FactCatalog> {
+    fn decode_files(&self, context: &ProcessingContext) -> GraphResult<Vec<BoundFileFacts>> {
         let mut files = Vec::new();
+        macro_rules! by_file {
+            ($field:ident) => {{
+                let mut index: BTreeMap<&str, Vec<_>> = BTreeMap::new();
+                for row in &self.$field {
+                    context.check()?;
+                    index.entry(row.file_path.as_str()).or_default().push(row);
+                }
+                for rows in index.values_mut() {
+                    rows.sort_by_key(|row| row.ordinal);
+                }
+                index
+            }};
+        }
+        let nodes = by_file!(nodes);
+        let scopes = by_file!(scopes);
+        let bindings = by_file!(bindings);
+        let anchors = by_file!(anchors);
+        let diagnostics = by_file!(diagnostics);
+        let mut resolved = Vec::new();
+        for edge in &self.edges {
+            context.check()?;
+            profile::count("decode.edge_rows_examined", 1);
+            if let Some(data) = &edge.version
+                && edge.name != "KgMentions"
+            {
+                profile::count("decode.edge_json_parses", 1);
+                resolved.push(unjson::<ResolvedReference>(data)?);
+            }
+        }
+        let mut references: BTreeMap<&str, Vec<&ReferenceRow>> = BTreeMap::new();
+        for row in self
+            .references
+            .iter()
+            .chain(resolved.iter().map(|r| &r.reference))
+        {
+            context.check()?;
+            references
+                .entry(row.file_path.as_str())
+                .or_default()
+                .push(row);
+        }
+        for rows in references.values_mut() {
+            rows.sort_by_key(|row| row.ordinal);
+        }
         // Scope-parent reads are indexed once for reconstruction. Scanning the
         // entire edge set for each scope would turn a full read into S × E.
         let mut parents_by_scope: BTreeMap<&str, Vec<&Edge>> = BTreeMap::new();
@@ -762,12 +982,7 @@ impl FactRows {
             let mut reference_entities = Vec::new();
             macro_rules! ordered {
                 ($field:ident) => {{
-                    let mut selected = self
-                        .$field
-                        .iter()
-                        .filter(|v| v.file_path == row.path)
-                        .collect::<Vec<_>>();
-                    selected.sort_by_key(|r| r.ordinal);
+                    let selected = $field.get(row.path.as_str()).map_or(&[][..], Vec::as_slice);
                     if selected
                         .iter()
                         .enumerate()
@@ -828,6 +1043,10 @@ impl FactRows {
                     ("import", None, Some(path), None) => BindingTarget::Import {
                         path: unjson(path)?,
                     },
+                    ("package_import", None, Some(value), None) => {
+                        let (path, alias) = unjson(value)?;
+                        BindingTarget::PackageImport { path, alias }
+                    }
                     ("glob_import", None, Some(path), None) => BindingTarget::GlobImport {
                         path: unjson(path)?,
                     },
@@ -845,29 +1064,7 @@ impl FactRows {
                     visibility: b.visibility.clone(),
                 });
             }
-            let mut reference_rows = self
-                .references
-                .iter()
-                .filter(|r| r.file_path == row.path)
-                .cloned()
-                .collect::<Vec<_>>();
-            for edge in &self.edges {
-                if let Some(data) = &edge.version {
-                    let resolved: ResolvedReference = unjson(data)?;
-                    if resolved.reference.file_path == row.path {
-                        reference_rows.push(resolved.reference);
-                    }
-                }
-            }
-            reference_rows.sort_by_key(|r| r.ordinal);
-            if reference_rows
-                .iter()
-                .enumerate()
-                .any(|(i, r)| number(i).ok() != Some(r.ordinal))
-            {
-                return Err(invalid());
-            }
-            for r in &reference_rows {
+            for r in ordered!(references) {
                 facts.references.push(Reference {
                     id: r.id.clone(),
                     owner: r.owner_id.clone(),
@@ -911,16 +1108,32 @@ impl FactRows {
                 text_binding_digest: row.text_binding_digest.clone(),
             });
         }
+        Ok(files)
+    }
+
+    pub(super) fn decode(
+        &self,
+        metadata: &MetadataRow,
+        context: &ProcessingContext,
+    ) -> GraphResult<FactCatalog> {
+        let _stage = profile::stage("fact_rows.decode");
+        // Reconstruction indices and parsed edge payloads are released before
+        // resolution and round-trip encoding allocate their complete results.
+        let files = profile::measure("fact_rows.reconstruct", || self.decode_files(context))?;
         // Re-run the SAME pure resolver on persisted structure. Re-encoding
         // validates every typed property, ordinal, edge, target version, catalog
         // dependency and diagnostic; no source reread or second Cypher resolver.
-        let catalog = FactCatalog::resolve(
-            files,
-            metadata.config_fingerprint.clone(),
-            metadata.selection_fingerprint.clone(),
-            context,
-        )?;
-        if Self::encode(&catalog)? != *self {
+        let mut catalog = profile::measure("fact_rows.resolve", || {
+            FactCatalog::resolve(
+                files,
+                metadata.config_fingerprint.clone(),
+                metadata.selection_fingerprint.clone(),
+                context,
+            )
+        })?;
+        catalog.semantic = self.decode_semantic()?;
+        catalog.validate_semantic(context)?;
+        if profile::measure("fact_rows.reencode", || Self::encode(&catalog))? != *self {
             return Err(invalid());
         }
         Ok(catalog)
@@ -934,7 +1147,7 @@ fn write_edge(
     target: &str,
     payload: Option<&str>,
 ) -> GraphResult<()> {
-    // Field order is part of the existing v4 canonical encoding.
+    // Source-edge field order is fixed by the v7 canonical encoding.
     output.extend_from_slice(b"{\"name\":");
     serde_json::to_writer(&mut *output, name).map_err(|_| invalid())?;
     output.extend_from_slice(b",\"source\":");
@@ -956,15 +1169,11 @@ fn record_scan_stats(scan: &::graphdb::OrderedScan<'_>) {
 }
 
 impl super::GraphDbStore {
-    pub(crate) fn rows_digest(catalog: &FactCatalog) -> GraphResult<String> {
-        FactRows::encode(catalog)?.digest()
-    }
-
-    /// Full, bounded-memory integrity verification. Does not reconstruct facts
-    /// or run a second resolver on the public query path.
+    /// Full integrity verification without reconstructing the fact catalog
+    /// or running a second resolver on the public query path.
     pub(crate) fn verify_rows(&self, context: &ProcessingContext) -> GraphResult<String> {
         self.with_read(|tx, options| {
-            let mut digest = crate::processing::stable_digest(&"kg-rows-v4")?;
+            let mut digest = crate::processing::stable_digest(&"kg-rows-v7")?;
             let mut count = 0usize;
             let mut scratch = Vec::new();
             let mut canonical_bytes = 0u64;
@@ -1001,59 +1210,119 @@ impl super::GraphDbStore {
             scan!(ScopeRow, Scope, id);
             scan!(BindingRow, Binding, id);
             scan!(DiagnosticRow, Diagnostic, id);
-            let mut tables = RELATIONS.to_vec();
-            tables.sort_by_key(|r| r.0);
-            for (name, source, target, props) in tables {
-                let source_key = if source == "KgFile" { "path" } else { "id" };
-                let target_key = match target {
-                    "KgFile" => "path",
-                    "KgCatalogRevision" => "revision",
-                    _ => "id",
-                };
-                let _stage = super::super::profile::stage("integrity.relationships");
-                let properties: &[&str] = if props.is_empty() {
-                    &[]
-                } else {
-                    &["data", "ref_id"]
-                };
-                let mut scan = tx.scan_edges(
-                    name,
-                    (source, source_key),
-                    (target, target_key),
-                    properties,
-                    options,
-                )?;
-                record_scan_stats(&scan);
-                while let Some(result) = scan.next_batch()? {
-                    context.check()?;
-                    super::super::profile::count("integrity.pages", 1);
-                    let mut cursor = result.rows();
-                    while let Some(row) = cursor.next()? {
-                        context.check()?;
-                        count += 1;
-                        context.check_output(count)?;
-                        let payload = if props.is_empty() {
-                            None
-                        } else {
-                            Some(row.get_ref(2)?.as_str()?)
-                        };
-                        if let Some(payload) = payload
-                            && unjson::<ResolvedReference>(payload)?.reference.id
-                                != row.get_ref(3)?.as_str()?
-                        {
-                            return Err(invalid());
-                        }
-                        let source = row.get_ref(0)?.as_str()?;
-                        let target = row.get_ref(1)?.as_str()?;
-                        digest = chained_digest(&digest, &mut scratch, "Edge", |buffer| {
-                            write_edge(buffer, name, source, target, payload)
-                        })?;
-                        canonical_bytes = canonical_bytes.saturating_add(scratch.len() as u64);
-                    }
-                }
-            }
+            scan!(SemanticSourceRow, SemanticSource, source_id);
+            scan!(SemanticEntityRow, SemanticEntity, id);
+            scan!(EpisodeRow, Episode, id);
+            scan!(ScalarFactRow, ScalarFact, id);
+            scan!(AssociationRow, Association, id);
+            scan!(DeferredMentionRow, DeferredMention, id);
+            scan!(SemanticChangeRow, SemanticChange, id);
+            scan!(SemanticOperationRow, SemanticOperation, id);
+            canonical_bytes += verify_semantic_relations(
+                tx,
+                options,
+                context,
+                &mut count,
+                &mut digest,
+                &mut scratch,
+            )?;
+            canonical_bytes += verify_reference_edges(
+                tx,
+                options,
+                context,
+                &mut count,
+                &mut digest,
+                &mut scratch,
+            )?;
             super::super::profile::count("integrity.canonical_bytes", canonical_bytes);
             Ok(digest)
         })
     }
+}
+
+// Ordered edge scans accept only non-null STRING properties. Preserve native
+// timestamps and nullable predecessors with one row-limited typed query.
+fn verify_semantic_relations(
+    tx: &mut Transaction<'_>,
+    options: &QueryOptions,
+    context: &ProcessingContext,
+    count: &mut usize,
+    digest: &mut String,
+    scratch: &mut Vec<u8>,
+) -> GraphResult<u64> {
+    let mut canonical_bytes = 0_u64;
+    let semantic = SemanticRelationRow::query(tx, options)?;
+    let mut cursor = semantic.rows();
+    while let Some(row) = cursor.next()? {
+        context.check()?;
+        *count += 1;
+        context.check_output(*count)?;
+        *digest = chained_digest(digest, scratch, "SemanticRelation", |buffer| {
+            SemanticRelationRow::write_raw(&row, buffer)
+        })?;
+        canonical_bytes = canonical_bytes.saturating_add(scratch.len() as u64);
+    }
+    Ok(canonical_bytes)
+}
+
+fn verify_reference_edges(
+    tx: &mut Transaction<'_>,
+    options: &QueryOptions,
+    context: &ProcessingContext,
+    count: &mut usize,
+    digest: &mut String,
+    scratch: &mut Vec<u8>,
+) -> GraphResult<u64> {
+    let mut canonical_bytes = 0_u64;
+    let mut tables = RELATIONS.to_vec();
+    tables.sort_by_key(|r| r.0);
+    for (name, source, target, props) in tables {
+        let source_key = if source == "KgFile" { "path" } else { "id" };
+        let target_key = match target {
+            "KgFile" => "path",
+            "KgCatalogRevision" => "revision",
+            _ => "id",
+        };
+        let _stage = super::super::profile::stage("integrity.relationships");
+        let properties: &[&str] = if props.is_empty() {
+            &[]
+        } else {
+            &["data", "ref_id"]
+        };
+        let mut scan = tx.scan_edges(
+            name,
+            (source, source_key),
+            (target, target_key),
+            properties,
+            options,
+        )?;
+        record_scan_stats(&scan);
+        while let Some(result) = scan.next_batch()? {
+            context.check()?;
+            super::super::profile::count("integrity.pages", 1);
+            let mut cursor = result.rows();
+            while let Some(row) = cursor.next()? {
+                context.check()?;
+                *count += 1;
+                context.check_output(*count)?;
+                let payload = if props.is_empty() {
+                    None
+                } else {
+                    Some(row.get_ref(2)?.as_str()?)
+                };
+                if let Some(payload) = payload
+                    && edge_reference_id(name, payload)? != row.get_ref(3)?.as_str()?
+                {
+                    return Err(invalid());
+                }
+                let source = row.get_ref(0)?.as_str()?;
+                let target = row.get_ref(1)?.as_str()?;
+                *digest = chained_digest(digest, scratch, "Edge", |buffer| {
+                    write_edge(buffer, name, source, target, payload)
+                })?;
+                canonical_bytes = canonical_bytes.saturating_add(scratch.len() as u64);
+            }
+        }
+    }
+    Ok(canonical_bytes)
 }

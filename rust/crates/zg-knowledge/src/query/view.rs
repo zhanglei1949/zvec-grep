@@ -4,8 +4,8 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Serializable identity only. This is not a read lease or proof of readiness.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+// Serializable identity only. This is not a read lease or proof of readiness.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ViewStamp {
     pub workspace_id: String,
@@ -13,7 +13,7 @@ pub struct ViewStamp {
     pub text_revision: u64,
     pub graph: Option<GraphStamp>,
 }
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GraphStamp {
     pub build_id: String,
@@ -78,7 +78,7 @@ fn mismatch() -> QueryError {
     )
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NodeRef {
     pub graph_build_id: String,
@@ -167,6 +167,7 @@ pub struct KgReadView<L> {
     lease: L,
     capabilities: Vec<GraphReadCapabilities>,
     unavailable_reason: Option<String>,
+    semantic_access: Option<super::SemanticAccess>,
 }
 impl<L> KgReadView<L> {
     pub fn new(
@@ -245,6 +246,21 @@ impl<L> KgReadView<L> {
             lease,
             capabilities,
             unavailable_reason,
+            semantic_access: None,
+        })
+    }
+    pub fn with_semantic_access(mut self, access: super::SemanticAccess) -> QueryResult<Self> {
+        access.validate()?;
+        self.semantic_access = Some(access);
+        Ok(self)
+    }
+    pub fn semantic_access(&self) -> QueryResult<&super::SemanticAccess> {
+        self.semantic_access.as_ref().ok_or_else(|| {
+            QueryError::new(
+                QueryErrorKind::GraphUnavailable,
+                "view",
+                "semantic authorization is unavailable",
+            )
         })
     }
     #[must_use]
@@ -290,7 +306,7 @@ pub trait ReadViewProvider {
     ) -> QueryResult<KgReadView<Self::Lease>>;
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ByteSpan {
     pub start: u64,
@@ -314,7 +330,7 @@ impl ByteSpan {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvidenceRef {
     pub source_id: String,
@@ -326,6 +342,10 @@ pub struct EvidenceRef {
 impl EvidenceRef {
     pub fn validate(&self) -> QueryResult<()> {
         source_id(&self.source_id)?;
+        self.validate_position()
+    }
+
+    pub(crate) fn validate_position(&self) -> QueryResult<()> {
         self.span.validate()?;
         for digest in [&self.raw_digest, &self.decoded_digest] {
             if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -431,7 +451,7 @@ impl ResolvedScope {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum EvidenceRead {
     Verified {
@@ -444,6 +464,30 @@ pub enum EvidenceRead {
     },
 }
 pub trait EvidenceProvider<L> {
+    fn read_semantic_evidence(
+        &self,
+        view: &KgReadView<L>,
+        references: &[crate::semantic::SourceEvidence],
+        context: &RequestContext,
+    ) -> QueryResult<Vec<Option<EvidenceRead>>> {
+        references
+            .iter()
+            .map(|evidence| {
+                evidence
+                    .locator
+                    .as_ref()
+                    .map(|locator| {
+                        let mut reads =
+                            self.read_evidence(view, std::slice::from_ref(locator), context)?;
+                        if reads.len() != 1 {
+                            return Err(QueryError::invalid("evidence response count mismatch"));
+                        }
+                        Ok(reads.remove(0))
+                    })
+                    .transpose()
+            })
+            .collect()
+    }
     /// Read, hash, decode and slice one immutable input per source. Results
     /// preserve request order and report missing evidence individually.
     /// Implementations must check the supplied view against their read lease.

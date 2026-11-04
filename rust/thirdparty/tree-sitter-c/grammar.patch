@@ -1,0 +1,298 @@
+--- upstream/src/grammar.json
++++ patched/src/grammar.json
+@@ -73,6 +73,10 @@
+         {
+           "type": "SYMBOL",
+           "name": "preproc_call"
++        },
++        {
++          "type": "SYMBOL",
++          "name": "guarded_linkage_specification"
+         }
+       ]
+     },
+@@ -139,6 +143,10 @@
+         {
+           "type": "SYMBOL",
+           "name": "preproc_call"
++        },
++        {
++          "type": "SYMBOL",
++          "name": "guarded_linkage_specification"
+         }
+       ]
+     },
+@@ -2878,121 +2886,133 @@
+       "type": "SEQ",
+       "members": [
+         {
+-          "type": "SYMBOL",
+-          "name": "_declaration_specifiers"
++          "type": "REPEAT",
++          "content": {
++            "type": "SYMBOL",
++            "name": "macro_annotation"
++          }
+         },
+         {
+           "type": "SEQ",
+           "members": [
+             {
+-              "type": "FIELD",
+-              "name": "declarator",
+-              "content": {
+-                "type": "CHOICE",
+-                "members": [
+-                  {
+-                    "type": "SEQ",
++              "type": "SYMBOL",
++              "name": "_declaration_specifiers"
++            },
++            {
++              "type": "SEQ",
++              "members": [
++                {
++                  "type": "FIELD",
++                  "name": "declarator",
++                  "content": {
++                    "type": "CHOICE",
+                     "members": [
+                       {
+-                        "type": "CHOICE",
++                        "type": "SEQ",
+                         "members": [
+                           {
++                            "type": "CHOICE",
++                            "members": [
++                              {
++                                "type": "SYMBOL",
++                                "name": "ms_call_modifier"
++                              },
++                              {
++                                "type": "BLANK"
++                              }
++                            ]
++                          },
++                          {
+                             "type": "SYMBOL",
+-                            "name": "ms_call_modifier"
++                            "name": "_declaration_declarator"
+                           },
+                           {
+-                            "type": "BLANK"
++                            "type": "CHOICE",
++                            "members": [
++                              {
++                                "type": "SYMBOL",
++                                "name": "gnu_asm_expression"
++                              },
++                              {
++                                "type": "BLANK"
++                              }
++                            ]
+                           }
+                         ]
+                       },
+                       {
+                         "type": "SYMBOL",
+-                        "name": "_declaration_declarator"
+-                      },
+-                      {
+-                        "type": "CHOICE",
+-                        "members": [
+-                          {
+-                            "type": "SYMBOL",
+-                            "name": "gnu_asm_expression"
+-                          },
+-                          {
+-                            "type": "BLANK"
+-                          }
+-                        ]
++                        "name": "init_declarator"
+                       }
+                     ]
+-                  },
+-                  {
+-                    "type": "SYMBOL",
+-                    "name": "init_declarator"
+                   }
+-                ]
+-              }
+-            },
+-            {
+-              "type": "REPEAT",
+-              "content": {
+-                "type": "SEQ",
+-                "members": [
+-                  {
+-                    "type": "STRING",
+-                    "value": ","
+-                  },
+-                  {
+-                    "type": "FIELD",
+-                    "name": "declarator",
+-                    "content": {
+-                      "type": "CHOICE",
+-                      "members": [
+-                        {
+-                          "type": "SEQ",
++                },
++                {
++                  "type": "REPEAT",
++                  "content": {
++                    "type": "SEQ",
++                    "members": [
++                      {
++                        "type": "STRING",
++                        "value": ","
++                      },
++                      {
++                        "type": "FIELD",
++                        "name": "declarator",
++                        "content": {
++                          "type": "CHOICE",
+                           "members": [
+                             {
+-                              "type": "CHOICE",
++                              "type": "SEQ",
+                               "members": [
+                                 {
++                                  "type": "CHOICE",
++                                  "members": [
++                                    {
++                                      "type": "SYMBOL",
++                                      "name": "ms_call_modifier"
++                                    },
++                                    {
++                                      "type": "BLANK"
++                                    }
++                                  ]
++                                },
++                                {
+                                   "type": "SYMBOL",
+-                                  "name": "ms_call_modifier"
++                                  "name": "_declaration_declarator"
+                                 },
+                                 {
+-                                  "type": "BLANK"
++                                  "type": "CHOICE",
++                                  "members": [
++                                    {
++                                      "type": "SYMBOL",
++                                      "name": "gnu_asm_expression"
++                                    },
++                                    {
++                                      "type": "BLANK"
++                                    }
++                                  ]
+                                 }
+                               ]
+                             },
+                             {
+                               "type": "SYMBOL",
+-                              "name": "_declaration_declarator"
+-                            },
+-                            {
+-                              "type": "CHOICE",
+-                              "members": [
+-                                {
+-                                  "type": "SYMBOL",
+-                                  "name": "gnu_asm_expression"
+-                                },
+-                                {
+-                                  "type": "BLANK"
+-                                }
+-                              ]
++                              "name": "init_declarator"
+                             }
+                           ]
+-                        },
+-                        {
+-                          "type": "SYMBOL",
+-                          "name": "init_declarator"
+                         }
+-                      ]
+-                    }
++                      }
++                    ]
+                   }
+-                ]
+-              }
++                }
++              ]
++            },
++            {
++              "type": "STRING",
++              "value": ";"
+             }
+           ]
+-        },
+-        {
+-          "type": "STRING",
+-          "value": ";"
+         }
+       ]
+     },
+@@ -9631,6 +9651,40 @@
+             ]
+           }
+         ]
++      }
++    },
++    "guarded_linkage_specification": {
++      "type": "SEQ",
++      "members": [
++        {
++          "type": "TOKEN",
++          "content": {
++            "type": "PATTERN",
++            "value": "#[ \\t]*ifdef[ \\t]+__cplusplus[ \\t]*\\r?\\n[ \\t]*extern[ \\t]+\"C\"[ \\t]*\\{[ \\t]*\\r?\\n[ \\t]*#[ \\t]*endif"
++          }
++        },
++        {
++          "type": "REPEAT",
++          "content": {
++            "type": "SYMBOL",
++            "name": "_top_level_item"
++          }
++        },
++        {
++          "type": "TOKEN",
++          "content": {
++            "type": "PATTERN",
++            "value": "#[ \\t]*ifdef[ \\t]+__cplusplus[ \\t]*\\r?\\n[ \\t]*\\}[ \\t]*\\r?\\n[ \\t]*#[ \\t]*endif"
++          }
++        }
++      ]
++    },
++    "macro_annotation": {
++      "type": "PREC_DYNAMIC",
++      "value": -1,
++      "content": {
++        "type": "SYMBOL",
++        "name": "identifier"
+       }
+     }
+   },
+@@ -9711,6 +9765,14 @@
+     [
+       "type_qualifier",
+       "extension_expression"
++    ],
++    [
++      "macro_annotation",
++      "type_specifier"
++    ],
++    [
++      "macro_annotation",
++      "sized_type_specifier"
+     ]
+   ],
+   "precedences": [],
+@@ -9733,4 +9795,4 @@
+     "_abstract_declarator"
+   ],
+   "reserved": {}
+-}
+\ No newline at end of file
++}

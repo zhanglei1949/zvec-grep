@@ -48,6 +48,103 @@ pub struct ScopeResolution {
     pub execution: QueryExecution,
 }
 
+/// Resolve a complete current semantic selection through the same `TextMap` and
+/// fragment checks as code scopes. Missing body/position mappings never widen it.
+pub fn resolve_semantic_scope<
+    L,
+    R: GraphReader,
+    E: crate::query::EvidenceProvider<L>,
+    T: ScopeTextProvider,
+>(
+    reader: &R,
+    evidence: &E,
+    text: &T,
+    view: &KgReadView<L>,
+    request: &crate::query::ExploreRequest,
+    ctx: &RequestContext,
+) -> QueryResult<ResolvedScope> {
+    let crate::query::ExploreOperation::Semantic { query } = &request.operation else {
+        return Err(QueryError::invalid(
+            "semantic scope requires semantic selection",
+        ));
+    };
+    if query.history {
+        return Err(QueryError::invalid(
+            "historical records cannot define a current scope",
+        ));
+    }
+    view.require(&GraphReadNeeds {
+        domain: QueryDomain::Semantic,
+        relations: vec![],
+        text_mapping: true,
+    })?;
+    let output = crate::query::explore(reader, evidence, view, request, ctx)?;
+    if output.execution.status != Completion::Complete {
+        return Err(QueryError::new(
+            QueryErrorKind::ResourceExhausted,
+            "scope",
+            "semantic scope selection incomplete",
+        ));
+    }
+    let selected = output
+        .semantic
+        .ok_or_else(|| QueryError::invalid("semantic result missing"))?;
+    let mut regions = Vec::new();
+    for object in &selected.objects {
+        if matches!(
+            object.record,
+            crate::query::SemanticValue::SourceNode(_) | crate::query::SemanticValue::Entity(_)
+        ) {
+            continue;
+        }
+        if object.provenance.is_empty() {
+            return Err(QueryError::invalid("semantic scope has no source mapping"));
+        }
+        for provenance in &object.provenance {
+            let Some(crate::query::EvidenceRead::Verified { reference, .. }) = &provenance.read
+            else {
+                return Err(QueryError::new(
+                    QueryErrorKind::ViewMismatch,
+                    "scope",
+                    "semantic source mapping unavailable",
+                ));
+            };
+            regions.push(ScopeRegion {
+                source_id: reference.source_id.clone(),
+                span: reference.span,
+            });
+        }
+    }
+    for read in &selected.evidence {
+        let crate::query::EvidenceRead::Verified { reference, .. } = read else {
+            return Err(QueryError::new(
+                QueryErrorKind::ViewMismatch,
+                "scope",
+                "semantic mention evidence unavailable",
+            ));
+        };
+        regions.push(ScopeRegion {
+            source_id: reference.source_id.clone(),
+            span: reference.span,
+        });
+    }
+    if !selected.objects.is_empty() && regions.is_empty() {
+        return Err(QueryError::new(
+            QueryErrorKind::ViewMismatch,
+            "scope",
+            "semantic scope has no source mapping",
+        ));
+    }
+    regions.sort_by_key(|r| (r.source_id.clone(), r.span.start, r.span.end));
+    regions.dedup();
+    let units = mapping::units(reader, text, &regions, ctx)?;
+    Ok(ResolvedScope {
+        view: view.stamp().clone(),
+        regions,
+        units,
+    })
+}
+
 pub fn resolve_scope<L, R: GraphReader, T: ScopeTextProvider>(
     reader: &R,
     text: &T,

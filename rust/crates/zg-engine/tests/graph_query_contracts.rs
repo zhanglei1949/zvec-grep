@@ -99,30 +99,30 @@ async fn invalid_graph_parameters_fail_before_the_capability_gate() {
     assert_eq!(error.code(), EngineError::INVALID_ARGUMENT);
 }
 
-#[cfg(feature = "knowledge-graph")]
 #[test]
-fn engine_and_kg_wire_types_have_the_same_validation_contract() {
+fn shared_query_modes_preserve_wire_shape_and_reject_invalid_values() {
     let mut values = modes()
         .iter()
         .map(|m| serde_json::to_value(m).expect("wire"))
         .collect::<Vec<_>>();
-    values.extend([json!({"mode":"off"}),json!({"mode":"augment","seeds":0}),
-        json!({"mode":"augment","seeds":6}),json!({"mode":"augment","expansion":{"min_hops":0}}),
-        json!({"mode":"augment","expansion":{"max_hops":9}}),
-        json!({"mode":"constrain","scope":{"anchor":{"by":"position","source_id":"../a","byte_offset":0}}})]);
+    values.push(json!({"mode":"off"}));
     for value in values {
-        let engine: GraphQueryMode = serde_json::from_value(value.clone()).expect("engine DTO");
-        let kg: zg_knowledge::query::GraphQueryMode =
-            serde_json::from_value(value).expect("KG contract");
-        assert_eq!(engine.validate().is_ok(), kg.validate().is_ok());
-        let converted = zg_knowledge::query::GraphQueryMode::try_from(engine.clone());
-        assert_eq!(converted.is_ok(), engine.validate().is_ok());
-        if let Ok(converted) = converted {
-            assert_eq!(converted, kg);
-        }
+        let engine: GraphQueryMode = serde_json::from_value(value.clone()).expect("public mode");
+        let shared: &zg_knowledge::query::GraphQueryMode = &engine;
+        shared.validate().expect("valid mode");
+        assert_eq!(serde_json::to_value(shared).expect("unchanged wire"), value);
+    }
+    for value in [
+        json!({"mode":"augment","seeds":0}),
+        json!({"mode":"augment","seeds":6}),
+        json!({"mode":"augment","expansion":{"min_hops":0}}),
+        json!({"mode":"augment","expansion":{"max_hops":9}}),
+        json!({"mode":"constrain","scope":{"anchor":{"by":"position","source_id":"../a","byte_offset":0}}}),
+    ] {
+        let mode: GraphQueryMode = serde_json::from_value(value).expect("structured invalid mode");
         assert_eq!(
-            serde_json::to_value(engine).expect("engine encode"),
-            serde_json::to_value(kg).expect("KG encode")
+            mode.validate().expect_err("invalid limits or source").kind,
+            zg_knowledge::query::QueryErrorKind::InvalidInput
         );
     }
 }

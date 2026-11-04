@@ -126,6 +126,14 @@ impl EngineService {
         self.indexing.index(&self.models, options).await
     }
 
+    pub(crate) async fn apply_semantics(
+        &self,
+        options: crate::api::index::graph::SemanticBuildOptions,
+    ) -> Result<crate::api::index::graph::GraphIndexResult, EngineError> {
+        self.ensure_open()?;
+        self.indexing.apply_semantics(options).await
+    }
+
     pub(crate) async fn recover_graph(
         &self,
         options: crate::api::index::graph::GraphRecoveryOptions,

@@ -23,26 +23,8 @@ use zg_knowledge::{
     query as kg,
 };
 
-pub(super) fn query_error(error: kg::QueryError) -> EngineError {
-    use kg::QueryErrorKind as K;
-    let message = format!(
-        "{:?} at {}: {}{}",
-        error.kind,
-        error.stage,
-        error.reason,
-        error.detail.map_or_else(String::new, |d| format!("; {d}"))
-    );
-    match error.kind {
-        K::InvalidInput => EngineError::invalid_argument(message),
-        K::Unsupported => EngineError::unsupported(message),
-        K::Cancelled => EngineError::cancelled(message),
-        K::RequestDeadline | K::StageDeadline => EngineError::deadline_exceeded(message),
-        K::GraphUnavailable | K::ViewMismatch | K::ResourceExhausted => {
-            EngineError::resource_busy(message)
-        }
-        K::RecoveryRequired | K::Internal => EngineError::storage_failure(message),
-    }
-}
+pub(super) use crate::error::query_error;
+
 struct Lease {
     // Field order keeps the admission lock until both native facades are gone.
     reader: zg_knowledge::graph::GraphDbStore,
@@ -54,6 +36,7 @@ struct Lease {
 struct Provider {
     lease: Arc<Lease>,
     stamp: kg::ViewStamp,
+    domain: kg::QueryDomain,
 }
 impl kg::ReadViewProvider for Provider {
     type Lease = Arc<Lease>;
@@ -67,17 +50,34 @@ impl kg::ReadViewProvider for Provider {
             self.stamp.clone(),
             Arc::clone(&self.lease),
             request,
-            vec![kg::GraphReadCapabilities {
-                domain: kg::QueryDomain::Code,
-                relations: vec![
-                    kg::RelationKind::Contains,
-                    kg::RelationKind::Calls,
-                    kg::RelationKind::Imports,
-                ],
-                text_mapping: true,
-            }],
+            vec![
+                kg::GraphReadCapabilities {
+                    domain: kg::QueryDomain::Code,
+                    relations: vec![
+                        kg::RelationKind::Contains,
+                        kg::RelationKind::Calls,
+                        kg::RelationKind::Imports,
+                        kg::RelationKind::Extends,
+                        kg::RelationKind::Implements,
+                    ],
+                    text_mapping: true,
+                },
+                kg::GraphReadCapabilities {
+                    domain: kg::QueryDomain::Semantic,
+                    relations: vec![],
+                    text_mapping: false,
+                },
+            ]
+            .into_iter()
+            .filter(|capability| capability.domain == self.domain)
+            .collect(),
             None,
-        )
+        )?
+        .with_semantic_access(kg::SemanticAccess {
+            spaces: None,
+            contexts: None,
+            sources: kg::SourceFilter::default(),
+        })
     }
 }
 struct Watch(tokio::task::JoinHandle<()>);
@@ -92,20 +92,8 @@ pub(crate) async fn run(
     cache: Option<ReadSessionCache>,
 ) -> EngineResult<ExploreResult> {
     options.validate()?;
-    let request: kg::ExploreRequest = serde_json::from_value(
-        serde_json::to_value(&options.request)
-            .map_err(|_| EngineError::invalid_argument("invalid explore request"))?,
-    )
-    .map_err(|_| EngineError::invalid_argument("invalid explore request"))?;
-    request.validate().map_err(query_error)?;
-    let execution: kg::ExecutionOptions = serde_json::from_value(
-        serde_json::to_value(options.execution)
-            .map_err(|_| EngineError::invalid_argument("invalid explore execution"))?,
-    )
-    .map_err(|_| EngineError::invalid_argument("invalid explore execution"))?;
-    execution
-        .validate_within(kg::ExecutionOptions::default())
-        .map_err(query_error)?;
+    let request = options.request;
+    let execution = options.execution;
     let signal = options.signal.clone().unwrap_or_default().child_token();
     let _cancel_on_drop = signal.clone().drop_guard();
     let context = kg::RequestContext::new(
@@ -188,7 +176,15 @@ fn execute_selected(
         None => ReadSessionLease::open_graph(&manifest)?,
     };
     drop(open_stage);
-    let selected = qualify(read, manifest, admission, context, signal, control)?;
+    let selected = qualify(
+        read,
+        manifest,
+        admission,
+        context,
+        signal,
+        control,
+        request.domain,
+    )?;
     request
         .validate_for(selected.view.stamp())
         .map_err(query_error)?;
@@ -199,10 +195,7 @@ fn execute_selected(
         kg::explore(reader, &evidence, &selected.view, request, context).map_err(query_error)?;
     result.execution.qualification_micros = selected.qualification_micros;
     context.check().map_err(query_error)?;
-    serde_json::from_value(
-        serde_json::to_value(result).map_err(|_| EngineError::internal("encode explore result"))?,
-    )
-    .map_err(|_| EngineError::internal("convert explore result"))
+    Ok(result)
 }
 
 /// Only this constructor turns a selected descriptor into a verified view.
@@ -214,6 +207,7 @@ fn qualify(
     context: &kg::RequestContext,
     signal: tokio_util::sync::CancellationToken,
     control: QueryControl,
+    domain: kg::QueryDomain,
 ) -> EngineResult<QualifiedView> {
     use kg::ReadViewProvider;
     let started = Instant::now();
@@ -228,10 +222,16 @@ fn qualify(
         deadline: Some(context.deadline()),
         cancellation: signal,
     };
-    read.validate_graph(&manifest, limits.clone(), &processing)?;
+    read.validate_graph(
+        &manifest,
+        limits.clone(),
+        &processing,
+        domain == kg::QueryDomain::Code,
+    )?;
     let stamp = read.graph_stamp(&manifest)?;
     let provider = Provider {
         stamp,
+        domain,
         lease: Arc::new(Lease {
             reader: read.graph_reader(limits)?,
             read,
@@ -245,7 +245,7 @@ fn qualify(
             &kg::ReadViewRequest {
                 graph: kg::GraphRequirement::Required,
                 needs: Some(kg::GraphReadNeeds {
-                    domain: kg::QueryDomain::Code,
+                    domain,
                     relations: vec![],
                     text_mapping: false,
                 }),

@@ -24,8 +24,62 @@ pub(crate) struct BuildRecord {
     pub(crate) created_epoch_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) import_budget: Option<ImportBudget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) semantic: Option<SemanticBuildInput>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) configuration_inputs:
+        Vec<crate::graph_facts::module_roots::configuration::ConfigurationInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct SemanticBuildInput {
+    pub(crate) base_facts_digest: String,
+    pub(crate) input: zg_knowledge::semantic::SemanticInput,
 }
 impl BuildRecord {
+    pub(crate) fn semantic_operation(
+        &self,
+    ) -> EngineResult<Option<zg_knowledge::semantic::SemanticOperation>> {
+        self.semantic
+            .as_ref()
+            .map(|semantic| {
+                if self.graph_build_id != self.operation_id || self.attempt != 1 {
+                    return Err(crate::EngineError::invalid_argument(
+                        "invalid semantic attempt identity",
+                    ));
+                }
+                semantic
+                    .input
+                    .validate()
+                    .map_err(crate::graph_facts::map_error)?;
+                let operation = zg_knowledge::semantic::SemanticOperation {
+                    operation_id: self.operation_id.clone(),
+                    attempt: self.attempt,
+                    base_graph_id: self.base_head.clone().ok_or_else(|| {
+                        crate::EngineError::invalid_argument("semantic build has no base")
+                    })?,
+                    base_facts_digest: semantic.base_facts_digest.clone(),
+                    input_digest: fingerprint(&semantic.input)?,
+                };
+                operation
+                    .validate()
+                    .map_err(crate::graph_facts::map_error)?;
+                Ok(operation)
+            })
+            .transpose()
+    }
+    pub(crate) fn expected_rules_fingerprint(&self) -> EngineResult<String> {
+        let rules = if self.configuration_inputs.is_empty() {
+            rules_fingerprint()?
+        } else {
+            fingerprint(&(rules_fingerprint()?, &self.configuration_inputs))?
+        };
+        match self.semantic_operation()? {
+            Some(operation) => fingerprint(&(rules, operation)),
+            None => Ok(rules),
+        }
+    }
     pub(crate) fn spec(&self) -> BuildSpec {
         BuildSpec {
             graph_build_id: self.graph_build_id.clone(),
@@ -51,12 +105,12 @@ use zg_knowledge::relations::bound::{FactCatalog, entity_ids_digest};
 // change. Schema and caller policy are separate compatibility dimensions.
 pub(crate) fn rules_fingerprint() -> EngineResult<String> {
     fingerprint(&(
-        "zg-relations-v1",
+        zg_knowledge::relations::FACT_CONTRACT_VERSION,
         "host-binding-v1",
-        "rust-python-static-v4",
+        "static-code-v8",
         "commonmark-links-v1",
         "source-coverage-v2",
-        "business-model-v2",
+        "business-model-v4",
         "text-map-v2",
     ))
 }

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     EngineError, EngineResult,
-    domain::{Entity, FileFormat, FileRecord},
+    domain::{Entity, FileRecord},
     extraction::{self, ChunkOptions, ExtractedEntity, TextSource},
     utils::sha256_hex,
 };
@@ -47,15 +47,7 @@ fn extract_outcome(
     module: Option<relations::CodeModule>,
     context: &ProcessingContext,
 ) -> EngineResult<ExtractionOutcome> {
-    let language = if source.formats.contains(&FileFormat::Rust) {
-        Some(Language::Rust)
-    } else if source.formats.contains(&FileFormat::Python) {
-        Some(Language::Python)
-    } else if source.formats.contains(&FileFormat::Markdown) {
-        Some(Language::Markdown)
-    } else {
-        None
-    };
+    let language = super::language(&source.formats);
     let Some(language) = language else {
         return Ok(ExtractionOutcome {
             entities: extraction::extract_for_indexing(source, options)?,
@@ -164,11 +156,7 @@ pub fn inspect_bound_sources(
                     "duplicate graph source identity",
                 ));
             }
-            let format = match input.language {
-                Language::Rust => FileFormat::Rust,
-                Language::Python => FileFormat::Python,
-                Language::Markdown => FileFormat::Markdown,
-            };
+            let format = super::format(input.language);
             let text = crate::utils::decode_index_text(&[format], &input.bytes)
                 .ok_or_else(|| EngineError::invalid_argument("cannot decode graph input"))?;
             let source = TextSource {
@@ -269,13 +257,7 @@ impl FactCapture {
                 .insert(path, "unsupported_graph_path".into());
             return Ok((extraction::extract_for_indexing(source, options)?, None));
         }
-        let language = if source.formats.contains(&FileFormat::Rust) {
-            Some(Language::Rust)
-        } else if source.formats.contains(&FileFormat::Python) {
-            Some(Language::Python)
-        } else {
-            None
-        };
+        let language = self.roots.language(&path, &source.formats);
         let module = if let Some(language) = language {
             match self.roots.map(&path, language)? {
                 ModuleMapping::Mapped(m) => Some(m),
@@ -298,8 +280,14 @@ impl FactCapture {
         } else {
             None
         };
+        let mut selected = source.clone();
+        if let Some(language) = language
+            && matches!(language, Language::C | Language::Cpp)
+        {
+            selected.formats = vec![super::format(language)];
+        }
         let outcome = extract_outcome(
-            source,
+            &selected,
             options,
             raw_digest,
             &self.generation,
@@ -307,7 +295,12 @@ impl FactCapture {
             &self.context,
         )?;
         match outcome.facts {
-            Ok(facts) => Ok((outcome.entities, facts)),
+            Ok(mut facts) => {
+                if let Some(facts) = &mut facts {
+                    self.roots.apply_configuration(facts)?;
+                }
+                Ok((outcome.entities, facts))
+            }
             Err(error)
                 if matches!(
                     error.code(),

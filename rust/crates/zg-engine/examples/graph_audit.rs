@@ -3,8 +3,32 @@ use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 use zg_knowledge::{
     graph::{GraphDbStore, GraphLimits, build::BuildSpec},
     processing::{ProcessingContext, stable_digest},
-    relations::{Language, Lookup, RelationKind},
+    relations::{
+        Lookup, RelationKind,
+        bound::{FactCatalog, TargetVersion},
+    },
 };
+
+fn target_projection(target: &TargetVersion) -> serde_json::Value {
+    serde_json::json!({"node_id":target.node_id,"path":target.source.path,"raw_digest":target.source.raw_digest,"decoded_digest":target.source.decoded_digest})
+}
+
+fn source_projection(catalog: &FactCatalog) -> Result<serde_json::Value, serde_json::Error> {
+    let files = catalog.files.iter().map(|bound| {
+        let mut facts = serde_json::to_value(&bound.facts)?;
+        if let Some(facts) = facts.as_object_mut() {
+            // Rule revisions and generation fences are verified independently;
+            // they must differ when comparing builds of different contracts.
+            facts.remove("rules_fingerprint");
+            facts["version"].as_object_mut().expect("source version").remove("generation");
+        }
+        Ok(serde_json::json!({"path":bound.record.path,"content_hash":bound.record.content_hash,"facts":facts}))
+    }).collect::<Result<Vec<_>, serde_json::Error>>()?;
+    let resolutions = catalog.resolutions.iter().map(|r| serde_json::json!({"source":r.file_path,"reference":r.reference_id,"status":r.status,"reason":r.reason,"targets":r.targets.iter().map(target_projection).collect::<Vec<_>>(),"relation_source":r.relation_source.as_ref().map(target_projection)})).collect::<Vec<_>>();
+    Ok(
+        serde_json::json!({"version":"source-projection-v1","files":files,"resolutions":resolutions}),
+    )
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args_os().skip(1);
@@ -35,6 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .inspect_published(&spec, &context)?
         .ok_or("published proof mismatch")?;
     let catalog = store.read_facts(&context)?;
+    let projection_digest = stable_digest(&source_projection(&catalog)?)?;
     let resolutions = catalog
         .resolutions
         .iter()
@@ -45,10 +70,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut shapes = BTreeMap::<String, u64>::new();
     let mut references = Vec::new();
     let mut source_states = Vec::new();
+    let mut languages = Vec::new();
     for bound in &catalog.files {
         let Some(facts) = &bound.facts else {
             continue;
         };
+        if !languages.contains(&facts.language) {
+            languages.push(facts.language);
+        }
         source_states.push(serde_json::json!({"path":bound.record.path,"complete":facts.complete,"text_map_units":bound.text_map.len(),"text_binding_present":bound.text_binding_digest.is_some(),"diagnostics":facts.diagnostics}));
         let raw = std::fs::read(workspace.join(&facts.version.path))?;
         let text = std::str::from_utf8(&raw)
@@ -94,7 +123,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             references.push(serde_json::json!({"source":facts.version.path,"language":facts.language,"id":reference.id,"owner":reference.owner,"kind":reference.kind,"span":reference.span,"lookup":reference.lookup,"status":resolution.status,"reason":resolution.reason,"targets":resolution.targets,"expression":expression,"shape_hint":shape}));
         }
     }
-    let result = serde_json::json!({"kind":"selected_candidate_maintenance_audit","not_public_query_path":true,"proof_verified":true,"graph_build_id":proof.graph_build_id,"receipt_id":proof.receipt_id,"facts_digest":proof.facts_digest,"catalog_digest":stable_digest(&catalog)?,"sources":source_states,"counts":counts,"call_reasons":reasons,"call_shape_hints":shapes,"shape_note":"hints classify verified UTF-8 source slices; they are not type inference or an accuracy oracle","references":references,"elapsed_micros":started.elapsed().as_micros(),"code_languages":[Language::Rust,Language::Python]});
+    let semantic = serde_json::json!({"digest":stable_digest(&catalog.semantic)?,"sources":catalog.semantic.sources.len(),"entities":catalog.semantic.entities.len(),"episodes":catalog.semantic.episodes.len(),"facts":catalog.semantic.facts.len(),"associations":catalog.semantic.associations.len(),"mentions":catalog.semantic.mentions.len(),"deferred_mentions":catalog.semantic.deferred_mentions.len()});
+    let result = serde_json::json!({"kind":"selected_candidate_maintenance_audit","not_public_query_path":true,"proof_verified":true,"graph_build_id":proof.graph_build_id,"receipt_id":proof.receipt_id,"facts_digest":proof.facts_digest,"catalog_digest":stable_digest(&catalog)?,"source_projection_digest":projection_digest,"semantic":semantic,"sources":source_states,"counts":counts,"call_reasons":reasons,"call_shape_hints":shapes,"shape_note":"hints classify verified UTF-8 source slices; they are not type inference or an accuracy oracle","references":references,"elapsed_micros":started.elapsed().as_micros(),"source_languages":languages});
     std::fs::write(output, serde_json::to_vec(&result)?)?;
     println!("{}", serde_json::to_string(&result["counts"])?);
     Ok(())

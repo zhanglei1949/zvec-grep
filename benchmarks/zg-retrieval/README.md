@@ -118,6 +118,39 @@ These public development questions support regression diagnosis, not broad gener
 
 ## G4 code graph profile (v7)
 
+### Corrected input version (v8)
+
+`--protocol g4-code-v8` selects `data/g4-code-v2.json`. Generate it before
+candidate execution with `python3 benchmarks/zg-retrieval/tools/g4-labels-v2.py
+--sources /absolute/path/to/frozen-checkouts`. Checkout directory names are
+`BurntSushi__ripgrep` and `psf__requests`; commits and source bytes are checked.
+The generator refuses to overwrite frozen input. The v1 generator and input
+remain unchanged, and v7 replay still uses them.
+
+v8 retains all 48 structured tasks and all 458 calls, the same retrieval pairs,
+scoring formulas, source/model revisions and default budgets. Four `escape`
+locators specify function kind; the `dict_class` negative uses an independent
+AST `Call.func` span. The 43 normal contracts and five predeclared budget
+negatives are reported separately. Only the exact declared output-budget error
+or partial reason satisfies a negative; transport failures, invalid evidence,
+missing calls, snapshot drift and scope leakage still fail integrity. v1 failures
+are not rescored. Compare candidates using the same v2 identity, never v1 vs v2.
+
+Use the run and replay commands below with `g4-code-v8` in place of `g4-code-v7`.
+
+### Visible evidence scoring (v9)
+
+`--protocol g4-code-v9` retains the v2 input, all 458 calls, five repetitions,
+model, ranking and default budgets from v8. Its `visible-bytes-v2` scorer also
+credits the newline of a numbered empty source line when the frozen source
+matches and the next displayed source line is consecutive. Omitted, truncated
+or unlocatable bytes receive no credit. v7/v8 replay retains its original scoring.
+
+Score calibration and product changes are reported separately: compare product
+candidates under the same v9 identity. A higher score from recalculating an old
+response is not a retrieval gain. See the [current acceptance matrix](../../knowledge/S2_ACCEPTANCE_MATRIX.md)
+for the frozen baseline, missing evidence and per-question comparisons.
+
 The original v6 SWE-QA20 protocol and commands above are unchanged. Select
 `--protocol g4-code-v7` explicitly for the Rust/Python graph experiment. It uses
 one frozen ripgrep revision and the existing requests revision, 48 structured
@@ -179,3 +212,27 @@ Runtime errors and low quality are reported rather than retried away. Results
 apply to the frozen questions and existing Rust/Python capabilities only.
 
 The frozen G4 experiment is summarized in [the validation report](../../knowledge/G4_VALIDATION_REPORT.md). Its [evidence archive](../../knowledge/archive/g4-validation/README.md) includes restoration and offline replay instructions; use a new output directory for subsequent experiments.
+
+## M7 六语言收敛
+
+用户决定本阶段跳过 JS／TS 代码图。`tools/m7-labels.py` 从冻结四语言源码夹具与新增 Rust／Python 源码声明生成 `data/m7-six-languages-v1.json`，不读取候选结果。JS／TS 仅验证已有文本检索及代码图能力边界。C++ 固定 grammar 的原默认参数失败样本作为独立拒绝用例，原 v1 失败不改写。
+
+使用相同原生环境构建 `zg` 的图 feature Release，使用 `cargo build --manifest-path rust/Cargo.toml --release -p zg-engine --features knowledge-graph-graphdb --example m7_api` 构建正式 helper。运行 `node benchmarks/zg-retrieval/engines/zg/m7-run.mjs NEW_OUTPUT_DIRECTORY [ZG_BINARY] [API_HELPER]`；二进制默认原 Release 路径，helper 默认 Debug example 路径，可显式选择安装包与固定 helper。CLI／daemon／MCP 清除 `DYLD_LIBRARY_PATH`／`LD_LIBRARY_PATH`，确保加载自己的运行库；Rust helper 保留原生 SDK 环境。模型缓存路径在脚本中显式固定，按本机已核验缓存调整。输出必须是新目录，脚本隔离 registry、认证文件及 daemon 端口。默认预算不变；比较完整响应，仅归一化计时和受其数字宽度影响的输出字节计数。
+
+R3 修复默认参数语法后，可在 `m7-run.mjs NEW_OUTPUT_DIRECTORY ZG_BINARY API_HELPER` 后显式追加 `g4-compiled-v2`。runner 按冻结源码 SHA 匹配既有 cpp:B-02，复用该协议预先声明的 ready_locate 预期；题集与原默认 v1 的 not_ready 重放行为不变。当前六语言兼容运行使用这一显式参数。
+
+## 四语言真实查询题集：R0／R1
+
+`configs/g4-compiled-v1.json` 与 `data/g4-compiled-v1.json` 冻结 Go／Java／C／C++ 各 12 道自然语言题，共 48 道、32 个 Constrain 配对；另有 8 组独立边界。英文问题、中文标准答案、源码原文和字节见 [answers](gold/g4-compiled-v1-answers.md)。标注是 agent 对固定源码的审阅，未人工复核，不来自产品响应或真实用户日志。
+
+[冻结来源 fixtures](fixtures/g4-compiled/README.md)提供离线原样来源包和重生成方法。运行 `python3 -m unittest discover -s benchmarks/zg-retrieval/test -p test_g4_compiled_labels.py -v` 核对来源重生成与篡改拒绝。生成器独占创建新输出，已有版本不能覆盖。
+
+v1 保留原 Java 配置重复与 C／C++ 来源未就绪的拒绝行为；v2 修订 Java 根，沿用同一题集、标准答案、模型、800 请求和默认预算。C／C++ 最小 grammar 修复及后续继承／正文修复已交付。当前质量及残留见 [S2 验收矩阵](../../knowledge/S2_ACCEPTANCE_MATRIX.md)。旧 v7／v8／v9 的评分行为保持，构建成本继续暂缓。
+
+R2 使用同一 run 入口的 `--protocol g4-compiled-v1 --prepare-only` 验证准备流程，沿用 package／binary／native-library-dir／model-cache／output／corpus 参数。此选项保留完整 800 条阻塞，报告应明确未通过，不生成质量收益。首次索引即使用冻结 GraphOptions，避免 C 头文件先以缺省语言抽取；旧协议保持原顺序。
+
+边界脚本为 `engines/zg/g4-compiled-boundaries.mjs`，参数为 `--output NEW_DIR --binary FIXED_BINARY --api-helper FIXED_HELPER --native-library-dir PINNED_LIB_DIR --model-cache PINNED_MODEL_CACHE`。复用 ../../rust/crates/zg-engine/examples/m7_api.rs 对应的已验收 helper，不添加产品接口。冻结的调用矩阵和来源摘要保存在 fixtures/g4-compiled。
+
+### g4-compiled-v2 配置修订与解析修复
+
+v2 仅修订 Java 根，并单列 C++ B-02 解析修复成功定位契约。run/report 使用 `--protocol g4-compiled-v2`，其他参数沿用上面的 v1 命令。边界 runner 同样接收该协议，并要求 `--binary-sha256` 与 `--api-sha256` 固定候选。准备、边界和正式质量调用分别保存，使用新输出目录；冻结输入与标准答案不能被候选结果覆盖。

@@ -186,6 +186,88 @@ impl WorkspaceIndexService {
         expect(
             clippy::unused_async,
             clippy::unused_async_trait_impl,
+            reason = "the optional backend preserves the async host interface"
+        )
+    )]
+    pub(crate) async fn apply_semantics(
+        &self,
+        options: crate::api::index::graph::SemanticBuildOptions,
+    ) -> Result<crate::api::index::graph::GraphIndexResult, EngineError> {
+        #[cfg(not(feature = "knowledge-graph-graphdb"))]
+        {
+            let _ = options;
+            Err(EngineError::unsupported(
+                "semantic builds require graphdb support",
+            ))
+        }
+        #[cfg(feature = "knowledge-graph-graphdb")]
+        {
+            for id in [
+                &options.generation,
+                &options.operation_id,
+                &options.expected_graph_build_id,
+            ] {
+                if !crate::storage::graph_state::valid_uuid(id) {
+                    return Err(EngineError::invalid_argument(
+                        "invalid semantic build identity",
+                    ));
+                }
+            }
+            if options.operation_id == options.expected_graph_build_id {
+                return Err(EngineError::invalid_argument(
+                    "semantic candidate must differ from its base",
+                ));
+            }
+            options
+                .input
+                .validate()
+                .map_err(crate::graph_facts::map_error)?;
+            let root = resolve_root(options.root.as_deref())?;
+            validate_workspace_root(&root)?;
+            let location = find_nearest_workspace(&root)?.ok_or_else(|| {
+                EngineError::invalid_argument("semantic build requires an indexed workspace")
+            })?;
+            let admission = Arc::new(
+                LockWait::new(options.signal.as_ref(), options.lock_timeout_ms)?
+                    .acquire(&location.home, LockMode::Write, "graph.semantic")
+                    .await?,
+            );
+            let manifest = inspect_workspace_manifest(&location.home)?
+                .into_manifest(false)?
+                .ok_or_else(|| {
+                    EngineError::invalid_argument("semantic build requires an active index")
+                })?;
+            if manifest.storage_generation.as_deref() != Some(options.generation.as_str()) {
+                return Err(EngineError::resource_busy("semantic generation changed"));
+            }
+            let storage = IndexStore::open(WorkspaceIndexStorageOptions::ReadOnly {
+                storage_path: manifest.storage_home(),
+            })?;
+            let snapshot = super::pipeline::graph_snapshot(
+                &manifest.workspace,
+                &storage,
+                &self.scanner,
+                options.signal.clone(),
+                &std::collections::HashSet::new(),
+            )
+            .await;
+            let close = storage.close();
+            drop(storage);
+            close?;
+            if snapshot?.is_none() {
+                return Err(EngineError::resource_busy(
+                    "semantic build requires current indexed sources",
+                ));
+            }
+            super::graph::semantic::run(manifest, options, admission).await
+        }
+    }
+
+    #[cfg_attr(
+        not(feature = "knowledge-graph-graphdb"),
+        expect(
+            clippy::unused_async,
+            clippy::unused_async_trait_impl,
             reason = "the capability-only default build preserves the async service interface"
         )
     )]
@@ -677,7 +759,7 @@ impl WorkspaceIndexService {
             let publication = publish_build(build, now);
             #[cfg(feature = "knowledge-graph-graphdb")]
             if publication.is_err() && graph_selection_pending {
-                return Err(EngineError::storage_failure(
+                return Err(EngineError::recovery_required(
                     "manifest selection recovery_required",
                 ));
             }
@@ -1467,7 +1549,7 @@ mod tests {
                 .expect("head")
                 .expect("prepared");
             *observed.lock().expect("selected id") = Some(head.graph_build_id);
-            Err(crate::EngineError::storage_failure(
+            Err(crate::EngineError::recovery_required(
                 "injected adapter response loss after manifest switch; recovery_required",
             ))
         }));
@@ -1482,7 +1564,7 @@ mod tests {
             )
             .await
             .expect_err("lost host response after authoritative switch");
-        assert!(error.message().contains("recovery_required"));
+        assert!(error.is_recovery_required());
         let id = selected
             .lock()
             .expect("selected id")
@@ -1679,7 +1761,7 @@ mod tests {
         std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700))
             .expect("restore fixture permissions");
         let error = outcome.expect_err("manifest I/O failure");
-        assert!(error.message().contains("recovery_required"));
+        assert!(error.is_recovery_required());
         let candidate = saved
             .lock()
             .expect("saved candidate")

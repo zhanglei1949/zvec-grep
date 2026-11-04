@@ -141,7 +141,7 @@ pub(super) fn implementation(
     if !supported {
         facts.diagnostics.push(super::FactDiagnostic {
             code: if kind == ScopeKind::Class {
-                "trait_impl_resolution_unsupported"
+                "trait_method_resolution_unsupported"
             } else {
                 "conditional_impl_resolution_unsupported"
             }

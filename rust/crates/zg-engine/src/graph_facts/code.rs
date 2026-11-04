@@ -1,7 +1,28 @@
 //! Tree-sitter stays in the host. Only owned, source-mapped facts cross crates.
 mod bindings;
+mod compiled;
 mod python;
 mod rust;
+mod type_relations;
+
+pub(crate) fn compiled_fingerprint(
+    facts: &zg_knowledge::relations::FileFacts,
+    inputs: Option<&[super::module_roots::configuration::ConfigurationInput]>,
+) -> EngineResult<String> {
+    zg_knowledge::processing::stable_digest(&(
+        zg_knowledge::relations::FACT_CONTRACT_VERSION,
+        facts.language,
+        &facts.module,
+        match facts.language {
+            Language::Cpp => "compiled-cpp-resolution-v3",
+            Language::Go => "compiled-go-resolution-v2",
+            _ => "compiled-ast-v1",
+        },
+        grammar_version(facts.language),
+        inputs,
+    ))
+    .map_err(map_error)
+}
 
 use super::map_error;
 use crate::{EngineError, EngineResult};
@@ -13,6 +34,18 @@ use zg_knowledge::{
         RelationKind, Scope, ScopeKind, Span, node_id,
     },
 };
+
+fn grammar_version(language: Language) -> &'static str {
+    match language {
+        Language::Rust => "tree-sitter-rust=0.24.2",
+        Language::Python => "tree-sitter-python=0.25.0",
+        Language::Go => "tree-sitter-go=0.25.0",
+        Language::Java => "tree-sitter-java=0.23.5",
+        Language::C => "tree-sitter-c=0.24.2-zg.1",
+        Language::Cpp => "tree-sitter-cpp=0.23.4-zg.1",
+        Language::Markdown => unreachable!("Markdown has its own extractor"),
+    }
+}
 
 #[expect(
     clippy::too_many_lines,
@@ -33,13 +66,16 @@ pub(crate) fn collect(
     }
     facts.rules_fingerprint = zg_knowledge::processing::stable_digest(&(
         &facts.rules_fingerprint,
-        "host-tree-sitter-rules-v4",
-        match facts.language {
-            Language::Rust => "tree-sitter-rust=0.24.2",
-            _ => "tree-sitter-python=0.25.0",
-        },
+        "host-tree-sitter-rules-v6",
+        grammar_version(facts.language),
     ))
     .map_err(map_error)?;
+    if matches!(
+        facts.language,
+        Language::Go | Language::Java | Language::C | Language::Cpp
+    ) {
+        return compiled::collect(root, text, facts, context);
+    }
     let mut work = vec![(root, 0usize, Vec::<String>::new())];
     while let Some((node, mut scope, mut qualified)) = work.pop() {
         context.check().map_err(map_error)?;
@@ -47,8 +83,14 @@ pub(crate) fn collect(
         let definition = match (facts.language, kind) {
             (
                 Language::Rust,
-                "function_item" | "struct_item" | "enum_item" | "trait_item" | "type_item"
-                | "const_item" | "static_item",
+                "function_item"
+                | "function_signature_item"
+                | "struct_item"
+                | "enum_item"
+                | "trait_item"
+                | "type_item"
+                | "const_item"
+                | "static_item",
             )
             | (Language::Python, "function_definition" | "class_definition") => {
                 Some(NodeKind::Symbol)
@@ -58,6 +100,7 @@ pub(crate) fn collect(
         };
         if let Some(node_kind) = definition {
             if let Some(name_node) = node.child_by_field_name("name") {
+                let lexical_scope = scope;
                 let name = content(name_node, text).to_owned();
                 qualified.push(name.clone());
                 let duplicate = facts
@@ -121,6 +164,7 @@ pub(crate) fn collect(
                 if matches!(
                     kind,
                     "function_item"
+                        | "function_signature_item"
                         | "function_definition"
                         | "class_definition"
                         | "mod_item"
@@ -128,12 +172,15 @@ pub(crate) fn collect(
                 ) {
                     let scope_kind = if matches!(kind, "class_definition" | "trait_item") {
                         ScopeKind::Class
-                    } else if matches!(kind, "function_item" | "function_definition") {
+                    } else if matches!(
+                        kind,
+                        "function_item" | "function_signature_item" | "function_definition"
+                    ) {
                         ScopeKind::Function
                     } else {
                         ScopeKind::Module
                     };
-                    scope = add_scope(facts, scope, id, scope_kind);
+                    scope = add_scope(facts, scope, id.clone(), scope_kind);
                     if facts.language == Language::Rust {
                         rust::generic_bindings(node, text, facts, scope);
                     }
@@ -141,8 +188,21 @@ pub(crate) fn collect(
                         parameters(params, text, facts, scope);
                     }
                 }
+                type_relations::declaration(
+                    node,
+                    text,
+                    facts,
+                    if facts.language == Language::Rust {
+                        scope
+                    } else {
+                        lexical_scope
+                    },
+                    &id,
+                )
+                .map_err(map_error)?;
             }
         } else if kind == "impl_item" {
+            type_relations::implementation(node, text, facts, scope).map_err(map_error)?;
             if let Some(t) = node.child_by_field_name("type") {
                 qualified.push(format!("impl:{}", content(t, text)));
             }
@@ -312,7 +372,7 @@ fn call_path(node: Node<'_>, text: &str, language: Language) -> Option<Vec<Strin
     let valid = match language {
         Language::Rust => matches!(node.kind(), "identifier" | "scoped_identifier"),
         Language::Python => matches!(node.kind(), "identifier" | "attribute"),
-        Language::Markdown => false,
+        _ => false,
     };
     if !valid {
         return None;

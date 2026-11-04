@@ -39,7 +39,7 @@ fn failure(error: &zg_knowledge::graph::GraphError) -> EngineError {
             Some(GraphOutcome::Unknown | GraphOutcome::InTransaction)
         )
     {
-        return EngineError::storage_failure("graph read recovery_required");
+        return EngineError::recovery_required("graph read recovery_required");
     }
     match error.kind {
         GraphErrorKind::Cancelled => EngineError::cancelled("graph read cancelled"),
@@ -75,6 +75,7 @@ impl Selection {
         }
         let home = manifest.storage_home();
         let head = GraphHead::read(&home)?.ok_or_else(unavailable)?;
+        head.validate()?;
         let state = TextState::read(&home)?.ok_or_else(unavailable)?;
         let policy = GraphPolicy::read(&manifest.path)?.ok_or_else(unavailable)?;
         if !policy.configuration.scope.enabled()
@@ -187,7 +188,7 @@ impl GraphReadSession {
             || record.base_catalog_digest != selected.state.catalog_digest
             || record.policy_fingerprint != selected.head.policy_fingerprint
             || record.schema_fingerprint != selected.head.schema_fingerprint
-            || record.rules_fingerprint != graph_state::rules_fingerprint()?
+            || record.rules_fingerprint != record.expected_rules_fingerprint()?
         {
             return Err(unavailable());
         }
@@ -266,6 +267,12 @@ impl GraphReadSession {
                 .join("build.json"),
         )?
         .ok_or_else(unavailable)?;
+        if code {
+            crate::graph_facts::module_roots::configuration::validate_inputs(
+                &manifest.workspace.root,
+                &record.configuration_inputs,
+            )?;
+        }
         let graph = self.query_owner(limits)?;
         let proof_stage = zg_knowledge::graph::profile::stage("qualification.graph_proof");
         if graph
@@ -397,13 +404,19 @@ fn verify_source(
         let formats = crate::domain::FileFormat::from_path(
             &manifest.workspace.source_path(&file.relative_path),
         )?;
-        let expected = if formats.contains(&crate::domain::FileFormat::Rust) {
-            Some(Language::Rust)
-        } else if formats.contains(&crate::domain::FileFormat::Python) {
-            Some(Language::Python)
+        let expected = if formats.contains(&crate::domain::FileFormat::C)
+            && formats.contains(&crate::domain::FileFormat::Cpp)
+        {
+            Some(
+                source
+                    .language
+                    .filter(|language| matches!(language, Language::C | Language::Cpp))
+                    .ok_or_else(unavailable)?,
+            )
         } else {
-            None
-        };
+            crate::graph_facts::language(&formats)
+        }
+        .filter(|language| *language != Language::Markdown);
         if expected.is_some() && (source.language != expected || !source.complete) {
             return Err(unavailable());
         }

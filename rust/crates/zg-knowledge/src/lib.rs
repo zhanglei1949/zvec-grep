@@ -5,6 +5,7 @@ pub mod error;
 pub mod processing;
 pub mod query;
 pub mod relations;
+pub mod semantic;
 
 #[cfg(feature = "graphdb")]
 pub mod graph;

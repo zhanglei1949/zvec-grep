@@ -1,16 +1,68 @@
 use super::*;
 use crate::graph::QueryStopReason;
+use crate::processing::stable_digest;
 use crate::relations::{bound::*, *};
 use ::graphdb::params;
 use std::time::Instant;
 
-fn context() -> ProcessingContext {
+pub(super) fn context() -> ProcessingContext {
     ProcessingContext {
         max_input_bytes: 64 << 20,
         max_output_items: 30_000_000,
         deadline: None,
         cancellation: tokio_util::sync::CancellationToken::new(),
     }
+}
+
+#[test]
+fn combined_build_read_checks_facts_and_proof() -> Result<(), Box<dyn std::error::Error>> {
+    let (catalog, spec) = build_fixture()?;
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("graph");
+    let store = GraphDbStore::create_batched_build(&path, GraphLimits::default())?;
+    store.write_facts_batched(&catalog, &super::ImportBudget::default(), &context())?;
+    assert!(store.read_build_facts(&spec, &context())?.is_none());
+    let proof = store.commit_build(&spec, &context())?;
+    drop(store);
+    let store = GraphDbStore::open(&path, false, GraphLimits::default())?;
+    assert_eq!(store.read_build_facts(&spec, &context())?, Some(catalog));
+    assert_eq!(store.inspect_build(&spec, &context())?, Some(proof));
+    let mut wrong = spec.clone();
+    wrong.attempt += 1;
+    assert_eq!(
+        store
+            .read_build_facts(&wrong, &context())
+            .expect_err("wrong proof identity")
+            .kind,
+        GraphErrorKind::Conflict
+    );
+    store.with_write(|tx, options| {
+        tx.execute_with("MATCH (n:KgEntity) SET n.name='tampered'", (), options)?;
+        Ok(())
+    })?;
+    assert!(store.read_build_facts(&spec, &context()).is_err());
+    Ok(())
+}
+
+#[test]
+fn root_commit_rechecks_facts_after_import_confirmation() -> Result<(), Box<dyn std::error::Error>>
+{
+    let (catalog, spec) = build_fixture()?;
+    let dir = tempfile::tempdir()?;
+    let store =
+        GraphDbStore::create_batched_build(dir.path().join("graph"), GraphLimits::default())?;
+    store.write_facts_batched(&catalog, &super::ImportBudget::default(), &context())?;
+    store.with_write(|tx, options| {
+        tx.execute_with(
+            "MATCH (n:KgEntity) SET n.name='tampered-after-confirmation'",
+            (),
+            options,
+        )?;
+        Ok(())
+    })?;
+    assert!(store.commit_build(&spec, &context()).is_err());
+    store.ensure_no_build_commit()?;
+    Ok(())
 }
 
 #[test]
@@ -64,7 +116,7 @@ fn readonly_sessions_share_owners_and_quarantine_but_not_cancel_controls()
     GraphDbStore::open(&path, false, GraphLimits::default())?.read_facts(&context())?;
     Ok(())
 }
-fn version(path: &str, text: &str) -> SourceVersion {
+pub(super) fn version(path: &str, text: &str) -> SourceVersion {
     let digest = zg_storage::sha256_hex(text.as_bytes());
     SourceVersion {
         generation: "g2.1-fixture".into(),
@@ -73,7 +125,7 @@ fn version(path: &str, text: &str) -> SourceVersion {
         decoded_digest: digest,
     }
 }
-fn bind(mut facts: FileFacts, text: &str, id: u32) -> crate::Result<BoundFileFacts> {
+pub(super) fn bind(mut facts: FileFacts, text: &str, id: u32) -> crate::Result<BoundFileFacts> {
     facts.validate(text, &context())?;
     for n in &mut facts.nodes {
         n.entity_indices = vec![0];
@@ -207,7 +259,7 @@ fn fixture() -> crate::Result<FactCatalog> {
     )
 }
 
-fn build_fixture() -> crate::Result<(FactCatalog, super::super::build::BuildSpec)> {
+pub(super) fn build_fixture() -> crate::Result<(FactCatalog, super::super::build::BuildSpec)> {
     use super::super::build::{BuildScope, BuildSpec};
     let configuration = serde_json::json!({"scope":"both","roots":[]});
     let policy_fingerprint = stable_digest(&configuration)?;
@@ -396,7 +448,7 @@ fn build_validation_and_precommit_cancel_leave_no_success_proof()
 }
 
 #[test]
-fn eight_tables_round_trip_reopen_and_resolve_without_source()
+fn source_tables_round_trip_reopen_and_resolve_without_source()
 -> Result<(), Box<dyn std::error::Error>> {
     let catalog = fixture()?;
     assert!(
@@ -421,8 +473,17 @@ fn eight_tables_round_trip_reopen_and_resolve_without_source()
     let path = directory.path().join("graph");
     let store = GraphDbStore::create(&path, GraphLimits::default())?;
     let counts = store.write_facts(&catalog, &context())?;
-    for table in schema::FACT_TABLES {
-        assert!(counts.nodes[*table] > 0, "{table}");
+    for table in [
+        "KgFile",
+        "KgEntity",
+        "KgUnresolvedRef",
+        "KgAnchor",
+        "KgCatalogRevision",
+        "KgScope",
+        "KgBinding",
+        "KgDiagnostic",
+    ] {
+        assert!(counts.nodes[table] > 0, "{table}");
     }
     assert_eq!(store.read_facts(&context())?, catalog);
     assert_eq!(
@@ -825,11 +886,11 @@ fn ordered_integrity_rejects_changes_to_every_fact_table_and_private_edges()
 }
 
 #[test]
-fn typed_integrity_bytes_match_the_existing_v4_canonical_encoding()
--> Result<(), Box<dyn std::error::Error>> {
+fn typed_integrity_bytes_match_the_v7_canonical_encoding() -> Result<(), Box<dyn std::error::Error>>
+{
     let (catalog, _) = build_fixture()?;
     let rows = super::codec::FactRows::encode(&catalog)?;
-    let mut previous = stable_digest(&"kg-rows-v4")?;
+    let mut previous = stable_digest(&"kg-rows-v7")?;
     let mut scratch = Vec::new();
     for mutation in rows.mutations() {
         let expected = crate::processing::canonical_json(&(&previous, &mutation))?;

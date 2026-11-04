@@ -15,15 +15,22 @@ import {
   parseGraphResponse,
   collectNodes,
   scoreExplore,
+  scoreBudgetBoundary,
   scoreSearch,
   judgeRelations,
+  visibleRanges,
 } from "./g4-parse.mjs";
 import { scoreFileRetrieval } from "../../metrics/files.mjs";
 import { scoreNdcg } from "../../metrics/ndcg.mjs";
+import {
+  COMPILED_PROFILES,
+  compiledAnnotations,
+} from "../../core/g4-compiled.mjs";
 
 const key = (c) => JSON.stringify([c.task_id, c.family, c.arm, c.repetition]);
-export async function aggregateG4(directory) {
-  const suite = await loadG4Suite();
+export async function aggregateG4(directory, profile = "g4-code-v7") {
+  const suite = await loadG4Suite(profile);
+  const compiled = COMPILED_PROFILES.includes(profile);
   const saved = await readJson(join(directory, "suite.json"));
   assert.equal(
     objectHash(saved.identity),
@@ -39,6 +46,9 @@ export async function aggregateG4(directory) {
     assert.equal(manifest.commit, repo.commit);
     assert.equal(objectHash(manifest.suite), objectHash(suite.identity));
     const tasks = suite.tasks.filter((t) => t.repository === repo.repository);
+    const annotations = compiled
+      ? compiledAnnotations(suite.inputs, repo.repository)
+      : [];
     const expected = g4CallPlan(tasks, suite.protocol),
       records = await readJson(join(output, "calls.json"));
     assert.equal(
@@ -144,6 +154,7 @@ export async function aggregateG4(directory) {
           result.graph.locations[0].candidates[0].node.node_id,
           read.request.arguments.request.operation.target.node.node_id,
         );
+        if (compiled) visibleRanges(result, sources, true);
         collectNodes(result, nodeMap);
       }
     } catch (e) {
@@ -159,25 +170,45 @@ export async function aggregateG4(directory) {
         rows.push(row);
         continue;
       }
-      row.relations = judgeRelations(
-        result.graph,
-        nodeMap,
-        tasks.flatMap((t) => t.truth?.edges ?? []),
-      );
       try {
+        row.relations = judgeRelations(
+          result.graph,
+          nodeMap,
+          tasks.flatMap((t) => t.truth?.edges ?? []),
+          annotations,
+        );
+        if (
+          compiled &&
+          (row.relations.known_wrong ||
+            row.relations.known_identity_unavailable)
+        )
+          issues.push(`invalid_known_relation:${key(c)}`);
+        if (c.family === "explore" && task.case_role === "budget_boundary") {
+          row.budget_boundary = scoreBudgetBoundary(task, result, sources);
+          if (!row.budget_boundary.passed)
+            issues.push(`budget_boundary_failed:${key(c)}`);
+        }
         if (c.family === "explore")
           row.score = scoreExplore(task, result, sources, nodeMap);
         else {
-          row.score = scoreSearch(task, c, result, sources);
+          row.score = scoreSearch(
+            task,
+            c,
+            result,
+            sources,
+            suite.protocol.evidence_scoring === "visible-bytes-v2",
+          );
           if (result.status === "success") {
             const targetPaths =
-              c.family === "constrain"
-                ? [
-                    ...new Set(
-                      task.retrieval.allowed_regions.map((r) => r.path),
-                    ),
-                  ]
-                : task.retrieval.target_files;
+              c.family === "constrain" && compiled
+                ? task.retrieval.scope_target_files
+                : c.family === "constrain"
+                  ? [
+                      ...new Set(
+                        task.retrieval.allowed_regions.map((r) => r.path),
+                      ),
+                    ]
+                  : task.retrieval.target_files;
             const targets = targetPaths.map((path) => ({
               path,
             }));
@@ -196,7 +227,10 @@ export async function aggregateG4(directory) {
         row.error = e.message;
         issues.push(`invalid_evidence:${key(c)}:${e.message}`);
       }
-      if (c.transport_error || result.status === "product_error")
+      if (
+        c.transport_error ||
+        (result.status === "product_error" && !row.budget_boundary?.passed)
+      )
         issues.push(`runtime_error:${key(c)}`);
       rows.push(row);
     }
@@ -271,6 +305,9 @@ export async function aggregateG4(directory) {
       repository: repo.repository,
       commit: repo.commit,
       preparation_status: manifest.status,
+      ...(compiled
+        ? { preparation_only: Boolean(manifest.preparation_only) }
+        : {}),
       candidate: manifest.candidate ?? null,
       view: manifest.view ?? null,
       planned_calls: expected.length,
@@ -279,10 +316,23 @@ export async function aggregateG4(directory) {
       integrity_passed: issues.length === 0,
       issues: [...new Set(issues)],
       explore: {
-        total: tasks.filter((t) => t.explore_request).length,
-        passed: rows.filter((r) => r.family === "explore" && r.score?.passed)
-          .length,
+        total: tasks.filter(
+          (t) => t.explore_request && t.case_role !== "budget_boundary",
+        ).length,
+        passed: rows.filter(
+          (r) =>
+            r.family === "explore" && !r.budget_boundary && r.score?.passed,
+        ).length,
       },
+      ...(profile !== "g4-code-v7" && !compiled
+        ? {
+            budget_boundary: {
+              total: tasks.filter((t) => t.case_role === "budget_boundary")
+                .length,
+              passed: rows.filter((r) => r.budget_boundary?.passed).length,
+            },
+          }
+        : {}),
       cost: {
         text_index: manifest.text_index,
         graph_index: manifest.graph_index,
@@ -370,6 +420,13 @@ export async function aggregateG4(directory) {
           return {
             arm,
             quality_samples: q.length,
+            ...(compiled
+              ? {
+                  fully_covered_questions: q.filter(
+                    (r) => r.score.evidence?.complete_fraction === 1,
+                  ).length,
+                }
+              : {}),
             errors: all.filter((r) => r.execution_status !== "success").length,
             evidence_coverage: mean(
               q
@@ -407,7 +464,10 @@ export async function aggregateG4(directory) {
       (r) => tasks.find((t) => t.task_id === r.task_id)?.legacy,
     );
     summary.correctness_passed =
-      summary.explore.passed === summary.explore.total;
+      (!compiled || summary.integrity_passed) &&
+      summary.explore.passed === summary.explore.total &&
+      (!summary.budget_boundary ||
+        summary.budget_boundary.passed === summary.budget_boundary.total);
     summary.relations_at_known_sites = {
       known_correct: 0,
       known_wrong: 0,
@@ -422,19 +482,42 @@ export async function aggregateG4(directory) {
   const report = {
     schema_version: 7,
     protocol: suite.protocol.id,
+    ...(profile !== "g4-code-v7"
+      ? {
+          input_version: suite.inputs.id,
+          annotation_tool_sha256: suite.inputs.annotation_tool_sha256,
+        }
+      : {}),
     identity: suite.identity,
     scope: suite.protocol.scope,
     integrity_passed: repositories.every((r) => r.integrity_passed),
     correctness_passed: repositories.every((r) => r.correctness_passed),
     repositories,
     limits: [
-      "Two public repositories and source-reviewed development questions; no human quality review.",
+      compiled
+        ? "Four pinned original-path component slices and agent-authored development questions; no human quality review or user-query-log distribution claim."
+        : "Two public repositories and source-reviewed development questions; no human quality review.",
       "Partial independent source oracle: unlabelled relations are unknown; no global precision claim.",
       "Only public visible text earns evidence credit; graph pointers are not extra content.",
-      "Original build path is used with executable/runtime SHA-256 equal to the package payload; extracted-package startup remains unvalidated on this macOS host.",
-      "Five frozen contract annotations have review issues: four untyped function/file name collisions and a parameter declaration mistaken for a call site. Labels remain unchanged; these are not established product defects.",
+      ...(profile === "g4-code-v9" || compiled
+        ? [
+            "visible-bytes-v2 credits a numbered empty line's newline only with matching frozen source and a consecutive following numbered line; v7/v8 scoring remains unchanged.",
+          ]
+        : []),
+      profile === "g4-code-v9" || compiled
+        ? "Executable/runtime SHA-256 is checked against the package payload; installation startup is a separate acceptance item."
+        : "Original build path is used with executable/runtime SHA-256 equal to the package payload; extracted-package startup remains unvalidated on this macOS host.",
+      compiled
+        ? "48 normal retrieval questions; eight frozen boundary groups are verified separately and are not included in retrieval quality means."
+        : profile === "g4-code-v7"
+          ? "Five frozen contract annotations have review issues: four untyped function/file name collisions and a parameter declaration mistaken for a call site. Labels remain unchanged; these are not established product defects."
+          : "v2 corrects five source annotation issues before execution; 43 normal and five explicit budget-negative contracts are reported separately. v1 results remain unchanged.",
       "Shared-session timings are not cold-disk or statistical SLA claims; errors retained.",
-      "requests:16 is a separate legacy row; not a rerun of the full SWE-QA20.",
+      ...(compiled
+        ? []
+        : [
+            "requests:16 is a separate legacy row; not a rerun of the full SWE-QA20.",
+          ]),
     ],
   };
   await writeJson(join(directory, "report.json"), report);
@@ -443,13 +526,25 @@ export async function aggregateG4(directory) {
     "| 仓库 | 执行／计划调用 | explore 通过 | 完整性 |\n| --- | --- | --- | --- |\n";
   for (const r of repositories)
     md += `| ${r.repository} | ${r.executed_calls}/${r.planned_calls} | ${r.explore.passed}/${r.explore.total} | ${r.integrity_passed ? "通过" : "失败／阻塞"} |\n`;
+  if (profile !== "g4-code-v7" && !compiled)
+    md +=
+      "\n预算负向用例：" +
+      repositories
+        .map(
+          (r) =>
+            `${r.repository} ${r.budget_boundary.passed}/${r.budget_boundary.total}`,
+        )
+        .join("；") +
+      "。正常契约与负向预算行为分别验收，不回改 v1 评分。\n";
   md +=
     "\n## 检索对照\n\n| 仓库 | 对照 | 有效质量配对 | 证据完整覆盖率平均变化 | 附加耗时 P50（ms） |\n| --- | --- | --- | --- | --- |\n";
   for (const r of repositories)
     for (const q of r.quality)
       md += `| ${r.repository} | Off / ${q.family} | ${q.usable_pairs}/${q.tasks} | ${q.mean_evidence_delta ?? "不可用"} | ${q.latency_delta_p50_ms ?? "不可用"} |\n`;
   md +=
-    "\n完整性失败时，以上仅作逐题诊断，不构成正式效果结论。失败调用、每题评分、额外关系未知量、原始响应摘要和构建成本见 report.json。旧 requests 题单列在 rows 中。\n\n## 边界\n\n" +
+    (compiled
+      ? "\n完整性失败时，以上仅作逐题诊断。失败／阻塞调用、每题评分、原始响应摘要和准备记录见 report.json；8 组边界另行验证，构建成本优化暂缓。\n\n## 边界\n\n"
+      : "\n完整性失败时，以上仅作逐题诊断，不构成正式效果结论。失败调用、每题评分、额外关系未知量、原始响应摘要和构建成本见 report.json。旧 requests 题单列在 rows 中。\n\n## 边界\n\n") +
     report.limits.map((s) => `- ${s}`).join("\n") +
     "\n";
   await writeJson(join(directory, "verification.json"), {
@@ -462,8 +557,11 @@ export async function aggregateG4(directory) {
   await writeFile(join(directory, "report.md"), md);
   return report;
 }
-export async function main(args = process.argv.slice(2)) {
+export async function main(
+  args = process.argv.slice(2),
+  profile = "g4-code-v7",
+) {
   assert.equal(args.length, 1, "G4 replay needs one run directory");
-  const result = await aggregateG4(resolve(args[0]));
+  const result = await aggregateG4(resolve(args[0]), profile);
   if (!result.integrity_passed) process.exitCode = 1;
 }

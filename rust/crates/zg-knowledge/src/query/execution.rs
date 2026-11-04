@@ -6,7 +6,7 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct BudgetLimits {
     pub nodes: u64,
@@ -47,7 +47,9 @@ impl BudgetLimits {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema,
+)]
 pub struct BudgetUsage {
     pub nodes: u64,
     pub edges: u64,
@@ -216,8 +218,8 @@ impl RequestContext {
     }
 }
 
-/// Wire limits are validated before a host creates a runtime context.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+// Wire limits are validated before a host creates a runtime context.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ExecutionOptions {
     pub request_timeout_ms: u64,
@@ -234,6 +236,10 @@ impl Default for ExecutionOptions {
     }
 }
 impl ExecutionOptions {
+    pub fn validate(self) -> QueryResult<()> {
+        self.validate_within(Self::default())
+    }
+
     pub fn validate_within(self, ceiling: Self) -> QueryResult<()> {
         self.budget.validate()?;
         ceiling.budget.validate()?;

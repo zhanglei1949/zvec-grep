@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 from pathlib import Path
 import unittest
@@ -6,6 +7,20 @@ import runner
 
 
 class ExplicitRoots(unittest.TestCase):
+    def test_inventory_retains_cpp_case_and_go_module_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            for name in ["main.C", "header.H", "go.mod", "ignored.mod"]:
+                (root / name).write_text("fixture\n")
+            self.assertEqual([r["path"] for r in runner.inventory(root)],
+                             ["go.mod", "header.H", "main.C"])
+
+    def test_generated_policy_leaves_contract_selection_to_each_binary(self):
+        policy = runner.graph_options(Path("."), [{"path": "sample/main.py"}])
+        self.assertNotIn("rules", policy)
+        self.assertEqual(policy["module_roots"][0]["language"], "python")
+
     def test_rust_fixture_overrides_the_python_benchmark_root(self):
         with tempfile.TemporaryDirectory() as root:
             records = [{"path": p} for p in [

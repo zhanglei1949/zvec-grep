@@ -31,12 +31,22 @@ import { packageCandidate } from "./run.mjs";
 import { PublicMcp } from "./g4-rpc.mjs";
 import { aggregateG4 } from "./g4-report.mjs";
 import {
+  COMPILED_PROFILES,
+  compiledCorpusManifest,
+  compiledAnnotations,
+  matchesCompiledReference,
+  materializeCompiledCorpus,
+  unpackCompiledSources,
+  verifyCompiledModel,
+} from "../../core/g4-compiled.mjs";
+import {
   parseGraphResponse,
   visibleRanges,
   collectNodes,
+  graphReferences,
 } from "./g4-parse.mjs";
 
-async function freePort() {
+export async function freePort() {
   const s = createServer();
   await new Promise((r, j) => {
     s.once("error", j);
@@ -135,11 +145,23 @@ async function runRepo(suite, repo, candidate, options) {
     planned_calls: plan.length,
     issues: [],
     started_at: new Date().toISOString(),
+    ...(options.prepareOnly ? { preparation_only: true } : {}),
   };
   let root, env, client, before, modelBefore, corpusBefore;
+  const compiled = COMPILED_PROFILES.some(
+    (p) => suite.protocol.inputs === `data/${p}.json`,
+  );
+  const snapshotCorpus = () =>
+    compiled ? compiledCorpusManifest(root, repo) : corpusManifest(root);
   const records = [];
   try {
-    root = await cloneCorpus(repo, options);
+    root = compiled
+      ? await materializeCompiledCorpus(
+          repo,
+          join(options.corpus, repositorySlug(repo.repository)),
+          options.compiledSources,
+        )
+      : await cloneCorpus(repo, options);
     manifest.root = root;
     assert.ok(
       !inside(root, options.output) && !inside(root, options.modelCache),
@@ -151,10 +173,14 @@ async function runRepo(suite, repo, candidate, options) {
     } catch (e) {
       if (e.code !== "ENOENT") throw e;
     }
-    corpusBefore = await corpusManifest(root);
+    corpusBefore = await snapshotCorpus();
     await writeJson(join(output, "corpus-before.json"), corpusBefore);
     const code = corpusBefore.entries.filter(
-      (x) => x.kind === "file" && /\.(rs|py|pyi|pyw)$/.test(x.path),
+      (x) =>
+        x.kind === "file" &&
+        (compiled
+          ? repo.selection.files.includes(x.path)
+          : /\.(rs|py|pyi|pyw)$/.test(x.path)),
     );
     for (const f of code) {
       const destination = join(output, "sources", f.path);
@@ -162,7 +188,7 @@ async function runRepo(suite, repo, candidate, options) {
       await copyFile(join(root, f.path), destination);
     }
     await writeJson(join(output, "sources.json"), code);
-    for (const t of tasks.filter((t) => t.explore_request))
+    for (const t of tasks.filter((t) => compiled || t.explore_request))
       for (const e of t.truth.required_evidence) {
         const source = await readFile(join(output, "sources", e.path));
         assert.equal(
@@ -179,9 +205,10 @@ async function runRepo(suite, repo, candidate, options) {
     const home = join(output, "runtime-home"),
       opencode = join(output, "opencode.json");
     await mkdir(home, { recursive: true });
+    const listenPort = await freePort();
     await writeJson(join(home, ".zvec-grep/config.json"), {
       version: 1,
-      server: { host: "127.0.0.1", port: await freePort() },
+      server: { host: "127.0.0.1", port: listenPort },
       defaults: {
         embedding: suite.protocol.model,
         modelCacheDir: options.modelCache,
@@ -229,9 +256,16 @@ async function runRepo(suite, repo, candidate, options) {
     );
     const config = await readJson(opencode);
     const command = config.mcp.zvec_grep.command;
+    manifest.installed_mcp_command = [...command];
+    // The stdio bridge's CLI default is 7999; runtime config alone does not
+    // select its listener. Keep each evaluation on its reserved loopback port.
+    command.push("--listen", `127.0.0.1:${listenPort}`);
+    await writeJson(opencode, config);
     manifest.mcp_command = command;
     await run(candidate.cli, ["server", "off"], { env, cwd: root });
     const select = repo.selection;
+    const graphFile = join(output, "graph-options.json");
+    await writeJson(graphFile, select.graph);
     const args = [
       "index",
       root,
@@ -246,7 +280,12 @@ async function runRepo(suite, repo, candidate, options) {
       "--max-filesize",
       String(select.max_file_size_bytes),
     ];
-    for (const ext of select.extensions) args.push("--iglob", `*${ext}`);
+    if (compiled) {
+      // The first AST observation of .h needs its frozen C/C++ root mapping.
+      args.push("--graph-options", graphFile);
+      manifest.initial_index_includes_frozen_graph = true;
+      for (const path of select.files) args.push("--glob", path);
+    } else for (const ext of select.extensions) args.push("--iglob", `*${ext}`);
     console.log(`${repo.repository}: fresh text index`);
     manifest.text_index = await measured(
       candidate.cli,
@@ -261,8 +300,6 @@ async function runRepo(suite, repo, candidate, options) {
       "text index failed (including measurement failure)",
     );
     // Separate public CLI graph-only build provides exact process peak RSS.
-    const graphFile = join(output, "graph-options.json");
-    await writeJson(graphFile, select.graph);
     const textManifest = await readJson(join(root, ".zvec-grep/manifest.json"));
     const generation = join(
       root,
@@ -296,7 +333,11 @@ async function runRepo(suite, repo, candidate, options) {
         "__g4_readiness_probe__",
       ],
       { env, cwd: root },
-    );
+    ).catch(async (error) => {
+      if (error.result)
+        await writeJson(join(output, "reopen.json"), error.result);
+      throw error;
+    });
     await writeJson(join(output, "reopen.json"), reopen);
     const view = JSON.parse(reopen.stdout);
     assert.ok(view.coverage.ready && view.execution.status === "complete");
@@ -361,6 +402,13 @@ async function runRepo(suite, repo, candidate, options) {
     await writeJson(join(output, "model-before.json"), modelBefore);
     manifest.status = "ready";
     await writeJson(join(output, "run.json"), manifest);
+    if (options.prepareOnly) {
+      manifest.status = "prepared_only";
+      manifest.issues.push(
+        "R2 preparation only; no scored retrieval calls executed",
+      );
+      return;
+    }
     // Fixed smoke tasks are executed and retained separately before the matrix.
     const smoke = plan.filter(
       (c) =>
@@ -439,6 +487,7 @@ async function runRepo(suite, repo, candidate, options) {
       tasks,
       records,
       manifest.view,
+      compiled ? compiledAnnotations(suite.inputs, repo.repository) : [],
     );
   } catch (e) {
     manifest.status =
@@ -472,7 +521,7 @@ async function runRepo(suite, repo, candidate, options) {
         const afterModel = await modelArtifactManifest(options.modelCache);
         await writeJson(join(output, "model-after.json"), afterModel);
         assert.equal(afterModel.sha256, modelBefore.sha256, "model changed");
-        const corpusAfter = await corpusManifest(root);
+        const corpusAfter = await snapshotCorpus();
         await writeJson(join(output, "corpus-after.json"), corpusAfter);
         assert.equal(corpusAfter.sha256, corpusBefore.sha256, "corpus changed");
         manifest.integrity_verified = true;
@@ -505,15 +554,18 @@ export async function collectReferenceIdentities(
   tasks,
   records,
   view,
+  annotations = [],
 ) {
   const map = new Map(),
     results = [];
   for (const record of records.filter(
-    (r) => r.family === "explore" && r.raw_path,
+    (r) =>
+      (r.family === "explore" || (annotations.length && r.arm !== "off")) &&
+      r.raw_path,
   )) {
     const parsed = parseGraphResponse(
       await readJson(join(output, record.raw_path)),
-      "explore",
+      record.family,
     );
     if (parsed.status === "success") {
       collectNodes(parsed, map);
@@ -523,7 +575,7 @@ export async function collectReferenceIdentities(
   const targets = new Set();
   for (const { record, parsed } of results) {
     const task = tasks.find((t) => t.task_id === record.task_id);
-    for (const expected of task.truth.edges)
+    for (const expected of task.truth.edges ?? [])
       for (const ref of parsed.graph.references) {
         if (
           ref.status === "resolved" &&
@@ -533,6 +585,13 @@ export async function collectReferenceIdentities(
         )
           targets.add(ref.target);
       }
+    for (const ref of graphReferences(parsed.graph))
+      if (
+        ref.status === "resolved" &&
+        !map.has(ref.target) &&
+        annotations.some((a) => matchesCompiledReference(ref, a))
+      )
+        targets.add(ref.target);
   }
   const reads = [];
   for (const target of [...targets].sort()) {
@@ -564,7 +623,10 @@ export async function collectReferenceIdentities(
   await writeJson(join(output, "reference-identities.json"), reads);
 }
 
-export async function main(args = process.argv.slice(2)) {
+export async function main(
+  args = process.argv.slice(2),
+  profile = "g4-code-v7",
+) {
   const { values } = parseArgs({
     args,
     options: {
@@ -576,13 +638,18 @@ export async function main(args = process.argv.slice(2)) {
       "candidate-commit": { type: "string", default: "unrecorded" },
       binary: { type: "string" },
       "native-library-dir": { type: "string" },
+      "prepare-only": { type: "boolean", default: false },
     },
   });
   assert.ok(
     values.package && values.output && values.corpus && values["model-cache"],
     "G4 requires --package --output NEW_DIR --corpus NEW_DIR --model-cache",
   );
-  const suite = await loadG4Suite();
+  const suite = await loadG4Suite(profile);
+  assert.ok(
+    !values["prepare-only"] || COMPILED_PROFILES.includes(profile),
+    "--prepare-only is for the frozen four-language R2 handoff",
+  );
   const options = {
     output: resolve(values.output),
     corpus: resolve(values.corpus),
@@ -591,6 +658,7 @@ export async function main(args = process.argv.slice(2)) {
       ? resolve(values["source-cache"])
       : null,
     candidateCommit: values["candidate-commit"],
+    prepareOnly: values["prepare-only"],
   };
   await mkdir(options.output);
   await mkdir(options.corpus, { recursive: true });
@@ -599,6 +667,15 @@ export async function main(args = process.argv.slice(2)) {
     protocol: suite.protocol,
     inputs: suite.inputs,
   });
+  if (COMPILED_PROFILES.includes(profile)) {
+    options.compiledSources = await unpackCompiledSources(
+      join(options.output, "frozen-sources"),
+    );
+    await writeJson(
+      join(options.output, "frozen-model.json"),
+      await verifyCompiledModel(options.modelCache),
+    );
+  }
   const candidate = await packageCandidate(values.package, options.output, {
     includeMcpClient: false,
   });
@@ -617,7 +694,9 @@ export async function main(args = process.argv.slice(2)) {
     );
     candidate.cli = binary;
     candidate.identity.execution_path =
-      "original-build-path-with-identical-packed-bytes";
+      profile === "g4-code-v9" || COMPILED_PROFILES.includes(profile)
+        ? "pinned-binary-with-identical-packed-bytes"
+        : "original-build-path-with-identical-packed-bytes";
     candidate.identity.packaged_binary_sha256 = packagedBinaryHash;
   }
   options.nativeLibraryDir = resolve(
@@ -632,7 +711,7 @@ export async function main(args = process.argv.slice(2)) {
   candidate.identity.binary_sha256 = await fileHash(candidate.cli);
   for (const repo of suite.inputs.repositories)
     await runRepo(suite, repo, candidate, options);
-  const report = await aggregateG4(options.output);
+  const report = await aggregateG4(options.output, profile);
   console.log(`G4 report: ${join(options.output, "report.md")}`);
   if (!report.integrity_passed) process.exitCode = 1;
 }

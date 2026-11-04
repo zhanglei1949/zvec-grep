@@ -101,9 +101,15 @@ impl EngineError {
     pub const RESOURCE_BUSY: &str = "ZG.ENGINE.RESOURCE_BUSY";
     pub const RESOURCE_CLOSED: &str = "ZG.ENGINE.RESOURCE_CLOSED";
     pub const STORAGE_FAILURE: &str = "ZG.ENGINE.STORAGE_FAILURE";
+    pub const RECOVERY_REQUIRED: &str = "ZG.ENGINE.RECOVERY_REQUIRED";
     pub const CANCELLED: &str = "ZG.ENGINE.CANCELLED";
     pub const DEADLINE_EXCEEDED: &str = "ZG.ENGINE.DEADLINE_EXCEEDED";
     pub const INTERNAL: &str = "ZG.ENGINE.INTERNAL";
+
+    /// Legacy in-message recovery marker. Retained only so [`Self::is_recovery_required`]
+    /// keeps detecting storage-failure errors created before the dedicated code
+    /// existed; new recovery states must use [`Self::recovery_required`].
+    const RECOVERY_MARKER: &str = "recovery_required";
 
     // Public constructors, in the same order as the error codes above.
 
@@ -149,6 +155,15 @@ impl EngineError {
         Self::new(Self::STORAGE_FAILURE, message)
     }
 
+    /// A terminal state whose resolution requires explicit recovery. Detected
+    /// structurally through [`Self::is_recovery_required`], never by matching
+    /// the human-readable message text.
+    #[track_caller]
+    #[must_use]
+    pub fn recovery_required(message: impl Into<String>) -> Self {
+        Self::new(Self::RECOVERY_REQUIRED, message)
+    }
+
     #[track_caller]
     #[must_use]
     pub fn cancelled(message: impl Into<String>) -> Self {
@@ -177,6 +192,17 @@ impl EngineError {
     #[must_use]
     pub fn is_retryable(&self) -> bool {
         matches!(self.code(), Self::RESOURCE_BUSY | Self::DEADLINE_EXCEEDED)
+    }
+
+    /// True when this error marks a state that needs explicit recovery. The
+    /// dedicated code is authoritative; the legacy storage-failure marker is
+    /// still honored so detection cannot silently regress while call sites
+    /// migrate to [`Self::recovery_required`].
+    #[must_use]
+    pub fn is_recovery_required(&self) -> bool {
+        self.code() == Self::RECOVERY_REQUIRED
+            || (self.code() == Self::STORAGE_FAILURE
+                && self.message().contains(Self::RECOVERY_MARKER))
     }
 
     #[must_use]
@@ -279,6 +305,33 @@ fn normalize_source_file(file: &str) -> String {
         .map_or_else(|| file.clone(), |index| file[index..].to_owned())
 }
 
+pub(crate) fn query_error(error: zg_knowledge::query::QueryError) -> EngineError {
+    use zg_knowledge::query::QueryErrorKind as K;
+    let message = format!(
+        "{:?} at {}: {}{}",
+        error.kind,
+        error.stage,
+        error.reason,
+        error.detail.map_or_else(String::new, |d| format!("; {d}"))
+    );
+    match error.kind {
+        K::InvalidInput => EngineError::invalid_argument(message),
+        K::Unsupported => EngineError::unsupported(message),
+        K::Cancelled => EngineError::cancelled(message),
+        K::RequestDeadline | K::StageDeadline => EngineError::deadline_exceeded(message),
+        K::GraphUnavailable | K::ViewMismatch | K::ResourceExhausted => {
+            EngineError::resource_busy(message)
+        }
+        K::RecoveryRequired => EngineError::recovery_required(message),
+        K::Internal => EngineError::storage_failure(message),
+    }
+}
+impl From<zg_knowledge::query::QueryError> for EngineError {
+    fn from(error: zg_knowledge::query::QueryError) -> Self {
+        query_error(error)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
@@ -324,6 +377,20 @@ mod tests {
 
         let decoded = serde_json::from_value(value).expect("error report should deserialize");
         assert_eq!(report, decoded);
+    }
+
+    #[test]
+    fn flags_recovery_required_structurally() {
+        let structured = EngineError::recovery_required("graph candidate committed");
+        assert_eq!(structured.code(), EngineError::RECOVERY_REQUIRED);
+        assert!(structured.is_recovery_required());
+
+        // Legacy storage-failure errors carrying the marker are still detected.
+        let legacy = EngineError::storage_failure("graph selection recovery_required");
+        assert!(legacy.is_recovery_required());
+
+        // Ordinary storage failures are not recovery states.
+        assert!(!EngineError::storage_failure("manifest write failed").is_recovery_required());
     }
 
     #[test]

@@ -22,7 +22,7 @@ pub(super) fn options(
     };
     graph
         .validate()
-        .map_err(|e| CliError::InvalidExplore(e.message().into()))?;
+        .map_err(|e| CliError::InvalidExplore(e.to_string()))?;
     if args.rg && !graph.is_off() {
         return Err(CliError::InvalidExplore(
             "rg supports only graph mode off".into(),
@@ -41,7 +41,7 @@ pub(super) fn options(
     if let Some(execution) = graph_execution {
         execution
             .validate()
-            .map_err(|e| CliError::InvalidExplore(e.message().into()))?;
+            .map_err(|e| CliError::InvalidExplore(e.to_string()))?;
         if graph.is_off() {
             return Err(CliError::InvalidExplore(
                 "graph execution options require graph mode augment".into(),
