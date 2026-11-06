@@ -1,0 +1,12 @@
+{
+  "upstream": "https://github.com/alibaba/zvec.git",
+  "revision": "8397071d815cd842be2068339e00a94e69f069d1",
+  "source_file": "src/core/interface/index.cc",
+  "before_sha256": "948d23093b9b5ff59c4689ad94609eb0bf1446ca4e7d6c4681009217572e1abc",
+  "after_sha256": "e2b987818992a5f628bfc5d73be3a479dede049f4f3306a83ef9c76913374fca",
+  "patch_sha256": "20dbc0913f40008a4725364cecffa53d2b4447dca06e21af85f17cff4cec01d0",
+  "sdk_version": "0.8.0",
+  "sdk_repository": "https://github.com/zvec-ai/zvec-rust",
+  "sdk_revision": "16836107cd08bb42ec4e5a4052919735346f7783",
+  "simde_revision": "71fd833d9666141edcd1d3c109a80e228303d8d7"
+}

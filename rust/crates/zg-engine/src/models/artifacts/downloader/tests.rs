@@ -440,50 +440,124 @@ async fn modelscope_fallback_preserves_cancellation_code() {
     assert_eq!(server.finish(), 1);
 }
 
-#[tokio::test]
+// External socket/fs work must finish before advancing the paused clock. A
+// ready task prevents Tokio's idle auto-advance from racing those OS workers.
+fn manual_clock() -> tokio_util::task::AbortOnDropHandle<()> {
+    tokio_util::task::AbortOnDropHandle::new(tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    }))
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum TimeoutEvent {
+    PrimaryRequest,
+    FirstBodyByte,
+}
+
+fn observed_reporter(
+    events: tokio::sync::mpsc::UnboundedSender<TimeoutEvent>,
+) -> ModelDownloadProgressReporter {
+    ModelDownloadProgressReporter::new(
+        "local/test-model",
+        Some(Arc::new(move |event| {
+            if matches!(
+                event,
+                ModelProgress::Downloading {
+                    downloaded_bytes: Some(1),
+                    ..
+                }
+            ) {
+                let _ = events.send(TimeoutEvent::FirstBodyByte);
+            }
+        })),
+        ARTIFACTS.iter().map(|artifact| artifact.path.to_owned()),
+    )
+}
+
+fn respond_first_byte(stream: &mut TcpStream) {
+    write!(
+        stream,
+        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        BYTES.len()
+    )
+    .expect("response headers");
+    stream.write_all(&BYTES[..1]).expect("first body byte");
+    stream.flush().expect("flush response prefix");
+}
+
+#[tokio::test(start_paused = true)]
 async fn response_header_timeout_falls_back_without_total_download_deadline() {
+    let _clock = manual_clock();
     let root = tempfile::tempdir().expect("cache root");
-    let server = TestServer::spawn(2, |_index, request, stream| {
+    let (events, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    let (release_primary, primary_gate) = std::sync::mpsc::channel();
+    let primary_gate = Mutex::new(primary_gate);
+    let (release_body, body_gate) = std::sync::mpsc::channel();
+    let body_gate = Mutex::new(body_gate);
+    let server_events = events.clone();
+    let server = TestServer::spawn(2, move |_index, request, mut stream| {
         if request.contains("/owner/model/") {
-            thread::sleep(Duration::from_millis(75));
-            let _ = stream.shutdown(std::net::Shutdown::Both);
+            let _ = server_events.send(TimeoutEvent::PrimaryRequest);
+            // Stay connected without headers until the timeout has been proved.
+            let _ = primary_gate.lock().expect("primary gate").recv();
         } else {
-            respond(stream, 200, BYTES);
+            respond_first_byte(&mut stream);
+            let _ = body_gate.lock().expect("body gate").recv();
+            let _ = stream.write_all(&BYTES[1..]);
         }
     });
     let short = Duration::from_millis(20);
     let sources = sources(root.path(), Some(&server.base_url))
         .map(|source| source.with_timeouts(short, Duration::from_millis(50)));
-    let events = Arc::new(Mutex::new(Vec::new()));
-    let resolved = resolve_model_artifacts(
-        &reqwest::Client::new(),
-        ResolveArtifacts {
-            model: "local/test-model",
-            sources,
-            artifacts: ARTIFACTS,
-            reporter: &reporter(&events),
-            signal: None,
-        },
-    )
-    .await
-    .expect("timeout fallback");
+    let pending = tokio_util::task::AbortOnDropHandle::new(tokio::spawn(async move {
+        resolve_model_artifacts(
+            &reqwest::Client::new(),
+            ResolveArtifacts {
+                model: "local/test-model",
+                sources,
+                artifacts: ARTIFACTS,
+                reporter: &observed_reporter(events),
+                signal: None,
+            },
+        )
+        .await
+    }));
+    assert_eq!(observed.recv().await, Some(TimeoutEvent::PrimaryRequest));
+    tokio::time::advance(short + Duration::from_millis(1)).await;
+    assert_eq!(observed.recv().await, Some(TimeoutEvent::FirstBodyByte));
+    // The fallback body takes longer than its header deadline but remains
+    // within the read-idle deadline. This is not a total-download timeout.
+    tokio::time::advance(Duration::from_millis(30)).await;
+    release_body.send(()).expect("finish fallback body");
+    let resolved = pending
+        .await
+        .expect("download task")
+        .expect("timeout fallback");
+    release_primary
+        .send(())
+        .expect("release primary connection");
     assert!(resolved.paths[ARTIFACTS[0].path].starts_with(root.path().join("modelscope")));
+    assert_eq!(
+        fs::read(&resolved.paths[ARTIFACTS[0].path]).expect("verified bytes"),
+        BYTES
+    );
+    assert!(partial_files(root.path()).is_empty());
     assert_eq!(server.finish(), 2);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn read_idle_timeout_falls_back_and_preserves_both_source_errors() {
+    let _clock = manual_clock();
     let root = tempfile::tempdir().expect("cache root");
-    let server = TestServer::spawn(2, |_index, request, mut stream| {
+    let (events, mut observed) = tokio::sync::mpsc::unbounded_channel();
+    let (release_primary, primary_gate) = std::sync::mpsc::channel();
+    let primary_gate = Mutex::new(primary_gate);
+    let server = TestServer::spawn(2, move |_index, request, mut stream| {
         if request.contains("/owner/model/") {
-            write!(
-                stream,
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                BYTES.len()
-            )
-            .expect("write response headers");
-            stream.flush().expect("flush response headers");
-            thread::sleep(Duration::from_millis(75));
+            respond_first_byte(&mut stream);
+            let _ = primary_gate.lock().expect("primary gate").recv();
         } else {
             respond(stream, 500, b"");
         }
@@ -491,24 +565,34 @@ async fn read_idle_timeout_falls_back_and_preserves_both_source_errors() {
     let short = Duration::from_millis(20);
     let sources = sources(root.path(), Some(&server.base_url))
         .map(|source| source.with_timeouts(Duration::from_millis(50), short));
-    let events = Arc::new(Mutex::new(Vec::new()));
-    let error = resolve_model_artifacts(
-        &reqwest::Client::new(),
-        ResolveArtifacts {
-            model: "local/test-model",
-            sources,
-            artifacts: ARTIFACTS,
-            reporter: &reporter(&events),
-            signal: None,
-        },
-    )
-    .await
-    .expect_err("both sources must fail");
+    let pending = tokio_util::task::AbortOnDropHandle::new(tokio::spawn(async move {
+        resolve_model_artifacts(
+            &reqwest::Client::new(),
+            ResolveArtifacts {
+                model: "local/test-model",
+                sources,
+                artifacts: ARTIFACTS,
+                reporter: &observed_reporter(events),
+                signal: None,
+            },
+        )
+        .await
+    }));
+    assert_eq!(observed.recv().await, Some(TimeoutEvent::FirstBodyByte));
+    tokio::time::advance(short + Duration::from_millis(1)).await;
+    let error = pending
+        .await
+        .expect("download task")
+        .expect_err("both sources must fail");
+    release_primary
+        .send(())
+        .expect("release primary connection");
     let message = error.to_string();
     assert!(message.contains("Hugging Face"), "{message}");
     assert!(message.contains("ModelScope"), "{message}");
     assert!(message.contains("timed out"), "{message}");
     assert!(message.contains("500"), "{message}");
+    assert!(partial_files(root.path()).is_empty());
     assert_eq!(server.finish(), 2);
 }
 

@@ -1,0 +1,384 @@
+{
+  "recorded_at": "2026-11-05T07:18:48.620142+00:00",
+  "platform": "macOS-15.1.1-arm64-arm-64bit-Mach-O",
+  "native_sdk": {
+    "upstream": "https://github.com/alibaba/zvec.git",
+    "revision": "8397071d815cd842be2068339e00a94e69f069d1",
+    "source_file": "src/core/interface/index.cc",
+    "before_sha256": "948d23093b9b5ff59c4689ad94609eb0bf1446ca4e7d6c4681009217572e1abc",
+    "after_sha256": "e2b987818992a5f628bfc5d73be3a479dede049f4f3306a83ef9c76913374fca",
+    "patch_sha256": "20dbc0913f40008a4725364cecffa53d2b4447dca06e21af85f17cff4cec01d0",
+    "sdk_version": "0.8.0",
+    "sdk_repository": "https://github.com/zvec-ai/zvec-rust",
+    "sdk_revision": "16836107cd08bb42ec4e5a4052919735346f7783",
+    "simde_revision": "71fd833d9666141edcd1d3c109a80e228303d8d7",
+    "submodules": [
+      " 2be1f976935b8ff9296b029f574d7f964be9d35d thirdparty/FastPFOR/FastPFOR-0.4.0 (2be1f97)",
+      " de793e8a978a51a7031efefe96573043e8251bb7 thirdparty/RaBitQ-Library/RaBitQ-Library-0.7.0 (de793e8)",
+      " 7a3f40bc341ddfb463d6e0aa1a6265064d020cb6 thirdparty/antlr/antlr4 (7a3f40b)",
+      " 62779f9c3457c57b3328c4b9608dfdd9968b5e61 thirdparty/antlr/antlr4/runtime/PHP (62779f9)",
+      " ee4d09ebef61c663c1efbfa4c18e518a03b798be thirdparty/arrow/apache-arrow-21.0.0 (ee4d09e)",
+      " 18d17540097fca7c40be3d42c167e6bfad90763c thirdparty/arrow/apache-arrow-21.0.0/cpp/submodules/parquet-testing (18d1754)",
+      " fbf6b703dc93d17d75fa3664c5aa2c7873ebaf06 thirdparty/arrow/apache-arrow-21.0.0/testing (fbf6b70)",
+      " b3602bef7d1f67521a61788a74fb5801a0e62cd3 thirdparty/cppjieba/cppjieba-5.6.7 (b3602be)",
+      " 9d74077dfcdf8073536c97a00bb79d7a3c3fdaba thirdparty/cppjieba/cppjieba-5.6.7/deps/limonp (9d74077)",
+      " e171aa2d15ed9eb17054558e0b3a6a413bb01067 thirdparty/gflags/gflags-2.2.2 (e171aa2)",
+      " 8411df715cf522606e3b1aca386ddfc0b63d34b4 thirdparty/gflags/gflags-2.2.2/doc (8411df7)",
+      " 8f9ccfe770add9e4c64e9b25c102658e3c763b73 thirdparty/glog/glog-0.5.0 (8f9ccfe)",
+      " 703bd9caab50b139428cea1aaff9974ebee5742e thirdparty/googletest/googletest-1.10.0 (703bd9c)",
+      " 9d74077dfcdf8073536c97a00bb79d7a3c3fdaba thirdparty/limonp/limonp-v1.0.2 (9d74077)",
+      " 5ff839680134437dbf4678f3d0c7b371d84f4964 thirdparty/lz4/lz4-1.9.4 (5ff8396)",
+      " 83ab7f4f578bd00e1026a7cd9f7baa4f1a62cbeb thirdparty/magic_enum/magic_enum-0.9.7 (83ab7f4)",
+      " 6a436150417120a3f9732d65a2a5c2b8d19b60fc thirdparty/rocksdb/rocksdb-8.1.1 (6a43615)",
+      " cd195b51e948a902a4312f023f4a14392516a543 thirdparty/snowball/snowball-3.1.1 (cd195b5)",
+      " f93c0c69e959c1c77611d0ba8d107aa971338811 thirdparty/sparsehash/sparsehash-2.0.4 (f93c0c6)",
+      " e5e799221b45bbb90f5fdc5c69b6b8dfbf017e78 thirdparty/utf8proc/utf8proc-2.11.3 (e5e7992)",
+      " 9a3624205e8774953ef18f57067b3426c1c5ada6 thirdparty/yaml-cpp/yaml-cpp-0.6.3 (9a36242)"
+    ],
+    "resolved_simde_revision": "71fd833d9666141edcd1d3c109a80e228303d8d7",
+    "runtime_sha256": {
+      "libzvec_c_api.dylib": "685dda969ca0813b074cf887259ca5a1db24158323d2eb4b23c20811200ff5be"
+    },
+    "dictionary_sha256": {
+      "hmm_model.utf8": "f17790586ac86dd048c8adffed052c4bd2b28ed0682972c1275e59040c0589a7",
+      "jieba.dict.utf8": "6f7d4350e8861ef4139b2e3a6fad05430c19ae71f4b8378190edecac8aae2e6a"
+    }
+  },
+  "original_prebuilt_sha256": "0ea02229454acce2de69ddf4f49a434f7a10f445edbc796c5ff3ac7cc016beee",
+  "selected_sdk_directory": "/Users/zhanglei/code/github/zvec-grep/rust/target/zvec-readonly-0.8-aarch64-apple-darwin",
+  "staged_runtime_sha256": "685dda969ca0813b074cf887259ca5a1db24158323d2eb4b23c20811200ff5be",
+  "normal_cli_startup": {
+    "exit_code": 0,
+    "version": "0.0.1",
+    "loaded_library": "/private/tmp/zg-kg-consistency-check/debug/libzvec_c_api.dylib",
+    "library_sha256": "685dda969ca0813b074cf887259ca5a1db24158323d2eb4b23c20811200ff5be",
+    "loader_path_overrides": false
+  },
+  "full_workspace": {
+    "counts": {
+      "passed": 1477,
+      "failed": 0,
+      "ignored": 14
+    },
+    "test_threads": 4,
+    "ignored_tests": [
+      "test source_elf_starts_outside_cargo_without_library_path_overrides ... ignored, ELF startup requires Linux",
+      "test models::backends::llama_cpp::model::tests::cached_embeddinggemma_runs_real_llama_cpp_inference ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with the embeddinggemma GGUF",
+      "test models::backends::llama_cpp::model::tests::cached_embeddinggemma_uses_metal_and_supports_concurrency ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with the embeddinggemma GGUF",
+      "test models::backends::llama_cpp::model::tests::cached_qwen3_runs_real_llama_cpp_inference ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with the Qwen3 embedding GGUF",
+      "test models::backends::transformers::model::tests::cached_minilm_routes_metal_to_cpu_with_warning ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with a pinned ONNX model",
+      "test models::backends::transformers::model::tests::cached_minilm_runs_real_onnx_inference ... ignored, requires ZVEC_GREP_TEST_MODEL_CACHE with a pinned ONNX model",
+      "test models::tests::catalog_main_oracle::print_current_catalog_fixture ... ignored, manual fixture refresh helper",
+      "test models::tests::model2vec_main_oracle::model2vec_matches_the_main_typescript_vector_bit_for_bit ... ignored, downloads the pinned public Model2Vec assets when the cache is empty",
+      "test models::tests::model_layer_bench::model_layer_throughput ... ignored, manual model-layer throughput and RSS benchmark",
+      "test models::tests::real_model_smoke::selected_local_model_downloads_loads_and_embeds ... ignored, downloads pinned public model artifacts; run by Rust Models CI / Rust CUDA CI",
+      "test pipelines::indexed_search::ranking::replay::replay_rule_ablation ... ignored, requires local fixed candidate snapshots",
+      "test storage::files::tests::deleting_preserves_file_projections_until_record_removal ... ignored, zvec macOS native missing array_take kernel; corrupts fetch→upsert path",
+      "test storage::read_session::tests::benchmark_warm_queries ... ignored, manual comparison of uncached and resident query latency",
+      "test tests::real_cpu_plugin_ignores_gpu_override ... ignored, requires dynamic-backends, ZVEC_GREP_NATIVE_LIB_DIR with real CPU plugins, and GGML_BACKEND_PATH pointing to a GPU plugin; run alone"
+    ]
+  },
+  "original_failures": [
+    {
+      "test": "models::artifacts::downloader::tests::response_header_timeout_falls_back_without_total_download_deadline",
+      "category": "response_header_timeout",
+      "original_panic": "thread 'models::artifacts::downloader::tests::response_header_timeout_falls_back_without_total_download_deadline' (56433671) panicked at crates/zg-engine/src/models/artifacts/downloader/tests.rs:469:6:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::code_bindings_and_globs_publish_reopen_and_recompute_without_relaxing_ready",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::code_bindings_and_globs_publish_reopen_and_recompute_without_relaxing_ready' (56501350) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_explore.rs:738:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::explore_is_readonly_and_never_bypasses_incomplete_code_coverage",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::explore_is_readonly_and_never_bypasses_incomplete_code_coverage' (56505972) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_explore.rs:539:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::languages::m4_m6_configuration_drift_rebuilds_without_embedding_and_failure_keeps_head",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::languages::m4_m6_configuration_drift_rebuilds_without_embedding_and_failure_keeps_head' (56547452) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_languages.rs:269:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::languages::m4_m6_code_configuration_drift_keeps_semantic_reads_and_blocks_stale_writes",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::languages::m4_m6_code_configuration_drift_keeps_semantic_reads_and_blocks_stale_writes' (56545576) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_languages.rs:513:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::languages::m4_m6_four_languages_publish_reopen_and_preserve_position_evidence",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::languages::m4_m6_four_languages_publish_reopen_and_preserve_position_evidence' (56581932) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_languages.rs:210:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::languages::m7_code_only_reads_keep_markdown_and_javascript_as_text_only_sources",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::languages::m7_code_only_reads_keep_markdown_and_javascript_as_text_only_sources' (56654471) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_languages.rs:639:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::m3_semantic_operations_publish_reopen_and_keep_predecessors_retired",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::m3_semantic_operations_publish_reopen_and_keep_predecessors_retired' (56691546) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_explore.rs:1061:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::nested_bare_import_publishes_and_reopens_two_hop_path_without_models",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::nested_bare_import_publishes_and_reopens_two_hop_path_without_models' (56734280) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_explore.rs:71:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_impl::inherent_calls_publish_reopen_and_reparse_changed_impls",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_impl::inherent_calls_publish_reopen_and_reparse_changed_impls' (56743269) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_impl.rs:82:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_explore::semantic_recovery::m3_fixed_semantic_input_resumes_without_reapplying_correction",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_explore::semantic_recovery::m3_fixed_semantic_input_resumes_without_reapplying_correction' (56739504) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_semantic_recovery.rs:184:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_impl::lifetime_calls_publish_reopen_and_reparse_changed_impls",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_impl::lifetime_calls_publish_reopen_and_reparse_changed_impls' (56758964) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_impl.rs:82:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_indexing::graph_explicit_recovery_inspection_is_readonly_and_reconciles_selected_effect",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_indexing::graph_explicit_recovery_inspection_is_readonly_and_reconciles_selected_effect' (56774571) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_indexing.rs:158:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_indexing::graph_publication_first_enable_on_existing_text_is_model_free",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_indexing::graph_publication_first_enable_on_existing_text_is_model_free' (56802976) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_indexing.rs:696:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_indexing::graph_publication_service_joint_rebuild_model_free_reuse_and_policy_change",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_indexing::graph_publication_service_joint_rebuild_model_free_reuse_and_policy_change' (56810495) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_indexing.rs:893:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "models::runtime::manager::tests::graph_indexing::recovery_leases::graph_nonempty_dirty_repair_preserves_text_and_rebuilds_without_embedding",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'models::runtime::manager::tests::graph_indexing::recovery_leases::graph_nonempty_dirty_repair_preserves_text_and_rebuilds_without_embedding' (56883598) panicked at crates/zg-engine/src/models/runtime/manager/tests/graph_recovery_leases.rs:134:5:",
+      "result": "passed_in_final_workspace_run"
+    },
+    {
+      "test": "storage::store::tests::readonly_host_queries_close_and_drop_preserve_storage_files",
+      "category": "ann_file_digest",
+      "original_panic": "thread 'storage::store::tests::readonly_host_queries_close_and_drop_preserve_storage_files' (57112033) panicked at crates/zg-engine/src/storage/store/tests.rs:1011:9:",
+      "result": "passed_in_final_workspace_run"
+    }
+  ],
+  "preserved_test_sources": {
+    "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_explore.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "24ff64777ed660596827997a61f793774ee3d91d45b2f9f9180afc8cda48c119"
+    },
+    "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_impl.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "4baf94861f65a282f860f4a60491fc08281cd3f74b7440e66c246e8d4584a17b"
+    },
+    "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_indexing.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "6c4bb9b1bfe58406f150c9ba33056ce630db007035e7b2bc34ce5be418d690e6"
+    },
+    "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_languages.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "2f18bf44c4600275a59b4dc5911b635e4c6d4bcf66272d1ffb32062126c6a4a2"
+    },
+    "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_recovery_leases.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "c10178213b9213cbac14c345603d71114167e8347c96edc0ac58b0259e99d58e"
+    },
+    "rust/crates/zg-engine/src/models/runtime/manager/tests/graph_semantic_recovery.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "046d80b7240010ce0ab6d0a6390c7dc6d1a71d2f976641ba0b29896e11bb9af3"
+    },
+    "rust/crates/zg-engine/src/storage/store/tests.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "50a01f88924ecdb18929befe8bc24a6d7649f2f7f3de2ad135201683281f42a5"
+    },
+    "rust/crates/zg-storage/tests/readonly_collection.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "34a58032b69f108cbe093667d06087b996a246a3a088d4ee4def51f7c9ca6745"
+    },
+    "rust/crates/zg-engine/tests/concurrent_queries.rs": {
+      "unchanged_since_turn_start": true,
+      "sha256": "c3ae37ac35b3ef79b274f31bcb6ebc49e2a47be5c09e4a546d354f03214819d1"
+    }
+  },
+  "targeted": {
+    "readonly-fixed": {
+      "counts": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": "/tmp/kg-readonly-fixed.log",
+      "log_sha256": "3edb3b824ceee077a2312f648f690820db23a6b4bcf15de3acc40c21824b61fe"
+    },
+    "write-statuses-fixed": {
+      "counts": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": "/tmp/kg-write-statuses-fixed.log",
+      "log_sha256": "e56fda36d90278c6ba2608700519ef83319ccc77aef69efbf4197455c57e1dee"
+    },
+    "downloader-deterministic": {
+      "counts": {
+        "passed": 19,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": "/tmp/kg-downloader-deterministic.log",
+      "log_sha256": "d434ecea0d0637b160c77db58d19e47a449d1b125adbea39e076fc38f70e8b8b"
+    },
+    "writer-admission-fixed": {
+      "counts": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": "/tmp/kg-writer-admission-fixed.log",
+      "log_sha256": "97e9797dde6f3d4a092b3da7dfafc3f1e20b5a4d06d4dfcb2eb36d6b94591879"
+    }
+  },
+  "final_commands": [
+    {
+      "task": "writer-admission-fixed",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--target-dir",
+        "/tmp/zg-kg-consistency-check",
+        "--offline",
+        "-p",
+        "zg-engine",
+        "--features",
+        "knowledge-graph-graphdb",
+        "--test",
+        "concurrent_queries",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 64.11,
+      "log": "/tmp/kg-writer-admission-fixed.log",
+      "log_sha256": "97e9797dde6f3d4a092b3da7dfafc3f1e20b5a4d06d4dfcb2eb36d6b94591879"
+    },
+    {
+      "task": "workspace-final-fixed",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--target-dir",
+        "/tmp/zg-kg-consistency-check",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--no-fail-fast",
+        "--features",
+        "zg-engine/knowledge-graph-graphdb,zg-cli/knowledge-graph-graphdb,zg-daemon/knowledge-graph-graphdb,zg-transport-mcp/knowledge-graph-graphdb",
+        "--",
+        "--test-threads=4"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1509.53,
+      "log": "/tmp/kg-workspace-final-fixed.log",
+      "log_sha256": "877934a984a1472884881f2ee28ad19330c36688443c9826163bbbd0519a3347"
+    },
+    {
+      "task": "workspace-final-clippy",
+      "command": [
+        "/Users/zhanglei/.rustup/toolchains/1.98.0-aarch64-apple-darwin/bin/cargo-clippy",
+        "clippy",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--target-dir",
+        "/tmp/zg-kg-consistency-check",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "zg-engine/knowledge-graph-graphdb,zg-cli/knowledge-graph-graphdb,zg-daemon/knowledge-graph-graphdb,zg-transport-mcp/knowledge-graph-graphdb",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 13.06,
+      "log": "/tmp/kg-workspace-final-clippy.log",
+      "log_sha256": "a5fb1d1c2fb99788ad4e1e75d64dc3a2780acd922350e6736f7b345872e8ae1e"
+    },
+    {
+      "task": "cli-final-fixed",
+      "command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--target-dir",
+        "/tmp/zg-kg-consistency-check",
+        "--offline",
+        "-p",
+        "zg",
+        "--features",
+        "zg-cli/knowledge-graph-graphdb"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 37.69,
+      "log": "/tmp/kg-cli-final-fixed.log",
+      "log_sha256": "b1298d987ebf7f3a96fe900d4170387536c4eddd21d81accfbd57cef7d74a478"
+    }
+  ],
+  "retained_failed_runs": {
+    "engine_before_fix": {
+      "counts": {
+        "passed": 638,
+        "failed": 17,
+        "ignored": 12
+      },
+      "log": "/tmp/kg-engine-all-final.log"
+    },
+    "native_prebuilt": {
+      "counts": {
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0
+      },
+      "log": "/tmp/kg-native-readonly-baseline.log"
+    },
+    "first_patched_workspace": {
+      "counts": {
+        "passed": 1475,
+        "failed": 1,
+        "ignored": 14
+      },
+      "log": "/tmp/kg-workspace-native-fixed.log"
+    }
+  },
+  "limits": [
+    "macOS arm64 only",
+    "14 preexisting ignored tests retained",
+    "upstream 0.8.0 prebuilt not replaced; select patched SDK using ZVEC_LIB_DIR and ZVEC_INCLUDE_DIR"
+  ]
+}

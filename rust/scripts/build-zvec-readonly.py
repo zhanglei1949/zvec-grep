@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -24,12 +25,18 @@ def main():
     parser.add_argument("--simde-source", type=Path)
     parser.add_argument("--jobs", type=int, default=14)
     parser.add_argument("--oss-mirror", action="store_true")
+    parser.add_argument("--manifest", type=Path, help="reviewed SDK/source mapping (defaults to the current SDK)")
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error("--jobs must be positive")
     source, build = args.source.resolve(), args.build.resolve()
     patches = Path(__file__).resolve().parents[1] / "patches"
-    manifest = json.loads((patches / "zvec-readonly-mapping.json").read_text())
+    manifest_path = args.manifest or patches / "zvec-readonly-mapping-0.8.json"
+    manifest = json.loads(manifest_path.read_text())
+    sdk = re.search(r'^zvec-rust\s*=\s*"=([0-9]+\.[0-9]+\.[0-9]+)"\s*$',
+                    (patches.parent / "Cargo.toml").read_text(), re.MULTILINE)
+    if sdk is None or manifest.get("sdk_version") != sdk.group(1):
+        parser.error("patch manifest does not match the workspace zvec-rust SDK")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
     if revision != manifest["revision"]:
         parser.error("source revision differs from the pinned native SDK")
@@ -53,9 +60,20 @@ def main():
     args_cmake = [
         "cmake", "-S", str(source), "-B", str(build),
         "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_C_BINDINGS=ON",
-        "-DCMAKE_POLICY_VERSION_MINIMUM=3.5", "-DZVEC_ENABLE_LTO=OFF",
+        "-DCMAKE_POLICY_VERSION_MINIMUM=3.5", "-DZVEC_ENABLE_LTO=OFF", "-DBUILD_TOOLS=OFF",
     ]
+    def verify_simde(path):
+        simde_revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=path, text=True
+        ).strip()
+        if simde_revision != manifest.get("simde_revision"):
+            parser.error("SIMDe checkout differs from the pinned SDK dependency")
+        if subprocess.run(["git", "diff", "HEAD", "--quiet"], cwd=path).returncode:
+            parser.error("SIMDe checkout contains tracked source changes")
+        return simde_revision
+
     if args.simde_source:
+        verify_simde(args.simde_source)
         args_cmake.append("-DFETCHCONTENT_SOURCE_DIR_SIMDE=" + str(args.simde_source.resolve()))
     if args.oss_mirror:
         args_cmake.append("-DUSE_OSS_MIRROR=ON")
@@ -64,6 +82,8 @@ def main():
     env.setdefault("CCACHE_DIR", str(build / "ccache"))
     env["CMAKE_BUILD_PARALLEL_LEVEL"] = str(args.jobs)
     run(*args_cmake, env=env)
+    simde = args.simde_source or build / "_deps/simde-src"
+    simde_revision = verify_simde(simde) if simde.is_dir() else None
     run("cmake", "--build", str(build), "--target", "zvec_c_api", "--parallel", str(args.jobs), env=env)
     lib = build / "lib"
     dictionary = source / "thirdparty/cppjieba/cppjieba-5.6.7/dict"
@@ -75,6 +95,7 @@ def main():
         parser.error("native source changed during the build")
     record = {
         **manifest, "submodules": submodules.splitlines(),
+        "resolved_simde_revision": simde_revision,
         "runtime_sha256": {p.name: digest(p) for p in lib.iterdir() if p.suffix in (".dylib", ".so", ".dll")},
         "dictionary_sha256": {p.name: digest(p) for p in destination.iterdir()},
     }

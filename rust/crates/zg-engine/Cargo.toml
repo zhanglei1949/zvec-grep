@@ -82,7 +82,7 @@ ort = { workspace = true, features = ["directml"] }
 [dev-dependencies]
 # Count SQLite VM instructions in graph query performance regression tests.
 rusqlite = { version = "0.37", features = ["hooks"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 tracing-subscriber.workspace = true
 
 [lints]
