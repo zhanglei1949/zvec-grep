@@ -20,6 +20,7 @@ fn graph_fingerprints_sort_nested_keys_independently_of_json_presentation() {
 
 fn head(state: &TextState, policy: &GraphPolicy) -> GraphHead {
     GraphHead {
+        generation: None,
         format_version: 1,
         graph_build_id: uuid::Uuid::new_v4().to_string(),
         text_revision: state.text_revision,

@@ -15,6 +15,7 @@ pub(super) const GRAPH_RULES: &str = concat!(
     "- Use constrain when retrieval must stay inside a graph-derived scope. scope.anchor is a traversal seed, not an exact scope: default traversal is outgoing calls, 1..2 hops, include_start=false. For only callers, explicitly use incoming calls, 1 hop. An empty scope stays empty; failed scope must not widen to off or unrestricted lexical search.\n",
     "- Use zvec_grep_explore directly for known-object callers/callees, paths or provenance, or after search to fill a relationship evidence gap. If an object is unknown or ambiguous, locate it or clarify first. No search-first requirement for known relationship questions.\n",
     "- incoming calls finds callers; outgoing calls finds callees. include_start includes the anchor in returned expansion/scope. boundary limits every path source; result_filter limits returned sources only. Code source paths are workspace-relative; root is absolute; semantic queries use source IDs. Omitted/null sources are unrestricted; [] is explicitly empty.\n",
+    "- RelationTypes and Neighbors use page_size (default 64, maximum 256) and cursor. Resume only with the returned next_cursor and the same published view and filters. An update expires the bookmark; restart the query instead of mixing pages.\n",
     "- Read returned view, completion, truncation and degradation. Complete means the requested operation finished, not that the question is fully answered. Continue only for a material evidence gap. Tool/schema availability describes compiled capabilities, not per-workspace graph readiness.\n",
 );
 
@@ -47,7 +48,20 @@ pub(super) fn configure_tool(tool: &mut Tool, graph_enabled: bool) {
                 .into()
             });
         }
-        let relations = serde_json::to_value(CODE_RELATION_KINDS).expect("relation kinds");
+        let relations = if tool.name == "zvec_grep_explore" {
+            json!([
+                "contains",
+                "calls",
+                "imports",
+                "extends",
+                "implements",
+                "mentions",
+                "semantic_relation",
+                "episode_link"
+            ])
+        } else {
+            serde_json::to_value(CODE_RELATION_KINDS).expect("relation kinds")
+        };
         if let Some(definition) = schema.pointer_mut("/$defs/RelationKind") {
             definition["enum"] = relations;
         }
@@ -131,7 +145,7 @@ fn bind_explore_domains(schema: &mut Value) {
         .filter(|operation| {
             matches!(
                 operation["properties"]["operation"]["const"].as_str(),
-                Some("semantic")
+                Some("semantic" | "neighbors" | "relation_types")
             )
         })
         .cloned()
@@ -301,7 +315,16 @@ mod tests {
         let available = schema("zvec_grep_explore", true);
         assert_eq!(
             available["$defs"]["RelationKind"]["enum"],
-            serde_json::to_value(CODE_RELATION_KINDS).expect("relations")
+            json!([
+                "contains",
+                "calls",
+                "imports",
+                "extends",
+                "implements",
+                "mentions",
+                "semantic_relation",
+                "episode_link"
+            ])
         );
         let explore = schema("zvec_grep_explore", true);
         assert_eq!(
@@ -323,7 +346,10 @@ mod tests {
                     .expect("operation")
             })
             .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(supported, std::collections::BTreeSet::from(["semantic"]));
+        assert_eq!(
+            supported,
+            std::collections::BTreeSet::from(["neighbors", "relation_types", "semantic"])
+        );
         for operation in code["operation"]["oneOf"]
             .as_array()
             .expect("code operations")

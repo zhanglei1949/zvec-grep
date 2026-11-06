@@ -6,7 +6,7 @@ use ::graphdb::{
 };
 use std::sync::Arc;
 
-pub const SCHEMA_VERSION: u64 = 7;
+pub const SCHEMA_VERSION: u64 = 8;
 
 type RawField = (
     &'static [u8],
@@ -278,6 +278,8 @@ macro_rules! table {
     ($name:ident, $table:literal, {$($field:ident : $ty:ty => $ddl:literal),+ $(,)?}) => {
         row_record!($name, $table, {$($field: $ty => $ddl),+});
         impl $name {
+            #[allow(dead_code)] // Singleton metadata need not be paged.
+            pub fn key(&self) -> String { table!(@get self, $($field),+) }
             #[allow(dead_code)] // Singleton publication tables use direct reads.
             pub fn scan<'a>(tx: &'a mut Transaction<'_>, options: &QueryOptions) -> GraphResult<::graphdb::OrderedScan<'a>> {
                 Ok(tx.scan_nodes(Self::NAME, &[$(stringify!($field)),+], options)?)
@@ -332,6 +334,15 @@ macro_rules! table {
                 while let Some(row) = rows.next()? { output.push(Self::decode_row(&row)?); }
                 Ok(output)
             }
+            #[allow(dead_code)] // Some singleton rows are not used for filtered reads.
+            pub fn select_filtered(tx: &mut Transaction<'_>, options: &QueryOptions, clause: &str, parameters: Params<'_>) -> GraphResult<Vec<Self>> {
+                let fields = [$(stringify!($field)),+];
+                let query = format!("MATCH (n:{}) {} RETURN {} ORDER BY n.{} LIMIT 256", Self::NAME, clause, fields.iter().map(|f| format!("n.{f} AS {f}")).collect::<Vec<_>>().join(","), fields[0]);
+                let result=tx.query_with(&query,parameters,options)?;
+                let mut cursor=result.rows();let mut output=Vec::new();
+                while let Some(row)=cursor.next()? { output.push(Self::decode_row(&row)?); }
+                Ok(output)
+            }
             pub fn read(tx: &mut Transaction<'_>, options: &QueryOptions) -> GraphResult<Vec<Self>> {
                 let fields = [$(stringify!($field)),+];
                 let query = format!("MATCH (n:{}) RETURN {}", Self::NAME, fields.iter().map(|f| format!("n.{f} AS {f}")).collect::<Vec<_>>().join(","));
@@ -344,6 +355,7 @@ macro_rules! table {
         }
     };
     (@key $first:ident $(,$rest:ident)*) => {stringify!($first)};
+    (@get $value:expr, $first:ident $(,$rest:ident)*) => {$value.$first.clone()};
 }
 
 macro_rules! relation {
@@ -415,10 +427,10 @@ table!(EpisodeRow, "KgEpisode", {
 });
 table!(ScalarFactRow, "KgScalarFact", {
     id: String => "STRING", fact_id: String => "STRING", space_id: String => "STRING", subject: String => "STRING", predicate: String => "STRING", object_json: String => "STRING", context: String => "STRING",
-    state: String => "STRING", supersedes: Option<String> => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", attributes_json: String => "STRING"
+    state: String => "STRING", supersedes: Option<String> => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", created_at: Option<NativeTime> => "TIMESTAMP_TZ", attributes_json: String => "STRING"
 });
 table!(AssociationRow, "KgSourceAssociation", {
-    id: String => "STRING", target_type: String => "STRING", target_space_id: String => "STRING", target_id: String => "STRING", source_id: String => "STRING", source_version: String => "STRING", role: String => "STRING", locator_json: Option<String> => "STRING"
+    id: String => "STRING", target_type: String => "STRING", target_space_id: String => "STRING", target_id: String => "STRING", source_id: String => "STRING", source_version: String => "STRING", role: String => "STRING", episode_space_id: Option<String> => "STRING", episode_id: Option<String> => "STRING", locator_json: Option<String> => "STRING"
 });
 table!(DeferredMentionRow, "KgDeferredMention", { id: String => "STRING", data: String => "STRING" });
 table!(SemanticChangeRow, "KgSemanticChange", {
@@ -426,7 +438,11 @@ table!(SemanticChangeRow, "KgSemanticChange", {
 });
 table!(SemanticOperationRow, "KgSemanticOperation", { id: String => "STRING", data: String => "STRING" });
 relation!(SemanticRelationRow, "KgSemanticRelation", "KgSemanticEntity", "KgSemanticEntity", {
-    id: String => "STRING", fact_id: String => "STRING", space_id: String => "STRING", predicate: String => "STRING", context: String => "STRING", state: String => "STRING", supersedes: Option<String> => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", attributes_json: String => "STRING"
+    id: String => "STRING", fact_id: String => "STRING", space_id: String => "STRING", predicate: String => "STRING", context: String => "STRING", state: String => "STRING", supersedes: Option<String> => "STRING", changed_at: NativeTime => "TIMESTAMP_TZ", created_at: Option<NativeTime> => "TIMESTAMP_TZ", attributes_json: String => "STRING"
+});
+
+relation!(EpisodeLinkRow, "KgEpisodeLink", "KgEpisode", "KgEpisode", {
+    id: String => "STRING", link_id: String => "STRING", space_id: String => "STRING", relation_type: String => "STRING"
 });
 
 pub const FACT_TABLES: &[&str] = &[
@@ -530,6 +546,7 @@ pub fn statements() -> Vec<String> {
         SemanticChangeRow::ddl(),
         SemanticOperationRow::ddl(),
         SemanticRelationRow::ddl(),
+        EpisodeLinkRow::ddl(),
     ]
     .into_iter()
     .collect::<Vec<_>>();

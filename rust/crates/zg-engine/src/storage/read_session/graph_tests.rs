@@ -62,7 +62,7 @@ fn database_files(
     clippy::too_many_lines,
     reason = "one native fixture exercises pointer changes, shared owners and per-read cancellation"
 )]
-async fn graph_leases_follow_head_and_reject_stale_state_without_poisoning_later_reads() {
+async fn graph_leases_follow_publication_and_reject_stale_state_without_poisoning_later_reads() {
     let dir = tempfile::tempdir().expect("root");
     let service = WorkspaceIndexService::new();
     let models = ModelRuntimeManager::new();
@@ -79,7 +79,7 @@ async fn graph_leases_follow_head_and_reject_stale_state_without_poisoning_later
         .await
         .expect("first real graph");
     let home = dir.path().join(".zvec-grep");
-    let manifest = read_workspace_manifest(&home)
+    let mut manifest = read_workspace_manifest(&home)
         .expect("manifest")
         .expect("selected");
     let storage_home = manifest.storage_home();
@@ -95,6 +95,9 @@ async fn graph_leases_follow_head_and_reject_stale_state_without_poisoning_later
         .expect("head")
         .expect("second");
     let second_policy = GraphPolicy::read(&home).expect("policy").expect("second");
+    let second_manifest = read_workspace_manifest(&home)
+        .expect("manifest")
+        .expect("second publication");
     assert_ne!(first_head.graph_build_id, second_head.graph_build_id);
     let old_path = storage_home
         .join("graph/builds")
@@ -113,6 +116,8 @@ async fn graph_leases_follow_head_and_reject_stale_state_without_poisoning_later
             .expect("first policy");
         graph_state::write_record(&storage_home.join("graph/HEAD.json"), &first_head)
             .expect("first head");
+        crate::workspace::manifest::write_workspace_manifest(&home, &manifest)
+            .expect("restore first publication");
     }
     let cache = ReadSessionCache::new(Duration::from_secs(60)).expect("cache");
     let other_cache = ReadSessionCache::new(Duration::from_secs(60)).expect("second cache");
@@ -169,15 +174,21 @@ async fn graph_leases_follow_head_and_reject_stale_state_without_poisoning_later
             .files
             .is_empty()
     );
-    // Simulate a publisher bypassing admission. Cache identity must still follow
-    // HEAD within the same text generation and old leases must refuse results.
+    // A prepared graph HEAD cannot change the selected publication.
+    graph_state::write_record(&storage_home.join("graph/HEAD.json"), &second_head)
+        .expect("prepare HEAD");
+    old.graph_facts(&manifest, GraphLimits::default(), &context())
+        .expect("private HEAD does not select a version");
+    // Simulate a publisher bypassing admission: only the root publication can
+    // select the second graph, and old leases must then refuse results.
     graph_state::write_record(&home.join("graph/POLICY.json"), &second_policy)
         .expect("policy switch");
-    graph_state::write_record(&storage_home.join("graph/HEAD.json"), &second_head)
-        .expect("HEAD switch");
+    crate::workspace::manifest::write_workspace_manifest(&home, &second_manifest)
+        .expect("publication switch");
+    manifest = second_manifest;
     let current = cache
         .acquire_graph(&manifest)
-        .expect("new graph same generation");
+        .expect("new publication reuses text storage");
     assert!(!Arc::ptr_eq(&old.session, &current.session));
     assert!(
         old.graph_facts(&manifest, GraphLimits::default(), &context())

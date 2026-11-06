@@ -1,6 +1,6 @@
 {
   "graphdb_enabled": true,
-  "instructions": "Use zvec-grep with these workspace retrieval rules:\n- Use the current workspace as the evidence source when the user asks about local material, prior context establishes it as relevant, or the question concerns how the current project works—even if the workspace is not mentioned explicitly.\n- A workspace may contain any mix of code, documents, configuration, and data.\n- Do not use workspace retrieval for unrelated open-world questions, current external facts, or web content that does not depend on local evidence.\n- Use native Grep or rg first only when exact lookup alone is sufficient, such as locating one definition, literal, filename, configuration key, error message, regex match, or exhaustive occurrence list.\n- Use zvec_grep_search for content discovery when wording or location is unknown, or for architecture, lifecycle, design rationale, comparison, or synthesis across files or components.\n- For content synthesis with known symbols, call zvec_grep_search with the semantic intent and those anchors, then use Read, Grep, or rg for focused verification.\n- For a semantic or mixed workspace task, start discovery with focused zvec_grep_search before broad file discovery.\n- Preserve the question's concepts, relationships, and constraints from the user request and established context in semantic queries. Treat inferred names as supplemental hypotheses, not replacements for or constraints on the stated intent.\n- `query` creates one primary hybrid FTS-plus-vector group; `queries` creates one or more primary hybrid groups; `fts` and `vector` add supplemental lexical-only or semantic-only route groups. These are retrieval routes, not hard constraints. Without `fuse`, the response is one deduplicated and reranked list with query-group metadata; set `fuse: true` to collapse every group into one ranked search plan.\n- For a fused mixed search, use arguments such as {\"root\":\"/absolute/workspace\",\"query\":\"how are results ranked and fused\",\"fts\":[\"RRF\",\"score\"],\"fuse\":true}.\n- Search results include bounded source snippets by default. Set preview: \"full\" for all available content of each retrieved item; this does not retrieve the entire file or change ranking. Treat sufficient returned content as already-read evidence, and open only the cited file or range when a required detail falls outside it.\n- For ordinary retrieval with no strict graph scope, if semantic retrieval remains irrelevant, fall back to native Grep or rg.\n- Stop searching once the available evidence is sufficient for the requested task. Continue only to resolve a material gap or ambiguity; do not repeat similar searches or broaden the investigation merely to reconfirm what is already established.\n- Do not launch a sub-agent solely to locate workspace material.\n- Every workspace operation requires an absolute root path visible to the daemon.\n- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n- Read freshness and background_refresh directly from zvec_grep_search responses without a status preflight.\n- When results are served_from_current_index, use them immediately when they are sufficient; do not perform extra diagnostics merely because a background refresh is active.\n- When an index is missing, search can ask the user to choose an embedding model and approve a background build. Only explicit user confirmation creates an index. Read the returned indexing state and retry search after completion; use native Grep or rg only when literal lookup answers the task.\n- The Agent chooses tools and parameters from the question and available evidence; the server validates and executes them, without inferring a graph plan from query text. Preserve explicit user modes and scopes.\n- Default to ordinary zvec_grep_search (omit graph or mode=off) for content. Use augment when content plus a bounded, predefined relationship supplement is useful; choose edge types, direction and hops explicitly.\n- Use constrain when retrieval must stay inside a graph-derived scope. scope.anchor is a traversal seed, not an exact scope: default traversal is outgoing calls, 1..2 hops, include_start=false. For only callers, explicitly use incoming calls, 1 hop. An empty scope stays empty; failed scope must not widen to off or unrestricted lexical search.\n- Use zvec_grep_explore directly for known-object callers/callees, paths or provenance, or after search to fill a relationship evidence gap. If an object is unknown or ambiguous, locate it or clarify first. No search-first requirement for known relationship questions.\n- incoming calls finds callers; outgoing calls finds callees. include_start includes the anchor in returned expansion/scope. boundary limits every path source; result_filter limits returned sources only. Code source paths are workspace-relative; root is absolute; semantic queries use source IDs. Omitted/null sources are unrestricted; [] is explicitly empty.\n- Read returned view, completion, truncation and degradation. Complete means the requested operation finished, not that the question is fully answered. Continue only for a material evidence gap. Tool/schema availability describes compiled capabilities, not per-workspace graph readiness.\n",
+  "instructions": "Use zvec-grep with these workspace retrieval rules:\n- Use the current workspace as the evidence source when the user asks about local material, prior context establishes it as relevant, or the question concerns how the current project works—even if the workspace is not mentioned explicitly.\n- A workspace may contain any mix of code, documents, configuration, and data.\n- Do not use workspace retrieval for unrelated open-world questions, current external facts, or web content that does not depend on local evidence.\n- Use native Grep or rg first only when exact lookup alone is sufficient, such as locating one definition, literal, filename, configuration key, error message, regex match, or exhaustive occurrence list.\n- Use zvec_grep_search for content discovery when wording or location is unknown, or for architecture, lifecycle, design rationale, comparison, or synthesis across files or components.\n- For content synthesis with known symbols, call zvec_grep_search with the semantic intent and those anchors, then use Read, Grep, or rg for focused verification.\n- For a semantic or mixed workspace task, start discovery with focused zvec_grep_search before broad file discovery.\n- Preserve the question's concepts, relationships, and constraints from the user request and established context in semantic queries. Treat inferred names as supplemental hypotheses, not replacements for or constraints on the stated intent.\n- `query` creates one primary hybrid FTS-plus-vector group; `queries` creates one or more primary hybrid groups; `fts` and `vector` add supplemental lexical-only or semantic-only route groups. These are retrieval routes, not hard constraints. Without `fuse`, the response is one deduplicated and reranked list with query-group metadata; set `fuse: true` to collapse every group into one ranked search plan.\n- For a fused mixed search, use arguments such as {\"root\":\"/absolute/workspace\",\"query\":\"how are results ranked and fused\",\"fts\":[\"RRF\",\"score\"],\"fuse\":true}.\n- Search results include bounded source snippets by default. Set preview: \"full\" for all available content of each retrieved item; this does not retrieve the entire file or change ranking. Treat sufficient returned content as already-read evidence, and open only the cited file or range when a required detail falls outside it.\n- For ordinary retrieval with no strict graph scope, if semantic retrieval remains irrelevant, fall back to native Grep or rg.\n- Stop searching once the available evidence is sufficient for the requested task. Continue only to resolve a material gap or ambiguity; do not repeat similar searches or broaden the investigation merely to reconfirm what is already established.\n- Do not launch a sub-agent solely to locate workspace material.\n- Every workspace operation requires an absolute root path visible to the daemon.\n- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n- Read freshness and background_refresh directly from zvec_grep_search responses without a status preflight.\n- When results are served_from_current_index, use them immediately when they are sufficient; do not perform extra diagnostics merely because a background refresh is active.\n- When an index is missing, search can ask the user to choose an embedding model and approve a background build. Only explicit user confirmation creates an index. Read the returned indexing state and retry search after completion; use native Grep or rg only when literal lookup answers the task.\n- The Agent chooses tools and parameters from the question and available evidence; the server validates and executes them, without inferring a graph plan from query text. Preserve explicit user modes and scopes.\n- Default to ordinary zvec_grep_search (omit graph or mode=off) for content. Use augment when content plus a bounded, predefined relationship supplement is useful; choose edge types, direction and hops explicitly.\n- Use constrain when retrieval must stay inside a graph-derived scope. scope.anchor is a traversal seed, not an exact scope: default traversal is outgoing calls, 1..2 hops, include_start=false. For only callers, explicitly use incoming calls, 1 hop. An empty scope stays empty; failed scope must not widen to off or unrestricted lexical search.\n- Use zvec_grep_explore directly for known-object callers/callees, paths or provenance, or after search to fill a relationship evidence gap. If an object is unknown or ambiguous, locate it or clarify first. No search-first requirement for known relationship questions.\n- incoming calls finds callers; outgoing calls finds callees. include_start includes the anchor in returned expansion/scope. boundary limits every path source; result_filter limits returned sources only. Code source paths are workspace-relative; root is absolute; semantic queries use source IDs. Omitted/null sources are unrestricted; [] is explicitly empty.\n- RelationTypes and Neighbors use page_size (default 64, maximum 256) and cursor. Resume only with the returned next_cursor and the same published view and filters. An update expires the bookmark; restart the query instead of mixing pages.\n- Read returned view, completion, truncation and degradation. Complete means the requested operation finished, not that the question is fully answered. Continue only for a material evidence gap. Tool/schema availability describes compiled capabilities, not per-workspace graph readiness.\n",
   "tools": [
     {
       "name": "zvec_grep_explore",
@@ -11,6 +11,27 @@
           "ExploreRequest": {
             "type": "object",
             "properties": {
+              "page_size": {
+                "type": "integer",
+                "format": "uint16",
+                "minimum": 1,
+                "maximum": 256,
+                "default": 64
+              },
+              "cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "relation_filters": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/RelationSelector"
+                },
+                "default": []
+              },
               "domain": {
                 "description": "Domain selects the available relation and locator types.",
                 "$ref": "#/$defs/QueryDomain"
@@ -47,6 +68,27 @@
                   "operation": {
                     "oneOf": [
                       {
+                        "type": "object",
+                        "properties": {
+                          "anchor": {
+                            "$ref": "#/$defs/Locator"
+                          },
+                          "direction": {
+                            "$ref": "#/$defs/Direction"
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "relation_types"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "required": [
+                          "operation",
+                          "anchor",
+                          "direction"
+                        ]
+                      },
+                      {
                         "description": "Resolve an object by name, source position or a previously returned node reference.",
                         "type": "object",
                         "properties": {
@@ -77,7 +119,7 @@
                               "$ref": "#/$defs/RelationKind"
                             },
                             "minItems": 1,
-                            "maxItems": 6,
+                            "maxItems": 9,
                             "uniqueItems": true
                           },
                           "direction": {
@@ -174,6 +216,27 @@
                   "operation": {
                     "oneOf": [
                       {
+                        "type": "object",
+                        "properties": {
+                          "anchor": {
+                            "$ref": "#/$defs/Locator"
+                          },
+                          "direction": {
+                            "$ref": "#/$defs/Direction"
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "relation_types"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "required": [
+                          "operation",
+                          "anchor",
+                          "direction"
+                        ]
+                      },
+                      {
                         "description": "Read semantic objects, facts, provenance or correction history (domain=semantic).",
                         "type": "object",
                         "properties": {
@@ -190,11 +253,78 @@
                           "operation",
                           "query"
                         ]
+                      },
+                      {
+                        "description": "Read one-hop relationships for a known object; incoming calls returns its callers.",
+                        "type": "object",
+                        "properties": {
+                          "anchor": {
+                            "$ref": "#/$defs/Locator"
+                          },
+                          "relations": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/$defs/RelationKind"
+                            },
+                            "minItems": 1,
+                            "maxItems": 9,
+                            "uniqueItems": true
+                          },
+                          "direction": {
+                            "$ref": "#/$defs/Direction"
+                          },
+                          "operation": {
+                            "type": "string",
+                            "const": "neighbors"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "required": [
+                          "operation",
+                          "anchor",
+                          "relations",
+                          "direction"
+                        ]
                       }
                     ]
                   }
                 }
               }
+            ]
+          },
+          "RelationSelector": {
+            "type": "object",
+            "properties": {
+              "edge_type": {
+                "$ref": "#/$defs/RelationKind"
+              },
+              "relation_types": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "default": null
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "edge_type"
+            ]
+          },
+          "RelationKind": {
+            "type": "string",
+            "enum": [
+              "contains",
+              "calls",
+              "imports",
+              "extends",
+              "implements",
+              "mentions",
+              "semantic_relation",
+              "episode_link"
             ]
           },
           "QueryDomain": {
@@ -206,6 +336,27 @@
           },
           "ExploreOperation": {
             "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "anchor": {
+                    "$ref": "#/$defs/Locator"
+                  },
+                  "direction": {
+                    "$ref": "#/$defs/Direction"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "const": "relation_types"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "operation",
+                  "anchor",
+                  "direction"
+                ]
+              },
               {
                 "description": "Read semantic objects, facts, provenance or correction history (domain=semantic).",
                 "type": "object",
@@ -255,7 +406,7 @@
                       "$ref": "#/$defs/RelationKind"
                     },
                     "minItems": 1,
-                    "maxItems": 6,
+                    "maxItems": 9,
                     "uniqueItems": true
                   },
                   "direction": {
@@ -342,63 +493,124 @@
               }
             ]
           },
-          "SemanticQuery": {
-            "type": "object",
-            "properties": {
-              "space_id": {
-                "type": "string"
-              },
-              "anchor": {
-                "anyOf": [
-                  {
+          "Locator": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "object": {
                     "$ref": "#/$defs/ObjectRef"
                   },
-                  {
-                    "type": "null"
+                  "by": {
+                    "type": "string",
+                    "const": "object"
                   }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "by",
+                  "object"
                 ]
               },
-              "context": {
-                "type": [
-                  "string",
-                  "null"
+              {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "$ref": "#/$defs/NodeRef",
+                    "description": "Reuse a node reference from the same published graph view."
+                  },
+                  "by": {
+                    "type": "string",
+                    "const": "node"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "by",
+                  "node"
                 ]
               },
-              "name": {
-                "type": [
-                  "string",
-                  "null"
+              {
+                "type": "object",
+                "properties": {
+                  "source_id": {
+                    "type": "string",
+                    "description": "Workspace-relative source path, for example src/auth.rs; disambiguates a symbol name."
+                  },
+                  "byte_offset": {
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "description": "UTF-8 byte offset in that indexed source version."
+                  },
+                  "kind": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/EntityKind"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "by": {
+                    "type": "string",
+                    "const": "position"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "by",
+                  "source_id",
+                  "byte_offset"
                 ]
               },
-              "kind": {
-                "type": [
-                  "string",
-                  "null"
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Known indexed symbol name; use locate if the name is ambiguous."
+                  },
+                  "source_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Workspace-relative source path, for example src/auth.rs; disambiguates a symbol name."
+                  },
+                  "kind": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/EntityKind"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "by": {
+                    "type": "string",
+                    "const": "name"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "by",
+                  "name"
                 ]
-              },
-              "predicate": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "history": {
-                "type": "boolean",
-                "default": false
-              },
-              "direction": {
-                "$ref": "#/$defs/Direction",
-                "default": "outgoing"
               }
-            },
-            "additionalProperties": false,
-            "required": [
-              "space_id"
             ]
           },
           "ObjectRef": {
             "type": "object",
             "properties": {
+              "generation": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
               "graph_build_id": {
                 "type": "string"
               },
@@ -408,6 +620,8 @@
             },
             "additionalProperties": false,
             "required": [
+              "generation",
+              "workspace_id",
               "graph_build_id",
               "object"
             ]
@@ -500,110 +714,15 @@
               "id"
             ]
           },
-          "Direction": {
-            "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
-            "type": "string",
-            "enum": [
-              "incoming",
-              "outgoing",
-              "both"
-            ]
-          },
-          "Locator": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "node": {
-                    "$ref": "#/$defs/NodeRef",
-                    "description": "Reuse a node reference from the same published graph view."
-                  },
-                  "by": {
-                    "type": "string",
-                    "const": "node"
-                  }
-                },
-                "additionalProperties": false,
-                "required": [
-                  "by",
-                  "node"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "source_id": {
-                    "type": "string",
-                    "description": "Workspace-relative source path, for example src/auth.rs; disambiguates a symbol name."
-                  },
-                  "byte_offset": {
-                    "type": "integer",
-                    "format": "uint64",
-                    "minimum": 0,
-                    "description": "UTF-8 byte offset in that indexed source version."
-                  },
-                  "kind": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/$defs/EntityKind"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "by": {
-                    "type": "string",
-                    "const": "position"
-                  }
-                },
-                "additionalProperties": false,
-                "required": [
-                  "by",
-                  "source_id",
-                  "byte_offset"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Known indexed symbol name; use locate if the name is ambiguous."
-                  },
-                  "source_id": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "Workspace-relative source path, for example src/auth.rs; disambiguates a symbol name."
-                  },
-                  "kind": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/$defs/EntityKind"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "by": {
-                    "type": "string",
-                    "const": "name"
-                  }
-                },
-                "additionalProperties": false,
-                "required": [
-                  "by",
-                  "name"
-                ]
-              }
-            ]
-          },
           "NodeRef": {
             "type": "object",
             "properties": {
+              "generation": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
               "graph_build_id": {
                 "type": "string"
               },
@@ -613,6 +732,8 @@
             },
             "additionalProperties": false,
             "required": [
+              "generation",
+              "workspace_id",
               "graph_build_id",
               "node_id"
             ]
@@ -632,14 +753,67 @@
               "constant"
             ]
           },
-          "RelationKind": {
+          "Direction": {
+            "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
             "type": "string",
             "enum": [
-              "contains",
-              "calls",
-              "imports",
-              "extends",
-              "implements"
+              "incoming",
+              "outgoing",
+              "both"
+            ]
+          },
+          "SemanticQuery": {
+            "type": "object",
+            "properties": {
+              "space_id": {
+                "type": "string"
+              },
+              "anchor": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "context": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "relation_type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "history": {
+                "type": "boolean",
+                "default": false
+              },
+              "direction": {
+                "$ref": "#/$defs/Direction",
+                "default": "outgoing"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "space_id"
             ]
           },
           "TraversalSpec": {
@@ -652,7 +826,7 @@
                   "$ref": "#/$defs/RelationKind"
                 },
                 "minItems": 1,
-                "maxItems": 6,
+                "maxItems": 9,
                 "default": [
                   "calls"
                 ],
@@ -716,6 +890,15 @@
                 },
                 "maxItems": 2000,
                 "default": null
+              },
+              "kinds": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "additionalProperties": false
@@ -991,6 +1174,18 @@
         "title": "ExploreResult",
         "type": "object",
         "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relation_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/AvailableRelationType"
+            }
+          },
           "semantic": {
             "anyOf": [
               {
@@ -1059,6 +1254,50 @@
           "execution"
         ],
         "$defs": {
+          "AvailableRelationType": {
+            "type": "object",
+            "properties": {
+              "edge_type": {
+                "$ref": "#/$defs/RelationKind"
+              },
+              "relation_type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "direction": {
+                "$ref": "#/$defs/Direction"
+              }
+            },
+            "required": [
+              "edge_type",
+              "direction"
+            ]
+          },
+          "RelationKind": {
+            "type": "string",
+            "enum": [
+              "contains",
+              "calls",
+              "imports",
+              "links",
+              "extends",
+              "implements",
+              "mentions",
+              "semantic_relation",
+              "episode_link"
+            ]
+          },
+          "Direction": {
+            "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
+            "type": "string",
+            "enum": [
+              "incoming",
+              "outgoing",
+              "both"
+            ]
+          },
           "SemanticReadResult": {
             "type": "object",
             "properties": {
@@ -1102,7 +1341,7 @@
             ]
           },
           "SemanticSource": {
-            "description": "Current source version and the version of its last complete contribution.",
+            "description": "Current source version and the last version verified by complete input or an explicit correction.",
             "type": "object",
             "properties": {
               "source": {
@@ -1175,6 +1414,12 @@
           "ObjectRef": {
             "type": "object",
             "properties": {
+              "generation": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
               "graph_build_id": {
                 "type": "string"
               },
@@ -1184,6 +1429,8 @@
             },
             "additionalProperties": false,
             "required": [
+              "generation",
+              "workspace_id",
               "graph_build_id",
               "object"
             ]
@@ -1508,7 +1755,7 @@
               "subject": {
                 "$ref": "#/$defs/Identity"
               },
-              "predicate": {
+              "relation_type": {
                 "type": "string"
               },
               "object": {
@@ -1531,7 +1778,17 @@
                 ]
               },
               "changed_at_ms": {
+                "description": "KG acceptance/change time. Ordinary inputs do not control the stored value.",
                 "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "created_at_ms": {
+                "description": "First acceptance time. NULL is reserved for facts migrated without a known time.",
+                "type": [
+                  "integer",
+                  "null"
+                ],
                 "format": "uint64",
                 "minimum": 0
               },
@@ -1544,7 +1801,7 @@
             "required": [
               "identity",
               "subject",
-              "predicate",
+              "relation_type",
               "object",
               "context",
               "state",
@@ -1655,6 +1912,16 @@
                 "anyOf": [
                   {
                     "$ref": "#/$defs/EvidenceRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "episode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Identity"
                   },
                   {
                     "type": "null"
@@ -2005,6 +2272,23 @@
               {
                 "type": "object",
                 "properties": {
+                  "object": {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  "by": {
+                    "type": "string",
+                    "const": "object"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "by",
+                  "object"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
                   "node": {
                     "$ref": "#/$defs/NodeRef"
                   },
@@ -2090,6 +2374,12 @@
           "NodeRef": {
             "type": "object",
             "properties": {
+              "generation": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
               "graph_build_id": {
                 "type": "string"
               },
@@ -2099,6 +2389,8 @@
             },
             "additionalProperties": false,
             "required": [
+              "generation",
+              "workspace_id",
               "graph_build_id",
               "node_id"
             ]
@@ -2153,6 +2445,62 @@
           "RelationRecord": {
             "type": "object",
             "properties": {
+              "mention": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Mention"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "episode_link": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EpisodeLink"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "relation_type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source_object": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ObjectId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "target_object": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ObjectId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fact": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Fact"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "id": {
                 "type": "string"
               },
@@ -2183,15 +2531,35 @@
               "kind"
             ]
           },
-          "RelationKind": {
+          "EpisodeLink": {
+            "type": "object",
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "source": {
+                "$ref": "#/$defs/Identity"
+              },
+              "target": {
+                "$ref": "#/$defs/Identity"
+              },
+              "relation_type": {
+                "$ref": "#/$defs/EpisodeRelation"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "identity",
+              "source",
+              "target",
+              "relation_type"
+            ]
+          },
+          "EpisodeRelation": {
             "type": "string",
             "enum": [
-              "contains",
-              "calls",
-              "imports",
-              "links",
-              "extends",
-              "implements"
+              "REPLY_TO",
+              "RESULT_OF"
             ]
           },
           "ReferenceRecord": {
@@ -2554,7 +2922,7 @@
                           "$ref": "#/$defs/RelationKind"
                         },
                         "minItems": 1,
-                        "maxItems": 6,
+                        "maxItems": 9,
                         "default": [
                           "calls"
                         ],
@@ -2683,6 +3051,15 @@
                 },
                 "maxItems": 2000,
                 "default": null
+              },
+              "kinds": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "additionalProperties": false
@@ -2725,6 +3102,23 @@
           },
           "Locator": {
             "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "object": {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  "by": {
+                    "type": "string",
+                    "const": "object"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "by",
+                  "object"
+                ]
+              },
               {
                 "type": "object",
                 "properties": {
@@ -2815,9 +3209,127 @@
               }
             ]
           },
+          "ObjectRef": {
+            "type": "object",
+            "properties": {
+              "generation": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
+              "graph_build_id": {
+                "type": "string"
+              },
+              "object": {
+                "$ref": "#/$defs/ObjectId"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "generation",
+              "workspace_id",
+              "graph_build_id",
+              "object"
+            ]
+          },
+          "ObjectId": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "node_id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "source_node"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "node_id"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "identity": {
+                    "$ref": "#/$defs/Identity"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "semantic_entity"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "identity"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "identity": {
+                    "$ref": "#/$defs/Identity"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "episode"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "identity"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "identity": {
+                    "$ref": "#/$defs/Identity"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "fact"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "identity"
+                ]
+              }
+            ]
+          },
+          "Identity": {
+            "type": "object",
+            "properties": {
+              "space_id": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "space_id",
+              "id"
+            ]
+          },
           "NodeRef": {
             "type": "object",
             "properties": {
+              "generation": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
               "graph_build_id": {
                 "type": "string"
               },
@@ -2827,6 +3339,8 @@
             },
             "additionalProperties": false,
             "required": [
+              "generation",
+              "workspace_id",
               "graph_build_id",
               "node_id"
             ]
@@ -2856,7 +3370,7 @@
                   "$ref": "#/$defs/RelationKind"
                 },
                 "minItems": 1,
-                "maxItems": 6,
+                "maxItems": 9,
                 "default": [
                   "calls"
                 ],

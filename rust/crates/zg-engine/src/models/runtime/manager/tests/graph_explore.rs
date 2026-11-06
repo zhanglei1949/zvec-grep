@@ -10,6 +10,9 @@ use crate::api::explore::*;
 use crate::pipelines::indexing::service::WorkspaceIndexService;
 fn request(root: &std::path::Path, operation: ExploreOperation) -> ExploreOptions {
     let mut options = ExploreOptions::new(ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation,
         boundary: SourceFilter::default(),
@@ -311,8 +314,14 @@ async fn explore_locators_boundaries_budgets_and_stale_ids_are_explicit() {
         },
     );
     limited.execution.budget.nodes = 1;
-    let limited = engine.explore(limited).await.expect("bounded list");
-    assert_eq!(limited.execution.status, Completion::Partial);
+    assert_eq!(
+        engine
+            .explore(limited)
+            .await
+            .expect_err("budget cannot make resumable progress")
+            .code(),
+        EngineError::RESOURCE_BUSY
+    );
     let mut path = request(
         dir.path(),
         ExploreOperation::ShortestPath {
@@ -861,7 +870,7 @@ fn semantic_request(root: &std::path::Path, history: bool) -> ExploreOptions {
                 context: Some("project-a".into()),
                 name: None,
                 kind: None,
-                predicate: Some("owner".into()),
+                relation_type: Some("owner".into()),
                 history,
                 direction: Direction::Both,
             },
@@ -987,7 +996,7 @@ async fn m3_semantic_operations_publish_reopen_and_keep_predecessors_retired() {
     assert!(engine.explore(stale).await.is_err());
     let mut all = semantic_request(dir.path(), false);
     if let ExploreOperation::Semantic { query } = &mut all.request.operation {
-        query.predicate = None;
+        query.relation_type = None;
     }
     assert!(
         engine
@@ -1011,6 +1020,7 @@ async fn m3_semantic_operations_publish_reopen_and_keep_predecessors_retired() {
             context: "project-a".into(),
             changed_at_ms: 2,
             evidence: zg_knowledge::semantic::SourceEvidence {
+                episode: None,
                 source,
                 locator: None,
             },

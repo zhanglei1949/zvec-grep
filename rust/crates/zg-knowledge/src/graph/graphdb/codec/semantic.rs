@@ -1,7 +1,8 @@
+mod selection;
 use super::{FactRows, GraphResult, invalid, json, tag, unjson, untag};
 use crate::{
     graph::schema::{
-        AssociationRow, DeferredMentionRow, EpisodeRow, NativeTime, ScalarFactRow,
+        AssociationRow, DeferredMentionRow, EpisodeLinkRow, EpisodeRow, NativeTime, ScalarFactRow,
         SemanticChangeRow, SemanticEntityRow, SemanticOperationRow, SemanticRelationRow,
         SemanticSourceRow,
     },
@@ -81,7 +82,7 @@ impl FactRows {
                 )?;
             }
             SemanticPartition::Relations => {
-                let result = tx.query_with(&format!("MATCH (a:KgSemanticEntity)-[e:KgSemanticRelation]->(b:KgSemanticEntity) WHERE e.space_id=$space RETURN a.id AS source,b.id AS target,e.id AS id,e.fact_id AS fact_id,e.space_id AS space_id,e.predicate AS predicate,e.context AS context,e.state AS state,e.supersedes AS supersedes,e.changed_at AS changed_at,e.attributes_json AS attributes_json ORDER BY e.id SKIP {offset} LIMIT 256"), ::graphdb::params!{"space"=>space}, options)?;
+                let result = tx.query_with(&format!("MATCH (a:KgSemanticEntity)-[e:KgSemanticRelation]->(b:KgSemanticEntity) WHERE e.space_id=$space RETURN a.id AS source,b.id AS target,e.id AS id,e.fact_id AS fact_id,e.space_id AS space_id,e.predicate AS predicate,e.context AS context,e.state AS state,e.supersedes AS supersedes,e.changed_at AS changed_at,e.created_at AS created_at,e.attributes_json AS attributes_json ORDER BY e.id SKIP {offset} LIMIT 256"), ::graphdb::params!{"space"=>space}, options)?;
                 let mut cursor = result.rows();
                 while let Some(row) = cursor.next()? {
                     rows.semantic_relations
@@ -103,6 +104,10 @@ impl FactRows {
         }
         rows.decode_semantic()
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "fixed row mapping for one schema version"
+    )]
     pub(super) fn encode_semantic(&mut self, catalog: &SemanticCatalog) -> GraphResult<()> {
         for source in &catalog.sources {
             self.semantic_sources.push(SemanticSourceRow {
@@ -121,6 +126,16 @@ impl FactRows {
                 name: entity.name.clone(),
                 aliases_json: canonical_json(&entity.aliases)?,
                 attributes_json: canonical_json(&entity.attributes)?,
+            });
+        }
+        for link in &catalog.episode_links {
+            self.episode_links.push(EpisodeLinkRow {
+                source: link.source.storage_key()?,
+                target: link.target.storage_key()?,
+                id: link.identity.storage_key()?,
+                link_id: link.identity.id.clone(),
+                space_id: link.identity.space_id.clone(),
+                relation_type: tag(&link.relation_type)?,
             });
         }
         for episode in &catalog.episodes {
@@ -177,6 +192,16 @@ impl FactRows {
                 source_id: association.evidence.source.source_id.clone(),
                 source_version: association.evidence.source.source_version.clone(),
                 role: tag(&association.role)?,
+                episode_space_id: association
+                    .evidence
+                    .episode
+                    .as_ref()
+                    .map(|id| id.space_id.clone()),
+                episode_id: association
+                    .evidence
+                    .episode
+                    .as_ref()
+                    .map(|id| id.id.clone()),
                 locator_json: association
                     .evidence
                     .locator
@@ -244,6 +269,17 @@ impl FactRows {
                 state: untag(&row.state)?,
             });
         }
+        for row in &self.episode_links {
+            catalog.episode_links.push(crate::semantic::EpisodeLink {
+                identity: Identity {
+                    space_id: row.space_id.clone(),
+                    id: row.link_id.clone(),
+                },
+                source: identity(&row.source)?,
+                target: identity(&row.target)?,
+                relation_type: untag(&row.relation_type)?,
+            });
+        }
         catalog.facts = self.decode_semantic_facts()?;
         for row in &self.associations {
             let target = Identity {
@@ -257,6 +293,14 @@ impl FactRows {
                     _ => return Err(invalid()),
                 },
                 evidence: SourceEvidence {
+                    episode: match (&row.episode_space_id, &row.episode_id) {
+                        (Some(space_id), Some(id)) => Some(Identity {
+                            space_id: space_id.clone(),
+                            id: id.clone(),
+                        }),
+                        (None, None) => None,
+                        _ => return Err(invalid()),
+                    },
                     source: SourceRef {
                         source_id: row.source_id.clone(),
                         source_version: row.source_version.clone(),
@@ -299,11 +343,15 @@ impl FactRows {
                         id: fact.identity.storage_key()?,
                         fact_id: fact.identity.id.clone(),
                         space_id: fact.identity.space_id.clone(),
-                        predicate: fact.predicate.clone(),
+                        predicate: fact.relation_type.clone(),
                         context: fact.context.clone(),
                         state: tag(&fact.state)?,
                         supersedes: previous,
                         changed_at: NativeTime::from_millis(fact.changed_at_ms)?,
+                        created_at: fact
+                            .created_at_ms
+                            .map(NativeTime::from_millis)
+                            .transpose()?,
                         attributes_json: canonical_json(&fact.attributes)?,
                     });
                 }
@@ -312,12 +360,16 @@ impl FactRows {
                     fact_id: fact.identity.id.clone(),
                     space_id: fact.identity.space_id.clone(),
                     subject: fact.subject.storage_key()?,
-                    predicate: fact.predicate.clone(),
+                    predicate: fact.relation_type.clone(),
                     object_json: canonical_json(value)?,
                     context: fact.context.clone(),
                     state: tag(&fact.state)?,
                     supersedes: previous,
                     changed_at: NativeTime::from_millis(fact.changed_at_ms)?,
+                    created_at: fact
+                        .created_at_ms
+                        .map(NativeTime::from_millis)
+                        .transpose()?,
                     attributes_json: canonical_json(&fact.attributes)?,
                 }),
             }
@@ -328,12 +380,13 @@ impl FactRows {
         let mut facts = Vec::new();
         for row in &self.semantic_relations {
             facts.push(Fact {
+                created_at_ms: row.created_at.map(NativeTime::millis).transpose()?,
                 identity: Identity {
                     space_id: row.space_id.clone(),
                     id: row.fact_id.clone(),
                 },
                 subject: identity(&row.source)?,
-                predicate: row.predicate.clone(),
+                relation_type: row.predicate.clone(),
                 object: FactObject::Entity {
                     identity: identity(&row.target)?,
                 },
@@ -346,12 +399,13 @@ impl FactRows {
         }
         for row in &self.scalar_facts {
             facts.push(Fact {
+                created_at_ms: row.created_at.map(NativeTime::millis).transpose()?,
                 identity: Identity {
                     space_id: row.space_id.clone(),
                     id: row.fact_id.clone(),
                 },
                 subject: identity(&row.subject)?,
-                predicate: row.predicate.clone(),
+                relation_type: row.predicate.clone(),
                 object: FactObject::Scalar {
                     value: parse(&row.object_json)?,
                 },

@@ -886,11 +886,11 @@ fn ordered_integrity_rejects_changes_to_every_fact_table_and_private_edges()
 }
 
 #[test]
-fn typed_integrity_bytes_match_the_v7_canonical_encoding() -> Result<(), Box<dyn std::error::Error>>
+fn typed_integrity_bytes_match_the_v8_canonical_encoding() -> Result<(), Box<dyn std::error::Error>>
 {
     let (catalog, _) = build_fixture()?;
     let rows = super::codec::FactRows::encode(&catalog)?;
-    let mut previous = stable_digest(&"kg-rows-v7")?;
+    let mut previous = stable_digest(&"kg-rows-v8")?;
     let mut scratch = Vec::new();
     for mutation in rows.mutations() {
         let expected = crate::processing::canonical_json(&(&previous, &mutation))?;

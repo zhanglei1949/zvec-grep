@@ -190,9 +190,10 @@ fn document_data(root: &std::path::Path) -> SemanticCatalog {
         evidence: evidence.clone(),
     });
     data.facts.push(Fact {
+        created_at_ms: None,
         identity: fact_id.clone(),
         subject: identity.clone(),
-        predicate: "description".into(),
+        relation_type: "description".into(),
         object: FactObject::Scalar {
             value: ScalarValue::String("项目说明".into()),
         },
@@ -206,6 +207,7 @@ fn document_data(root: &std::path::Path) -> SemanticCatalog {
         SourceAssociation {
             target: ObjectId::Fact { identity: fact_id },
             evidence: SourceEvidence {
+                episode: None,
                 source: source.clone(),
                 locator: None,
             },
@@ -214,6 +216,7 @@ fn document_data(root: &std::path::Path) -> SemanticCatalog {
         SourceAssociation {
             target: ObjectId::SemanticEntity { identity },
             evidence: SourceEvidence {
+                episode: None,
                 source,
                 locator: Some(evidence),
             },
@@ -369,5 +372,105 @@ async fn graph_text_rebuild_keeps_semantics_across_storage_generations() {
         read(dir.path()).semantic,
         expected,
         "new storage generation keeps existing semantic identities and provenance"
+    );
+}
+
+#[tokio::test]
+async fn graph_unknown_format_blocks_rebuild_and_keeps_selected_history() {
+    let dir = tempfile::tempdir().expect("corpus");
+    corpus(dir.path());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let manager = models(&calls);
+    let service = WorkspaceIndexService::new();
+    let mut initial = options(dir.path());
+    initial.graph = Some(policy());
+    service.index(&manager, initial).await.expect("initial");
+    seed(dir.path(), semantic()).await;
+    let manifest = active(dir.path());
+    let mut old = manifest
+        .publication
+        .as_ref()
+        .expect("publication")
+        .graph
+        .clone()
+        .expect("graph");
+    old.schema_fingerprint = crate::utils::sha256_hex(b"unknown-old-format");
+    crate::storage::graph_state::write_record(
+        &manifest.storage_home().join("graph/HEAD.json"),
+        &old,
+    )
+    .expect("old marker");
+    crate::workspace::manifest::write_workspace_manifest_with_graph(
+        &manifest.path,
+        &manifest,
+        Some(old.clone()),
+    )
+    .expect("published old format");
+    let before = std::fs::read(manifest.path.join("manifest.json")).expect("valid fixture/result");
+    let embeddings = calls.load(Ordering::Acquire);
+    let mut rebuild = options(dir.path());
+    rebuild.rebuild = true;
+    let error = service
+        .index(&manager, rebuild)
+        .await
+        .expect_err("old format requires separate migration");
+    assert_eq!(error.code(), EngineError::RECOVERY_REQUIRED);
+    assert_eq!(
+        std::fs::read(manifest.path.join("manifest.json")).expect("valid fixture/result"),
+        before
+    );
+    assert!(
+        manifest
+            .storage_home()
+            .join("graph/builds")
+            .join(old.graph_build_id)
+            .join("db")
+            .is_dir()
+    );
+    assert_eq!(calls.load(Ordering::Acquire), embeddings);
+}
+
+#[tokio::test]
+async fn graph_protected_history_blocks_text_only_rebuild() {
+    let dir = tempfile::tempdir().expect("corpus");
+    corpus(dir.path());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let manager = models(&calls);
+    let service = WorkspaceIndexService::new();
+    let mut initial = options(dir.path());
+    initial.graph = Some(policy());
+    service.index(&manager, initial).await.expect("initial");
+    seed(dir.path(), semantic()).await;
+    let manifest = active(dir.path());
+    let before = std::fs::read(manifest.path.join("manifest.json")).expect("valid fixture/result");
+    let mut rebuild = options(dir.path());
+    rebuild.rebuild = true;
+    rebuild.graph = Some(crate::api::index::graph::GraphOptions::default());
+    assert_eq!(
+        service
+            .index(&manager, rebuild)
+            .await
+            .expect_err("cannot discard semantic history")
+            .code(),
+        EngineError::RECOVERY_REQUIRED
+    );
+    assert_eq!(
+        std::fs::read(manifest.path.join("manifest.json")).expect("valid fixture/result"),
+        before
+    );
+    let selected = manifest
+        .publication
+        .as_ref()
+        .expect("valid fixture/result")
+        .graph
+        .as_ref()
+        .expect("valid fixture/result");
+    assert!(
+        manifest
+            .storage_home()
+            .join("graph/builds")
+            .join(&selected.graph_build_id)
+            .join("db")
+            .is_dir()
     );
 }

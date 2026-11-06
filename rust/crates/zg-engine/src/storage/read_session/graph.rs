@@ -16,13 +16,12 @@ use std::{
     sync::{Arc, Mutex, OnceLock, Weak},
 };
 use zg_knowledge::{
-    graph::{GraphDbStore, GraphLimits},
-    processing::ProcessingContext,
-    relations::bound::FactCatalog,
+    GraphHandle, graph::GraphLimits, processing::ProcessingContext, relations::bound::FactCatalog,
 };
 
 #[derive(Serialize)]
 struct Selection {
+    generation: String,
     head: GraphHead,
     state: TextState,
     scan: String,
@@ -63,6 +62,8 @@ impl Selection {
         if active.storage_generation != manifest.storage_generation
             || active.workspace.scan != manifest.workspace.scan
             || active.workspace.root != manifest.workspace.root
+            || active.publication.as_ref().map(|p| &p.generation)
+                != manifest.publication.as_ref().map(|p| &p.generation)
         {
             return Err(unavailable());
         }
@@ -74,7 +75,12 @@ impl Selection {
             return Err(unavailable());
         }
         let home = manifest.storage_home();
-        let head = GraphHead::read(&home)?.ok_or_else(unavailable)?;
+        let head = active
+            .publication
+            .as_ref()
+            .filter(|p| p.graph_ready)
+            .and_then(|p| p.graph.clone())
+            .ok_or_else(unavailable)?;
         head.validate()?;
         let state = TextState::read(&home)?.ok_or_else(unavailable)?;
         let policy = GraphPolicy::read(&manifest.path)?.ok_or_else(unavailable)?;
@@ -105,6 +111,12 @@ impl Selection {
             ));
         }
         Ok(Self {
+            generation: active
+                .publication
+                .as_ref()
+                .ok_or_else(unavailable)?
+                .generation
+                .clone(),
             head,
             state,
             scan: graph_state::fingerprint(&manifest.workspace.scan)?,
@@ -119,16 +131,16 @@ impl Selection {
 pub(super) struct GraphReadSession {
     // Only Database is shared; each read uses an exclusive connection and a
     // fresh cancellation handle. Transactions never cross an await.
-    owner: Arc<GraphDbStore>,
+    owner: Arc<GraphHandle>,
     key: String,
     // Only deduplicates native directory owners across engine caches. All
     // lifetime/retirement and residency still belongs to ReadSessionCache.
-    _slot: Arc<Mutex<Weak<GraphDbStore>>>,
+    _slot: Arc<Mutex<Weak<GraphHandle>>>,
 }
-type OwnerSlot = Arc<Mutex<Weak<GraphDbStore>>>;
+type OwnerSlot = Arc<Mutex<Weak<GraphHandle>>>;
 static OWNERS: OnceLock<Mutex<HashMap<PathBuf, OwnerSlot>>> = OnceLock::new();
 
-fn owner(path: &std::path::Path) -> EngineResult<(Arc<GraphDbStore>, OwnerSlot)> {
+fn owner(path: &std::path::Path) -> EngineResult<(Arc<GraphHandle>, OwnerSlot)> {
     let slot = {
         let mut owners = super::lock(OWNERS.get_or_init(Mutex::default));
         owners.retain(|_, slot| Arc::strong_count(slot) > 1);
@@ -140,9 +152,8 @@ fn owner(path: &std::path::Path) -> EngineResult<(Arc<GraphDbStore>, OwnerSlot)>
         if let Some(owner) = weak.upgrade() {
             owner
         } else {
-            let owner = Arc::new(
-                GraphDbStore::open(path, true, GraphLimits::default()).map_err(|e| failure(&e))?,
-            );
+            let owner =
+                Arc::new(GraphHandle::open(path, GraphLimits::default()).map_err(|e| failure(&e))?);
             *weak = Arc::downgrade(&owner);
             owner
         }
@@ -200,7 +211,7 @@ impl GraphReadSession {
         };
         Ok(session)
     }
-    pub(super) fn query_owner(&self, limits: GraphLimits) -> EngineResult<GraphDbStore> {
+    pub(super) fn query_owner(&self, limits: GraphLimits) -> EngineResult<GraphHandle> {
         self.owner.read_session(limits).map_err(|e| failure(&e))
     }
     pub(super) fn query_stamp(
@@ -220,10 +231,15 @@ impl GraphReadSession {
         )?
         .ok_or_else(unavailable)?;
         Ok(zg_knowledge::query::ViewStamp {
-            workspace_id: graph_state::fingerprint(&manifest.path)?,
+            workspace_id: manifest
+                .publication
+                .as_ref()
+                .map(|p| p.knowledge_base_id.clone())
+                .ok_or_else(unavailable)?,
             generation: manifest
-                .storage_generation
-                .clone()
+                .publication
+                .as_ref()
+                .map(|p| p.generation.clone())
                 .ok_or_else(unavailable)?,
             text_revision: selected.state.text_revision,
             graph: Some(zg_knowledge::query::GraphStamp {

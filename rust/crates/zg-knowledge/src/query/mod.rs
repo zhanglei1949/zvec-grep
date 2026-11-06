@@ -1,6 +1,7 @@
 //! Read-only query contracts. No database, model, scheduler or publication state.
 mod execution;
 mod explore;
+mod pagination;
 mod reader;
 mod request;
 mod result;
@@ -12,6 +13,10 @@ pub use explore::{
     AugmentResult, ScopeRegion, ScopeResolution, ScopeTextEntity, ScopeTextFragment,
     ScopeTextProvider, ScopeUnit, SeedExpansion, augment, explore, resolve_scope,
     resolve_semantic_scope,
+};
+pub use pagination::{
+    AvailableRelationType, DEFAULT_PAGE_SIZE, EdgeKey, MAX_PAGE_SIZE, NeighborRead,
+    RelationSelector,
 };
 pub use reader::*;
 pub use result::*;

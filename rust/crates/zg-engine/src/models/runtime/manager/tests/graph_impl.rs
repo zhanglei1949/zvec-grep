@@ -7,6 +7,9 @@ use crate::pipelines::indexing::service::WorkspaceIndexService;
 
 fn request(root: &std::path::Path, operation: ExploreOperation) -> ExploreOptions {
     let mut options = ExploreOptions::new(ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation,
         boundary: SourceFilter::default(),

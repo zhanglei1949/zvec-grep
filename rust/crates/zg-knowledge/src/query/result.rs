@@ -27,6 +27,18 @@ pub struct ReferenceRecord {
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 pub struct RelationRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mention: Option<crate::semantic::Mention>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub episode_link: Option<crate::semantic::EpisodeLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_object: Option<crate::semantic::ObjectId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_object: Option<crate::semantic::ObjectId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fact: Option<crate::semantic::Fact>,
     pub id: String,
     pub source: String,
     pub target: String,
@@ -83,6 +95,10 @@ pub struct CoverageDiagnostic {
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 pub struct ExploreResult {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relation_types: Vec<super::AvailableRelationType>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub semantic: Option<super::SemanticReadResult>,
     pub view: ViewStamp,

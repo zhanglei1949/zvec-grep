@@ -8,6 +8,7 @@ use std::path::{Component, Path, PathBuf};
 #[derive(Clone, Debug)]
 pub struct SemanticBuildOptions {
     pub root: Option<PathBuf>,
+    /// Physical storage directory UUID; distinct from query `ViewStamp::generation`.
     pub generation: String,
     pub operation_id: String,
     pub expected_graph_build_id: String,
@@ -201,7 +202,19 @@ pub enum GraphSourceState {
     ResolutionPending,
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphBuildReport {
+    pub source_count: usize,
+    pub reused_sources: usize,
+    pub rewritten_rows: u64,
+    pub physical_full_rebuild: bool,
+    pub elapsed_ms: u64,
+    pub peak_native_segment_bytes: u64,
+}
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 pub struct GraphIndexResult {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_report: Option<GraphBuildReport>,
     pub text_published: bool,
     pub graph_candidate_committed: bool,
     pub graph_selected: bool,
@@ -213,6 +226,7 @@ pub struct GraphIndexResult {
 impl GraphIndexResult {
     pub(crate) fn unavailable(reason: &str, text_published: bool) -> Self {
         Self {
+            build_report: None,
             text_published,
             graph_candidate_committed: false,
             graph_selected: false,
@@ -270,6 +284,7 @@ pub struct GraphRecoveryOptions {
     pub root: Option<PathBuf>,
     /// Omission uses the selected text generation. Explicit UUID permits
     /// inspecting an unselected full-build generation without publishing it.
+    /// Physical storage directory UUID; omission selects the active directory.
     pub generation: Option<String>,
     pub graph_build_id: String,
     pub action: GraphRecoveryAction,
@@ -288,6 +303,7 @@ pub struct GraphRecoveryOptions {
 )]
 pub struct GraphRecoveryResult {
     pub graph_build_id: String,
+    /// Physical storage directory UUID; distinct from query `ViewStamp::generation`.
     pub generation: String,
     pub operation_id: String,
     pub attempt: u64,
@@ -308,6 +324,7 @@ pub struct GraphRecoveryResult {
 #[serde(deny_unknown_fields)]
 pub struct TextStateRecoveryOptions {
     pub root: Option<PathBuf>,
+    /// Physical storage directory UUID; distinct from query `ViewStamp::generation`.
     pub generation: String,
     /// False inspects only. True requires the full identity from inspection.
     pub repair: bool,
@@ -321,6 +338,7 @@ pub struct TextStateRecoveryOptions {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextStateRecoveryResult {
+    /// Physical storage directory UUID; distinct from query `ViewStamp::generation`.
     pub generation: String,
     pub operation_id: String,
     pub attempt: u64,

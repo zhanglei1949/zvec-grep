@@ -1,11 +1,6 @@
 //! Shared zvec initialization and collection operations.
-use std::{
-    collections::{BTreeSet, HashMap},
-    fmt::Write,
-    path::Path,
-    sync::OnceLock,
-};
-use zvec_rust::{Collection, CollectionSchema, DataType, Doc, SearchQuery};
+use std::{collections::HashMap, path::Path, sync::OnceLock};
+use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
 use crate::{EngineError, EngineResult};
 
@@ -169,11 +164,14 @@ pub(super) fn native<T>(result: zvec_rust::Result<T>, operation: &str) -> Engine
 /// Read every distinct entity ID matching a scalar filter without a result cap.
 /// Full batches split into open ranges around an already-collected pivot. This
 /// also progresses when one entity has enough fragment rows to fill a batch.
+#[cfg(test)]
 pub(super) fn collect_entity_ids(
     collection: &Collection,
     filter: &str,
     validate: impl Fn(&Doc) -> EngineResult<()>,
 ) -> EngineResult<Vec<String>> {
+    use std::{collections::BTreeSet, fmt::Write};
+    use zvec_rust::SearchQuery;
     const BATCH_SIZE: usize = 1024;
     let mut ids = BTreeSet::new();
     let mut ranges: Vec<(Option<String>, Option<String>)> = vec![(None, None)];

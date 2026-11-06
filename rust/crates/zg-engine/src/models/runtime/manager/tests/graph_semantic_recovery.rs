@@ -35,13 +35,18 @@ fn interrupted(options: &SemanticBuildOptions) -> FactCatalog {
     record.graph_build_id.clone_from(&options.operation_id);
     record.operation_id.clone_from(&options.operation_id);
     record.attempt = 1;
+    record.generation = Some(uuid::Uuid::new_v4().to_string());
+    record.base_generation = manifest.publication.as_ref().map(|p| p.generation.clone());
+    record.created_epoch_ms = crate::storage::graph_state::now();
     record.base_head = Some(options.expected_graph_build_id.clone());
     record.semantic = Some(SemanticBuildInput {
         base_facts_digest: stable_digest(&base).expect("base digest"),
         input: options.input.clone(),
     });
     record.rules_fingerprint = record.expected_rules_fingerprint().expect("rules");
-    let mut expected = base.apply_sources(&options.input, &context).expect("input");
+    let mut expected = base
+        .apply_sources_at(&options.input, &context, record.created_epoch_ms)
+        .expect("input");
     expected.semantic.last_operation = record.semantic_operation().expect("operation");
     let budget = ImportBudget {
         max_batch_rows: 2,

@@ -195,6 +195,49 @@ impl RequestContext {
         *usage = BudgetUsage::from_values(next);
         Ok(())
     }
+    /// Bound retained decoded rows, independently of serialized result output.
+    /// This counts serialized KG data, not native allocator/RSS usage.
+    pub(crate) fn reserve_working_set(
+        &self,
+        used: &mut u64,
+        value: &impl Serialize,
+    ) -> QueryResult<()> {
+        struct Counter {
+            bytes: u64,
+            limit: u64,
+        }
+        impl std::io::Write for Counter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.bytes = self
+                    .bytes
+                    .checked_add(bytes.len() as u64)
+                    .filter(|bytes| *bytes <= self.limit)
+                    .ok_or_else(|| std::io::Error::other("KG working set budget"))?;
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        self.check()?;
+        let mut counter = Counter {
+            bytes: *used,
+            limit: self
+                .limits
+                .output_bytes
+                .saturating_mul(8)
+                .clamp(8 << 20, 64 << 20),
+        };
+        serde_json::to_writer(&mut counter, value).map_err(|_| {
+            QueryError::new(
+                QueryErrorKind::ResourceExhausted,
+                "working_set",
+                "retained KG rows exceed memory budget",
+            )
+        })?;
+        *used = counter.bytes;
+        Ok(())
+    }
     #[must_use]
     pub const fn limits(&self) -> BudgetLimits {
         self.limits

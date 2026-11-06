@@ -34,6 +34,12 @@ fn evidence(source: &str, id: Option<&str>) -> EvidenceRef {
 }
 fn edge(id: &str, from: &str, to: &str) -> RelationRecord {
     RelationRecord {
+        mention: None,
+        episode_link: None,
+        relation_type: None,
+        source_object: None,
+        target_object: None,
+        fact: None,
         id: id.into(),
         source: from.into(),
         target: to.into(),
@@ -92,6 +98,7 @@ impl GraphReader for Graph {
                 .nodes
                 .iter()
                 .filter(|n| match l {
+                    Locator::Object { object } => matches!(&object.object, zg_knowledge::semantic::ObjectId::SourceNode { node_id } if node_id == &n.id),
                     Locator::Name {
                         name,
                         source_id,
@@ -480,6 +487,9 @@ fn named(name: &str) -> Locator {
 }
 fn request(operation: ExploreOperation) -> ExploreRequest {
     ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation,
         boundary: SourceFilter::default(),
@@ -581,6 +591,7 @@ fn display_filter_does_not_prune_paths_and_boundaries_intersect() {
         anchor: named("root"),
         traversal: TraversalSpec {
             boundary: SourceFilter {
+                kinds: None,
                 sources: Some(vec!["root.rs".into(), "leaf.rs".into()]),
             },
             ..Default::default()
@@ -978,5 +989,259 @@ fn scope_resolution_is_complete_unique_and_rejects_unrepresentable_ranges() {
         .expect("complete empty")
         .scope
         .is_empty()
+    );
+}
+
+#[test]
+fn neighbor_pages_preserve_parallel_edges_and_self_loops() {
+    let mut data = graph();
+    data.edges.push(edge("parallel", "root", "middle"));
+    let mut req = request(ExploreOperation::Neighbors {
+        anchor: named("root"),
+        relations: vec![RelationKind::Calls],
+        direction: Direction::Both,
+    });
+    req.page_size = 1;
+    let mut ids = Vec::new();
+    for _ in 0..10 {
+        let result = explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default()),
+        )
+        .expect("page");
+        ids.extend(result.relations.iter().map(|e| e.id.clone()));
+        assert!(result.nodes.iter().any(|n| n.node.node_id == "root"));
+        req.cursor = result.next_cursor;
+        if req.cursor.is_none() {
+            assert_eq!(result.execution.status, Completion::Complete);
+            break;
+        }
+        assert_eq!(result.execution.status, Completion::Partial);
+    }
+    assert_eq!(ids.len(), 4);
+    let unique = ids.iter().collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(unique.len(), 4);
+    assert!(ids.iter().any(|id| id == "parallel"));
+    assert!(ids.iter().any(|id| id == "self"));
+}
+#[test]
+fn cursor_rejects_changed_filters_and_logical_generation() {
+    let data = graph();
+    let mut req = request(ExploreOperation::Neighbors {
+        anchor: named("root"),
+        relations: vec![RelationKind::Calls],
+        direction: Direction::Both,
+    });
+    req.page_size = 1;
+    req.cursor = explore(
+        &data,
+        &Evidence { unavailable: false },
+        &view(),
+        &req,
+        &context(BudgetLimits::default()),
+    )
+    .expect("valid fixture/result")
+    .next_cursor;
+    let cursor = req.cursor.clone().expect("continuation");
+    req.result_filter.sources = Some(vec!["middle.rs".into()]);
+    assert!(
+        explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default())
+        )
+        .is_err()
+    );
+    req.result_filter = SourceFilter::default();
+    req.cursor = Some(cursor.clone());
+    let mut parsed: serde_json::Value =
+        serde_json::from_str(&cursor).expect("valid fixture/result");
+    parsed["view"]["generation"] = "other".into();
+    req.cursor = Some(parsed.to_string());
+    assert_eq!(
+        explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default())
+        )
+        .expect_err("request rejected")
+        .kind,
+        QueryErrorKind::ViewMismatch
+    );
+}
+#[test]
+fn relation_discovery_pages_distinct_visible_directions() {
+    let data = graph();
+    let mut req = request(ExploreOperation::RelationTypes {
+        anchor: named("root"),
+        direction: Direction::Both,
+    });
+    req.page_size = 1;
+    req.relation_filters = vec![RelationSelector {
+        edge_type: RelationKind::Calls,
+        relation_types: None,
+    }];
+    let first = explore(
+        &data,
+        &Evidence { unavailable: false },
+        &view(),
+        &req,
+        &context(BudgetLimits::default()),
+    )
+    .expect("valid fixture/result");
+    assert_eq!(first.relation_types.len(), 1);
+    assert!(first.relations.is_empty());
+    req.cursor = first.next_cursor;
+    assert!(req.cursor.is_some());
+    let second = explore(
+        &data,
+        &Evidence { unavailable: false },
+        &view(),
+        &req,
+        &context(BudgetLimits::default()),
+    )
+    .expect("valid fixture/result");
+    assert_eq!(second.relation_types.len(), 1);
+    assert_ne!(
+        first.relation_types[0].direction,
+        second.relation_types[0].direction
+    );
+    assert!(second.next_cursor.is_none());
+}
+#[test]
+fn sparse_result_filter_can_continue_without_skipping_visible_edges() {
+    let mut data = graph();
+    data.edges.push(edge("parallel", "root", "middle"));
+    let mut req = request(ExploreOperation::Neighbors {
+        anchor: named("root"),
+        relations: vec![RelationKind::Calls],
+        direction: Direction::Outgoing,
+    });
+    req.page_size = 1;
+    req.result_filter.sources = Some(vec!["middle.rs".into()]);
+    let mut ids = Vec::new();
+    loop {
+        let result = explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default()),
+        )
+        .expect("valid fixture/result");
+        ids.extend(result.relations.iter().map(|e| e.id.clone()));
+        req.cursor = result.next_cursor;
+        if req.cursor.is_none() {
+            break;
+        }
+    }
+    assert_eq!(ids, ["a", "parallel"]);
+    req.result_filter.sources = Some(vec![]);
+    assert!(
+        explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default())
+        )
+        .expect("valid fixture/result")
+        .relations
+        .is_empty()
+    );
+}
+
+#[test]
+fn invalid_cursor_is_rejected_even_when_the_anchor_is_missing() {
+    let mut req = request(ExploreOperation::Neighbors {
+        anchor: named("missing"),
+        relations: vec![RelationKind::Calls],
+        direction: Direction::Outgoing,
+    });
+    req.cursor = Some("invalid cursor".into());
+    assert!(
+        explore(
+            &graph(),
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default())
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn node_kind_result_filters_do_not_prune_intermediate_steps() {
+    let mut data = graph();
+    data.edges
+        .retain(|edge| ["a", "b"].contains(&edge.id.as_str()));
+    data.nodes
+        .iter_mut()
+        .find(|n| n.id == "middle")
+        .expect("middle")
+        .kind = EntityKind::Class;
+    let mut traversal = TraversalSpec::default();
+    traversal.result_filter.kinds = Some(vec!["function".into()]);
+    let req = request(ExploreOperation::Expand {
+        anchor: named("root"),
+        traversal: traversal.clone(),
+    });
+    let result = explore(
+        &data,
+        &Evidence { unavailable: false },
+        &view(),
+        &req,
+        &context(BudgetLimits::default()),
+    )
+    .expect("result filter");
+    assert!(result.nodes.iter().any(|n| n.node.node_id == "leaf"));
+    assert!(!result.nodes.iter().any(|n| n.node.node_id == "middle"));
+    traversal.boundary.kinds = Some(vec!["function".into()]);
+    let req = request(ExploreOperation::Expand {
+        anchor: named("root"),
+        traversal,
+    });
+    assert!(
+        explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default())
+        )
+        .expect("step filter")
+        .nodes
+        .is_empty()
+    );
+}
+#[test]
+fn oversized_single_edge_fails_instead_of_returning_an_unusable_cursor() {
+    let mut data = graph();
+    data.edges.retain(|edge| edge.id == "a");
+    data.edges[0].reference.as_mut().expect("reference").reason = "x".repeat(70_000);
+    let req = request(ExploreOperation::Neighbors {
+        anchor: named("root"),
+        relations: vec![RelationKind::Calls],
+        direction: Direction::Outgoing,
+    });
+    assert_eq!(
+        explore(
+            &data,
+            &Evidence { unavailable: false },
+            &view(),
+            &req,
+            &context(BudgetLimits::default())
+        )
+        .expect_err("single record exceeds output budget")
+        .kind,
+        QueryErrorKind::ResourceExhausted
     );
 }

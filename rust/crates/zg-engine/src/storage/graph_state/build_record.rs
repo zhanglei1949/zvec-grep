@@ -10,6 +10,10 @@ use zg_knowledge::graph::{
 pub(crate) struct BuildRecord {
     pub(crate) format_version: u32,
     pub(crate) graph_build_id: String,
+    #[serde(default)]
+    pub(crate) generation: Option<String>,
+    #[serde(default)]
+    pub(crate) base_generation: Option<String>,
     pub(crate) operation_id: String,
     pub(crate) attempt: u64,
     pub(crate) base_text_revision: u64,

@@ -238,6 +238,14 @@ fn unselected_candidate_with_facts(
     let id = uuid::Uuid::new_v4().to_string();
     let operation = uuid::Uuid::new_v4().to_string();
     record["graphBuildId"] = id.clone().into();
+    record["generation"] = uuid::Uuid::new_v4().to_string().into();
+    record["baseGeneration"] = manifest
+        .publication
+        .as_ref()
+        .expect("publication")
+        .generation
+        .clone()
+        .into();
     record["operationId"] = operation.clone().into();
     record["baseHead"] = old.graph_build_id.into();
     let budget = ImportBudget {
@@ -656,9 +664,9 @@ async fn graph_publication_first_enable_on_existing_text_is_model_free() {
         .await
         .expect("ordinary text index");
     let manifest = active(dir.path());
-    assert!(manifest.storage_home().join("graph/graph.sqlite").exists());
+    assert!(!manifest.storage_home().join("graph/graph.sqlite").exists());
     assert!(!manifest.storage_home().join("graph/HEAD.json").exists());
-    assert!(!manifest.storage_home().join("graph/STATE.json").exists());
+    assert!(manifest.storage_home().join("graph/STATE.json").exists());
     let before = text_hashes(&manifest.storage_home().join("storage"));
     let embeddings = calls.load(Ordering::Acquire);
     let zero = ModelRuntimeManager::with_factory(|_, _, _| {
@@ -1098,4 +1106,87 @@ async fn graph_coverage_reports_each_gap_and_recovers_after_source_and_policy_fi
         .expect("head")
         .expect("selected");
     assert_eq!(head.domains["code"], *code);
+}
+
+#[tokio::test]
+async fn graph_prepared_pointer_does_not_select_publication_and_noop_keeps_generation() {
+    use crate::api::explore::{ExploreOptions, ExploreRequest};
+    let dir = tempfile::tempdir().expect("corpus");
+    corpus(dir.path());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let manager = models(&calls);
+    let service = WorkspaceIndexService::new();
+    let mut initial = options(dir.path());
+    initial.graph = Some(policy());
+    service.index(&manager, initial).await.expect("initial");
+    let manifest = active(dir.path());
+    let first = manifest.publication.as_ref().expect("valid fixture/result");
+    service
+        .index(&manager, options(dir.path()))
+        .await
+        .expect("noop");
+    assert_eq!(
+        active(dir.path())
+            .publication
+            .as_ref()
+            .expect("valid fixture/result")
+            .generation,
+        first.generation
+    );
+    let id = unselected_candidate(&manifest, false, true);
+    let home = manifest.storage_home();
+    let record: crate::storage::graph_state::BuildRecord =
+        crate::storage::graph_state::read_record(
+            &home.join("graph/builds").join(&id).join("build.json"),
+        )
+        .expect("valid fixture/result")
+        .expect("valid fixture/result");
+    let mut prepared = first.graph.clone().expect("valid fixture/result");
+    prepared.graph_build_id = id.clone();
+    prepared.generation = record.generation.clone();
+    crate::storage::graph_state::write_record(&home.join("graph/HEAD.json"), &prepared)
+        .expect("valid fixture/result");
+    let engine = crate::ZvecGrep::new();
+    let request:ExploreRequest=serde_json::from_value(serde_json::json!({"domain":"code","operation":{"operation":"locate","target":{"by":"name","name":"caller","source_id":null,"kind":null}}})).expect("valid fixture/result");
+    let mut query = ExploreOptions::new(request);
+    query.root = Some(dir.path().into());
+    let old = engine
+        .explore(query)
+        .await
+        .expect("read the app-selected graph");
+    assert_eq!(old.view.generation, first.generation);
+    assert_eq!(
+        old.view.graph.expect("valid fixture/result").build_id,
+        first
+            .graph
+            .as_ref()
+            .expect("valid fixture/result")
+            .graph_build_id
+    );
+    let inspect = recovery_options(dir.path(), &id);
+    let seen = engine
+        .recover_graph(inspect.clone())
+        .await
+        .expect("inspect prepared");
+    assert!(!seen.selected && seen.eligible);
+    engine
+        .recover_graph(mutate_recovery(
+            inspect,
+            &seen,
+            crate::api::index::graph::GraphRecoveryAction::Select,
+        ))
+        .await
+        .expect("select through publication");
+    let selected = active(dir.path());
+    let now = selected.publication.as_ref().expect("valid fixture/result");
+    assert_ne!(now.generation, first.generation);
+    assert_eq!(now.storage_generation, first.storage_generation);
+    assert_eq!(
+        now.graph
+            .as_ref()
+            .expect("valid fixture/result")
+            .graph_build_id,
+        id
+    );
+    engine.close();
 }

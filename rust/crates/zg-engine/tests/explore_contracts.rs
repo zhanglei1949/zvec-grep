@@ -1,6 +1,9 @@
 use zg_engine::{EngineError, api::explore::*};
 fn options() -> ExploreOptions {
     ExploreOptions::new(ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation: ExploreOperation::Locate {
             target: Locator::Name {
@@ -67,7 +70,7 @@ fn public_request_schema_matches_the_neutral_kg_contract() {
 }
 
 #[test]
-fn graph_api_schemas_match_m4_m6_and_preserve_unchanged_contracts() {
+fn current_graph_api_schemas_preserve_result_and_index_contracts() {
     use zg_engine::api::{context, explore, index};
     let actual = serde_json::json!({
         "explore_request": schemars::schema_for!(explore::ExploreRequest),
@@ -76,16 +79,54 @@ fn graph_api_schemas_match_m4_m6_and_preserve_unchanged_contracts() {
         "query_mode": schemars::schema_for!(context::graph::GraphQueryMode),
         "index_options": schemars::schema_for!(index::graph::GraphOptions),
     });
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/graph-api-schema-current.json");
+    if std::env::var_os("UPDATE_GRAPH_API_SCHEMA").is_some() {
+        std::fs::write(
+            &fixture,
+            serde_json::to_string_pretty(&actual).expect("schema JSON") + "\n",
+        )
+        .expect("write approved schema snapshot");
+    }
     let expected: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/graph-api-schema-m4-m6.json"))
-            .expect("frozen public schemas");
+        serde_json::from_str(&std::fs::read_to_string(fixture).expect("current public schemas"))
+            .expect("schema JSON");
     assert_eq!(actual, expected);
+    let historical: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/graph-api-schema-m4-m6.json"))
+            .expect("historical M4-M6 schemas");
+    // Publication-bound references and paging intentionally extend result shapes.
+    // Existing business records and storage options retain their original fields.
+    assert_eq!(actual["index_options"], historical["index_options"]);
+    for record in [
+        "EntityRecord",
+        "GraphNode",
+        "EvidenceRead",
+        "EvidenceRef",
+        "GraphPath",
+        "LocateResult",
+    ] {
+        assert_eq!(
+            actual["explore_result"]["$defs"][record],
+            historical["explore_result"]["$defs"][record],
+            "{record}"
+        );
+    }
+    assert_eq!(
+        actual["explore_request"]["properties"]["page_size"]["default"],
+        64
+    );
+    for reference in ["NodeRef", "ObjectRef"] {
+        assert!(
+            actual["explore_result"]["$defs"][reference]["required"]
+                .as_array()
+                .expect("required fields")
+                .contains(&serde_json::json!("generation"))
+        );
+    }
     let previous: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/graph-api-schema-m3.json"))
             .expect("M3 historical schema");
-    for key in ["execution", "query_mode"] {
-        assert_eq!(actual[key], previous[key], "{key}");
-    }
     let mut previous_index = actual["index_options"].clone();
     previous_index["$defs"]["GraphLanguage"]["enum"] =
         previous["index_options"]["$defs"]["GraphLanguage"]["enum"].clone();

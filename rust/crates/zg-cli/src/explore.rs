@@ -26,6 +26,10 @@ pub struct ExploreArgs {
     pub graph_timeout_ms: u64,
     #[arg(long, global = true)]
     pub lock_timeout_ms: Option<u64>,
+    #[arg(long, global = true)]
+    pub page_size: Option<u16>,
+    #[arg(long, global = true)]
+    pub cursor: Option<String>,
     #[command(subcommand)]
     pub command: Option<ExploreCommand>,
 }
@@ -42,6 +46,10 @@ pub struct LocatorArgs {
     #[arg(long)]
     pub graph_build_id: Option<String>,
     #[arg(long)]
+    pub generation: Option<String>,
+    #[arg(long)]
+    pub workspace_id: Option<String>,
+    #[arg(long)]
     pub kind: Option<String>,
 }
 #[derive(Debug, Args)]
@@ -51,6 +59,13 @@ pub struct NeighborArgs {
     #[arg(long, value_delimiter = ',', default_value = "calls")]
     pub relations: Vec<String>,
     #[arg(long, default_value = "outgoing")]
+    pub direction: String,
+}
+#[derive(Debug, Args)]
+pub struct DiscoveryArgs {
+    #[command(flatten)]
+    pub anchor: LocatorArgs,
+    #[arg(long, default_value = "both")]
     pub direction: String,
 }
 #[derive(Debug, Args)]
@@ -70,6 +85,7 @@ pub enum ExploreCommand {
     Callers(LocatorArgs),
     Callees(LocatorArgs),
     Neighbors(NeighborArgs),
+    RelationTypes(DiscoveryArgs),
     Expand(TraverseArgs),
     Path {
         #[command(flatten)]
@@ -95,6 +111,9 @@ fn value<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, CliError> {
 }
 impl LocatorArgs {
     fn locator(self) -> Result<Locator, CliError> {
+        if self.node_id.is_none() && (self.generation.is_some() || self.workspace_id.is_some()) {
+            return Err(bad("generation/workspace-id require a node reference"));
+        }
         let kind = self.kind.as_deref().map(value).transpose()?;
         match (
             self.name,
@@ -118,6 +137,12 @@ impl LocatorArgs {
                     node: NodeRef {
                         node_id,
                         graph_build_id,
+                        generation: self
+                            .generation
+                            .ok_or_else(|| bad("node reference requires --generation"))?,
+                        workspace_id: self
+                            .workspace_id
+                            .ok_or_else(|| bad("node reference requires --workspace-id"))?,
                     },
                 })
             }
@@ -161,6 +186,11 @@ pub(crate) fn json_file<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T
     serde_json::from_slice(&bytes).map_err(|e| bad(format!("invalid {}: {e}", path.display())))
 }
 pub(crate) fn plan(args: ExploreArgs, current: &Path) -> Result<CliPlan, CliError> {
+    if args.request.is_some() && (args.page_size.is_some() || args.cursor.is_some()) {
+        return Err(bad(
+            "put page_size and cursor in --request JSON, or use the subcommand flags",
+        ));
+    }
     let request = match (args.request, args.command) {
         (Some(file), None) => json_file(&resolve_from(current, Some(&file)))?,
         (None, Some(command)) => {
@@ -177,6 +207,10 @@ pub(crate) fn plan(args: ExploreArgs, current: &Path) -> Result<CliPlan, CliErro
                     anchor: a.locator()?,
                     relations: vec![RelationKind::Calls],
                     direction: Direction::Outgoing,
+                },
+                ExploreCommand::RelationTypes(a) => ExploreOperation::RelationTypes {
+                    anchor: a.anchor.locator()?,
+                    direction: value(&a.direction)?,
                 },
                 ExploreCommand::Neighbors(a) => ExploreOperation::Neighbors {
                     anchor: a.anchor.locator()?,
@@ -222,6 +256,9 @@ pub(crate) fn plan(args: ExploreArgs, current: &Path) -> Result<CliPlan, CliErro
                 },
             };
             ExploreRequest {
+                page_size: args.page_size.unwrap_or(64),
+                cursor: args.cursor,
+                relation_filters: Vec::new(),
                 domain: QueryDomain::Code,
                 operation,
                 boundary: SourceFilter::default(),

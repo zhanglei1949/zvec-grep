@@ -41,17 +41,10 @@ pub use metadata::SymbolType;
 #[allow(unused_imports)]
 pub use metadata::Visibility;
 
-// Shared graph contracts for extraction and persistence.
-pub(crate) use graph::EdgeProvenance;
-#[cfg(test)]
-pub(crate) use graph::FileEdge;
-#[cfg(test)]
-pub(crate) use graph::FileGraphNode;
+// Compatibility extraction payload; no SQLite persistence.
 pub(crate) use graph::FileGraphResult;
 #[cfg(test)]
-pub(crate) use graph::GraphEdgeKind;
-pub(crate) use graph::PendingRef;
-pub(crate) use graph::PendingRefStatus;
+pub(crate) use graph::{GraphEdgeKind, PendingRef, PendingRefStatus};
 
 // Models.
 pub(crate) use model::EmbeddingMetric;

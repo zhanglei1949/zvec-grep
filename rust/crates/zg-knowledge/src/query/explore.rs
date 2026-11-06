@@ -1,5 +1,6 @@
 //! Deterministic business traversal. All reads share one view and budget.
 mod augment;
+mod paging;
 mod scope;
 use super::{
     BudgetUsage, Completion, CoverageDiagnostic, Direction, EntityRecord, EvidenceProvider,
@@ -29,9 +30,22 @@ fn permits(filters: &[&SourceFilter], source: &str) -> bool {
             .is_none_or(|s| s.iter().any(|s| s == source))
     })
 }
+fn permits_node(filters: &[&SourceFilter], node: &EntityRecord) -> bool {
+    permits(filters, &node.source_id)
+        && filters.iter().all(|filter| {
+            filter.kinds.as_ref().is_none_or(|kinds| {
+                serde_json::to_value(node.kind)
+                    .ok()
+                    .and_then(|v| v.as_str().map(|v| kinds.iter().any(|k| k == v)))
+                    .unwrap_or(false)
+            })
+        })
+}
 fn node(view: &ViewStamp, r: &EntityRecord, distance: Option<u32>) -> QueryResult<GraphNode> {
     Ok(GraphNode {
         node: NodeRef {
+            generation: view.generation.clone(),
+            workspace_id: view.workspace_id.clone(),
             graph_build_id: view.require_graph()?.build_id.clone(),
             node_id: r.id.clone(),
         },
@@ -129,13 +143,50 @@ impl<R: GraphReader> Search<'_, R> {
         boundary: &[&SourceFilter],
     ) -> QueryResult<Vec<RelationRecord>> {
         let mut edges = BTreeMap::new();
-        for batch in frontier.chunks(usize::from(PAGE)) {
+        let mut allowed_sources: Option<Vec<String>> = None;
+        let mut allowed_kinds: Option<Vec<String>> = None;
+        for filter in boundary {
+            for (value, next) in [
+                (&mut allowed_sources, &filter.sources),
+                (&mut allowed_kinds, &filter.kinds),
+            ] {
+                if let Some(next) = next {
+                    match value {
+                        Some(current) => current.retain(|v| next.contains(v)),
+                        None => *value = Some(next.clone()),
+                    }
+                }
+            }
+        }
+        let merged = SourceFilter {
+            sources: allowed_sources,
+            kinds: allowed_kinds,
+        };
+        for anchor in frontier {
             for kind in kinds {
-                let mut offset = 0;
+                let mut after = None;
                 loop {
-                    let page = self
-                        .reader
-                        .neighbors(batch, *kind, direction, offset, self.ctx)?;
+                    let identity = crate::semantic::ObjectId::SourceNode {
+                        node_id: anchor.clone(),
+                    };
+                    let selector = crate::query::RelationSelector {
+                        edge_type: *kind,
+                        relation_types: None,
+                    };
+                    let page = self.reader.neighbors_after(
+                        &crate::query::NeighborRead {
+                            anchor: &identity,
+                            selector: &selector,
+                            direction,
+                            after: after.as_ref(),
+                            skip_group: false,
+                            boundary: &merged,
+                            contexts: None,
+                            spaces: None,
+                        },
+                        self.ctx,
+                    )?;
+                    let next = page.last().map(RelationRecord::key);
                     self.ctx.charge(BudgetUsage {
                         edges: page.len() as u64,
                         ..Default::default()
@@ -147,15 +198,25 @@ impl<R: GraphReader> Search<'_, R> {
                         .collect::<BTreeSet<_>>()
                         .into_iter()
                         .collect::<Vec<_>>();
-                    let allowed = self
-                        .get_nodes(&ids)?
-                        .into_iter()
+                    let records = self.get_nodes(&ids)?;
+                    let steps = records
+                        .iter()
+                        .filter(|node| permits_node(boundary, node))
+                        .map(|node| node.id.as_str())
+                        .collect::<BTreeSet<_>>();
+                    let allowed = records
+                        .iter()
                         .filter(|n| permits(boundary, &n.source_id))
-                        .map(|n| n.id)
+                        .map(|n| n.id.clone())
                         .collect::<BTreeSet<_>>();
                     for edge in page {
                         if allowed.contains(&edge.source)
                             && allowed.contains(&edge.target)
+                            && steps.contains(if edge.source == *anchor {
+                                edge.target.as_str()
+                            } else {
+                                edge.source.as_str()
+                            })
                             && edge
                                 .reference
                                 .as_ref()
@@ -167,7 +228,7 @@ impl<R: GraphReader> Search<'_, R> {
                     if count < usize::from(PAGE) {
                         break;
                     }
-                    offset += u64::from(PAGE);
+                    after = next;
                 }
             }
         }
@@ -187,7 +248,7 @@ impl<R: GraphReader> Search<'_, R> {
     ) -> QueryResult<()> {
         let mut visited = BTreeMap::from([(start.id.clone(), 0)]);
         let mut frontier = vec![start.id.clone()];
-        if spec.include_start && permits(filter, &start.source_id) {
+        if spec.include_start && permits_node(filter, start) {
             self.insert(start, Some(0))?;
         }
         for depth in 1..=spec.max_hops {
@@ -206,7 +267,7 @@ impl<R: GraphReader> Search<'_, R> {
             }
             let records = self.get_nodes(&next.iter().cloned().collect::<Vec<_>>())?;
             for record in &records {
-                if depth >= spec.min_hops && permits(filter, &record.source_id) {
+                if depth >= spec.min_hops && permits_node(filter, record) {
                     self.insert(record, Some(depth))?;
                 }
             }
@@ -236,7 +297,7 @@ impl<R: GraphReader> Search<'_, R> {
         boundary: &[&SourceFilter],
         filter: &[&SourceFilter],
     ) -> QueryResult<()> {
-        if !permits(filter, &target.source_id) {
+        if !permits_node(filter, target) {
             return Ok(());
         }
         let mut queue = VecDeque::from([(vec![start.id.clone()], Vec::<RelationRecord>::new())]);
@@ -291,6 +352,8 @@ impl<R: GraphReader> Search<'_, R> {
                         nodes: path
                             .iter()
                             .map(|id| NodeRef {
+                                generation: self.view.generation.clone(),
+                                workspace_id: self.view.workspace_id.clone(),
                                 graph_build_id: self
                                     .view
                                     .graph
@@ -320,6 +383,12 @@ pub fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
     context: &RequestContext,
 ) -> QueryResult<ExploreResult> {
     request.validate_for(view.stamp())?;
+    if matches!(
+        request.operation,
+        ExploreOperation::Neighbors { .. } | ExploreOperation::RelationTypes { .. }
+    ) {
+        return paging::explore(reader, evidence, view, request, context);
+    }
     if let ExploreOperation::Semantic { query } = &request.operation {
         return super::semantic_read::explore(reader, evidence, view, request, query, context);
     }
@@ -364,6 +433,8 @@ pub fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
         ));
     }
     let mut result = ExploreResult {
+        next_cursor: None,
+        relation_types: Vec::new(),
         semantic: None,
         view: view.stamp().clone(),
         locations: s.locations,
@@ -563,6 +634,9 @@ impl<R: GraphReader> Search<'_, R> {
         let boundary = [&request.boundary];
         let filter = [&request.result_filter];
         match &request.operation {
+            ExploreOperation::RelationTypes { .. } => {
+                unreachable!("paged operations dispatch before graph search")
+            }
             ExploreOperation::Semantic { .. } => {
                 unreachable!("semantic dispatch precedes code search")
             }
@@ -631,7 +705,7 @@ impl<R: GraphReader> Search<'_, R> {
                     &edge.source
                 };
                 let records = self.get_nodes(std::slice::from_ref(other))?;
-                if let Some(record) = records.first().filter(|n| permits(filter, &n.source_id)) {
+                if let Some(record) = records.first().filter(|n| permits_node(filter, n)) {
                     self.insert(record, Some(1))?;
                     self.relations.insert(edge.id.clone(), edge);
                 }
@@ -788,7 +862,9 @@ fn read_needs(request: &ExploreRequest) -> QueryResult<GraphReadNeeds> {
         ));
     }
     let relations = match &request.operation {
-        ExploreOperation::Semantic { .. } | ExploreOperation::Locate { .. } => vec![],
+        ExploreOperation::RelationTypes { .. }
+        | ExploreOperation::Semantic { .. }
+        | ExploreOperation::Locate { .. } => vec![],
         ExploreOperation::Neighbors { relations, .. } => relations.clone(),
         ExploreOperation::Expand { traversal, .. }
         | ExploreOperation::ShortestPath { traversal, .. } => traversal.relations.clone(),

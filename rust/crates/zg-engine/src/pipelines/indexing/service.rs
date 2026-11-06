@@ -310,6 +310,11 @@ impl WorkspaceIndexService {
         // Check the on-disk version before any recovery or storage mutation.
         let existing =
             inspect_workspace_manifest(&location.home)?.into_manifest(options.rebuild)?;
+        if existing.is_none() && crate::workspace::build::has_graph_storage(&location.home)? {
+            return Err(EngineError::recovery_required(
+                "graph data has no readable publication; preserve it and recover before rebuilding",
+            ));
+        }
         // Graph parameters and capability are checked before model resolution,
         // policy mutation or candidate recovery. None inherits persisted intent.
         let requested_graph = graph_request(&options, &location.root)?;
@@ -330,6 +335,29 @@ impl WorkspaceIndexService {
             graph_policy,
             options.signal.as_ref(),
         )?;
+        if rebuilding && let Some(active) = &existing {
+            #[cfg(feature = "knowledge-graph-graphdb")]
+            super::graph::check_rebuild_base(
+                active.clone(),
+                graph_policy
+                    .as_ref()
+                    .is_some_and(|p| p.configuration.scope.enabled()),
+                options.signal.clone(),
+                Arc::clone(&home_lock),
+            )
+            .await?;
+            #[cfg(not(feature = "knowledge-graph-graphdb"))]
+            if active
+                .publication
+                .as_ref()
+                .is_some_and(|p| p.graph.is_some())
+                || active.storage_home().join("graph/HEAD.json").exists()
+            {
+                return Err(EngineError::recovery_required(
+                    "KG data must be preserved before a text-only rebuild",
+                ));
+            }
+        }
         if options.reset_paths
             || options.scan != crate::api::index::options::ScanRulesUpdate::default()
         {
@@ -531,7 +559,7 @@ impl WorkspaceIndexService {
         });
         let result = index_workspace(&IndexingContext {
             workspace_index: &manifest.workspace,
-            storage: &writer.session.storage,
+            storage: writer.session.as_ref(),
             scanner: &self.scanner,
             embedding_models: &embedding_models,
             embedding_concurrency: options.embedding_concurrency,
@@ -605,6 +633,8 @@ impl WorkspaceIndexService {
             // selecting a new HEAD in the already active text generation.
             manifest.record_update(now);
             write_workspace_manifest(&manifest.path, &manifest)?;
+            manifest = read_workspace_manifest(&manifest.path)?
+                .ok_or_else(|| EngineError::recovery_required("text publication disappeared"))?;
         }
         #[cfg(feature = "knowledge-graph-graphdb")]
         if let Some(policy) = &graph_policy
@@ -910,6 +940,7 @@ fn index_manifest(
         runtime,
     )?;
     manifest.storage_generation = active.and_then(|value| value.storage_generation.clone());
+    manifest.publication = active.and_then(|value| value.publication.clone());
     Ok(manifest)
 }
 

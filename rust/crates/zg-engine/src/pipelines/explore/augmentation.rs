@@ -196,15 +196,9 @@ fn execute(
     let query_started = Instant::now();
     let (hits, skipped) = map_hits(&selected, &input.hits, context)?;
     let evidence = evidence::HostEvidence { reader };
-    let mut augmented = kg::augment(
-        reader,
-        &evidence,
-        &selected.view,
-        &hits,
-        &input.mode,
-        context,
-    )
-    .map_err(query_error)?;
+    let mut augmented = zg_knowledge::KgService
+        .augment(&selected.view, &evidence, &hits, &input.mode, context)
+        .map_err(query_error)?;
     augmented.execution.qualification_micros = selected.qualification_micros;
     augmented.execution.query_micros = query_started
         .elapsed()

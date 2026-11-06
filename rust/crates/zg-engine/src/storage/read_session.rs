@@ -417,7 +417,7 @@ impl ReadSessionLease {
     pub(crate) fn graph_reader(
         &self,
         limits: zg_knowledge::graph::GraphLimits,
-    ) -> EngineResult<zg_knowledge::graph::GraphDbStore> {
+    ) -> EngineResult<zg_knowledge::GraphHandle> {
         self.session
             .graph
             .as_ref()

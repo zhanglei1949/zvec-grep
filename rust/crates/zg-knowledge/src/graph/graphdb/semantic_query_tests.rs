@@ -32,6 +32,9 @@ fn base() -> FactCatalog {
 }
 fn request(history: bool) -> ExploreRequest {
     ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Semantic,
         operation: ExploreOperation::Semantic {
             query: SemanticQuery {
@@ -40,7 +43,7 @@ fn request(history: bool) -> ExploreRequest {
                 context: Some("project-a".into()),
                 name: None,
                 kind: None,
-                predicate: Some("owner".into()),
+                relation_type: Some("owner".into()),
                 history,
                 direction: Direction::Both,
             },
@@ -85,7 +88,11 @@ fn granted_view(id: &str, access: SemanticAccess, text_mapping: bool) -> KgReadV
         },
         vec![GraphReadCapabilities {
             domain: QueryDomain::Semantic,
-            relations: vec![],
+            relations: vec![
+                RelationKind::Mentions,
+                RelationKind::SemanticRelation,
+                RelationKind::EpisodeLink,
+            ],
             text_mapping,
         }],
         None,
@@ -188,6 +195,7 @@ fn semantic_authorization_intersects_sources_context_space_and_view() -> TestRes
     let (_dir, reader, id) = stored(&data)?;
     let grant = SemanticAccess {
         sources: SourceFilter {
+            kinds: None,
             sources: Some(vec!["a.md".into()]),
         },
         ..access()
@@ -237,6 +245,8 @@ fn semantic_authorization_intersects_sources_context_space_and_view() -> TestRes
     let mut stale = request(false);
     if let ExploreOperation::Semantic { query } = &mut stale.operation {
         query.anchor = Some(ObjectRef {
+            generation: "generation".into(),
+            workspace_id: "workspace".into(),
             graph_build_id: "old".into(),
             object: ObjectId::Fact {
                 identity: Identity {
@@ -433,6 +443,10 @@ fn semantic_scope_reuses_real_rows_and_rejects_missing_or_partial_mapping() -> T
     Ok(())
 }
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one verified document source covers semantic selection and both adjacency directions"
+)]
 fn semantic_mentions_traverse_document_source_nodes_without_auxiliary_hops() -> TestResult {
     let mut data = mapped()?;
     let owner = data.files[0].facts.as_ref().expect("facts").nodes[0]
@@ -458,6 +472,8 @@ fn semantic_mentions_traverse_document_source_nodes_without_auxiliary_hops() -> 
     let mut query = request(false);
     if let ExploreOperation::Semantic { query } = &mut query.operation {
         query.anchor = Some(ObjectRef {
+            generation: "generation".into(),
+            workspace_id: "workspace".into(),
             graph_build_id: id.clone(),
             object: ObjectId::SourceNode {
                 node_id: owner.clone(),
@@ -479,6 +495,71 @@ fn semantic_mentions_traverse_document_source_nodes_without_auxiliary_hops() -> 
         |o| matches!(&o.reference.object, ObjectId::SourceNode { node_id } if node_id == &owner)
     ));
     assert!(result.objects.iter().any(|o| matches!(&o.reference.object, ObjectId::SemanticEntity { identity } if identity.id == "project-a")));
+    let mut adjacency = request(false);
+    adjacency.operation = ExploreOperation::Neighbors {
+        anchor: Locator::Object {
+            object: ObjectRef {
+                generation: "generation".into(),
+                workspace_id: "workspace".into(),
+                graph_build_id: id.clone(),
+                object: ObjectId::SourceNode {
+                    node_id: owner.clone(),
+                },
+            },
+        },
+        relations: vec![RelationKind::Mentions],
+        direction: Direction::Outgoing,
+    };
+    adjacency.result_filter.kinds = Some(vec!["project".into()]);
+    let page = explore(
+        &reader,
+        &Text {
+            calls: std::cell::Cell::new(0),
+        },
+        &view(&id, access()),
+        &adjacency,
+        &ctx(),
+    )?;
+    assert_eq!(page.relations.len(), 1);
+    assert!(page.relations[0].mention.is_some());
+    let node_kind = data.files[0].facts.as_ref().expect("facts").nodes[0].entity_kind;
+    adjacency.operation = ExploreOperation::Neighbors {
+        anchor: Locator::Object {
+            object: ObjectRef {
+                generation: "generation".into(),
+                workspace_id: "workspace".into(),
+                graph_build_id: id.clone(),
+                object: ObjectId::SemanticEntity {
+                    identity: Identity {
+                        space_id: "workspace".into(),
+                        id: "project-a".into(),
+                    },
+                },
+            },
+        },
+        relations: vec![RelationKind::Mentions],
+        direction: Direction::Incoming,
+    };
+    adjacency.result_filter.kinds = Some(vec![
+        serde_json::to_value(node_kind)?
+            .as_str()
+            .expect("kind")
+            .into(),
+    ]);
+    assert_eq!(
+        explore(
+            &reader,
+            &Text {
+                calls: std::cell::Cell::new(0)
+            },
+            &view(&id, access()),
+            &adjacency,
+            &ctx()
+        )?
+        .relations
+        .len(),
+        1
+    );
     Ok(())
 }
 #[test]
@@ -547,6 +628,7 @@ fn semantic_history_does_not_return_unverified_positions_or_withdrawn_episodes_a
         context: "project-a".into(),
         changed_at_ms: 2,
         evidence: SourceEvidence {
+            episode: None,
             source: state.semantic.sources[0].source.clone(),
             locator: None,
         },
@@ -555,7 +637,7 @@ fn semantic_history_does_not_return_unverified_positions_or_withdrawn_episodes_a
     let (_dir, reader, id) = stored(&state)?;
     let mut current = request(false);
     if let ExploreOperation::Semantic { query } = &mut current.operation {
-        query.predicate = None;
+        query.relation_type = None;
     }
     assert!(
         explore(&reader, &NoText, &view(&id, access()), &current, &ctx())?
@@ -713,5 +795,304 @@ fn implementation_reference_pages_filter_declaration_files_before_logical_offset
                 .iter()
                 .any(|n| n.id == r.owner && n.name == "Impl")
     }));
+    Ok(())
+}
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one native fixture verifies stable continuation and authorization changes"
+)]
+fn native_semantic_keyset_pages_keep_parallel_facts_self_loops_and_authorization() -> TestResult {
+    let mut catalog = base();
+    let original = catalog.semantic.facts[0].clone();
+    let support = catalog
+        .semantic
+        .associations
+        .iter()
+        .find(|a| {
+            a.target
+                == ObjectId::Fact {
+                    identity: original.identity.clone(),
+                }
+                && a.role == SourceRole::Support
+        })
+        .expect("support")
+        .clone();
+    for (id, predicate, self_loop) in [("parallel", "owner", false), ("self", "works_on", true)] {
+        let mut fact = original.clone();
+        fact.identity.id = id.into();
+        fact.relation_type = predicate.into();
+        if self_loop {
+            fact.object = FactObject::Entity {
+                identity: fact.subject.clone(),
+            };
+        }
+        let mut contribution = support.clone();
+        contribution.target = ObjectId::Fact {
+            identity: fact.identity.clone(),
+        };
+        catalog.semantic.facts.push(fact);
+        catalog.semantic.associations.push(contribution);
+    }
+    catalog.semantic.normalize()?;
+    let (_dir, reader, id) = stored(&catalog)?;
+    let read_view = view(&id, access());
+    let anchor = Locator::Object {
+        object: ObjectRef {
+            generation: "generation".into(),
+            workspace_id: "workspace".into(),
+            graph_build_id: id.clone(),
+            object: ObjectId::SemanticEntity {
+                identity: original.subject.clone(),
+            },
+        },
+    };
+    let mut req = request(false);
+    req.operation = ExploreOperation::Neighbors {
+        anchor: anchor.clone(),
+        relations: vec![RelationKind::SemanticRelation],
+        direction: Direction::Both,
+    };
+    req.page_size = 1;
+    let mut found = Vec::new();
+    let mut first_cursor = None;
+    loop {
+        let result = explore(&reader, &NoText, &read_view, &req, &ctx())?;
+        found.extend(
+            result
+                .relations
+                .iter()
+                .map(|edge| edge.fact.as_ref().expect("fact").identity.id.clone()),
+        );
+        if first_cursor.is_none() {
+            first_cursor = result.next_cursor.clone();
+        }
+        req.cursor = result.next_cursor;
+        if req.cursor.is_none() {
+            break;
+        }
+    }
+    found.sort();
+    assert_eq!(found, ["f1", "parallel", "self"]);
+    req.cursor = first_cursor;
+    let restricted = view(
+        &id,
+        SemanticAccess {
+            sources: SourceFilter {
+                sources: Some(vec![]),
+                kinds: None,
+            },
+            ..access()
+        },
+    );
+    assert!(
+        explore(&reader, &NoText, &restricted, &req, &ctx()).is_err(),
+        "authorization changed"
+    );
+    req.cursor = None;
+    req.relation_filters = vec![RelationSelector {
+        edge_type: RelationKind::SemanticRelation,
+        relation_types: Some(vec!["works_on".into()]),
+    }];
+    let only_self = explore(&reader, &NoText, &read_view, &req, &ctx())?;
+    assert_eq!(only_self.relations.len(), 1);
+    assert_eq!(
+        only_self.relations[0]
+            .fact
+            .as_ref()
+            .expect("valid fixture/result")
+            .identity
+            .id,
+        "self"
+    );
+    req.operation = ExploreOperation::RelationTypes {
+        anchor,
+        direction: Direction::Both,
+    };
+    req.relation_filters[0].relation_types = None;
+    let mut types = Vec::new();
+    loop {
+        let result = explore(&reader, &NoText, &read_view, &req, &ctx())?;
+        types.extend(result.relation_types);
+        req.cursor = result.next_cursor;
+        if req.cursor.is_none() {
+            break;
+        }
+    }
+    assert_eq!(
+        types.len(),
+        3,
+        "one incoming self-loop type, two outgoing types"
+    );
+    Ok(())
+}
+
+#[test]
+fn episode_links_round_trip_and_leave_only_current_endpoints_visible() -> TestResult {
+    let mut catalog = base();
+    let source = catalog.semantic.sources[0].source.clone();
+    for id in ["request", "result"] {
+        catalog.semantic.episodes.push(Episode {
+            identity: Identity {
+                space_id: "workspace".into(),
+                id: id.into(),
+            },
+            kind: "message".into(),
+            source: source.clone(),
+            context: "project-a".into(),
+            occurred_at_ms: None,
+            ingested_at_ms: 100,
+            content_ref: id.into(),
+            state: EpisodeState::Active,
+        });
+    }
+    catalog.semantic.episode_links.push(EpisodeLink {
+        identity: Identity {
+            space_id: "workspace".into(),
+            id: "result-request".into(),
+        },
+        source: catalog.semantic.episodes[1].identity.clone(),
+        target: catalog.semantic.episodes[0].identity.clone(),
+        relation_type: EpisodeRelation::ResultOf,
+    });
+    catalog.semantic.normalize()?;
+    let (_dir, reader, id) = stored(&catalog)?;
+    let mut req = request(false);
+    req.operation = ExploreOperation::Neighbors {
+        anchor: Locator::Object {
+            object: ObjectRef {
+                generation: "generation".into(),
+                workspace_id: "workspace".into(),
+                graph_build_id: id.clone(),
+                object: ObjectId::Episode {
+                    identity: Identity {
+                        space_id: "workspace".into(),
+                        id: "result".into(),
+                    },
+                },
+            },
+        },
+        relations: vec![RelationKind::EpisodeLink],
+        direction: Direction::Outgoing,
+    };
+    let result = explore(&reader, &NoText, &view(&id, access()), &req, &ctx())?;
+    assert_eq!(result.relations.len(), 1);
+    assert_eq!(
+        result.relations[0]
+            .episode_link
+            .as_ref()
+            .expect("valid fixture/result")
+            .relation_type,
+        EpisodeRelation::ResultOf
+    );
+    assert!(
+        explore(
+            &reader,
+            &NoText,
+            &view(
+                &id,
+                SemanticAccess {
+                    contexts: Some(vec!["other".into()]),
+                    ..access()
+                }
+            ),
+            &req,
+            &ctx()
+        )?
+        .relations
+        .is_empty()
+    );
+    Ok(())
+}
+
+#[test]
+fn native_cursor_never_exposes_a_filtered_fact_key() -> TestResult {
+    let mut catalog = base();
+    let original = catalog.semantic.facts[0].clone();
+    let contribution = catalog
+        .semantic
+        .associations
+        .iter()
+        .find(|a| {
+            a.target
+                == ObjectId::Fact {
+                    identity: original.identity.clone(),
+                }
+        })
+        .expect("support")
+        .clone();
+    catalog.semantic.sources.push(SemanticSource {
+        source: SourceRef {
+            source_id: "private".into(),
+            source_version: "v1".into(),
+        },
+        state: SemanticSourceState::Complete,
+        semantic_version: Some("v1".into()),
+    });
+    for (id, kind, private) in [
+        ("second", "owner", false),
+        ("secret-identity", "owner_private", true),
+        ("last", "works_on", false),
+    ] {
+        let mut fact = original.clone();
+        fact.identity.id = id.into();
+        fact.relation_type = kind.into();
+        let mut support = contribution.clone();
+        support.target = ObjectId::Fact {
+            identity: fact.identity.clone(),
+        };
+        if private {
+            support.evidence.source.source_id = "private".into();
+        }
+        catalog.semantic.facts.push(fact);
+        catalog.semantic.associations.push(support);
+    }
+    catalog.semantic.normalize()?;
+    let (_dir, reader, id) = stored(&catalog)?;
+    let grant = view(
+        &id,
+        SemanticAccess {
+            sources: SourceFilter {
+                sources: Some(vec!["a.md".into()]),
+                kinds: None,
+            },
+            ..access()
+        },
+    );
+    let mut req = request(false);
+    req.page_size = 1;
+    req.operation = ExploreOperation::Neighbors {
+        anchor: Locator::Object {
+            object: ObjectRef {
+                generation: "generation".into(),
+                workspace_id: "workspace".into(),
+                graph_build_id: id,
+                object: ObjectId::SemanticEntity {
+                    identity: original.subject,
+                },
+            },
+        },
+        relations: vec![RelationKind::SemanticRelation],
+        direction: Direction::Outgoing,
+    };
+    let mut found = Vec::new();
+    loop {
+        let result = explore(&reader, &NoText, &grant, &req, &ctx())?;
+        let serialized = serde_json::to_string(&result)?;
+        assert!(!serialized.contains("secret-identity"));
+        assert!(!serialized.contains("owner_private"));
+        found.extend(
+            result
+                .relations
+                .iter()
+                .map(|edge| edge.fact.as_ref().expect("fact").identity.id.clone()),
+        );
+        req.cursor = result.next_cursor;
+        if req.cursor.is_none() {
+            break;
+        }
+    }
+    assert_eq!(found, ["f1", "second", "last"]);
     Ok(())
 }

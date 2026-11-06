@@ -4,6 +4,7 @@ mod control;
 mod coverage;
 pub(super) mod recovery;
 mod resources;
+mod retire;
 pub(super) mod semantic;
 pub(super) mod text_recovery;
 use crate::{
@@ -176,6 +177,21 @@ fn attempt(
     )
 }
 
+fn retirement_diagnostic(
+    home: &Path,
+    domains: &BTreeMap<String, GraphDomainResult>,
+) -> Vec<String> {
+    if domains
+        .get("code")
+        .is_some_and(|domain| domain.ready == GraphReady::Ready)
+        && retire::sqlite(home).is_err()
+    {
+        vec!["legacy_sqlite_cleanup_deferred".into()]
+    } else {
+        Vec::new()
+    }
+}
+
 fn graph_error(error: &zg_knowledge::graph::GraphError) -> EngineError {
     if std::env::var_os("ZG_GRAPH_PROFILE").is_some_and(|v| v == "1") {
         eprintln!("ZG_GRAPH_PROFILE_ERROR {error:?}");
@@ -299,6 +315,47 @@ async fn in_worker<T: Send + 'static>(
     .map_err(|_| EngineError::internal("graph worker failed"))?
 }
 
+/// A rebuild must not replace a protected semantic base with a text-only result.
+pub(super) async fn check_rebuild_base(
+    manifest: WorkspaceManifest,
+    graph_enabled: bool,
+    signal: Option<CancellationToken>,
+    admission: Arc<crate::workspace::lock::FileLock>,
+) -> EngineResult<()> {
+    control::run(admission, context(signal), move |operation| {
+        let home = manifest.storage_home();
+        let head = manifest
+            .publication
+            .as_ref()
+            .and_then(|p| p.graph.clone())
+            .or(GraphHead::read(&home)?);
+        let Some(head) = head else { return Ok(()); };
+        let fail = || EngineError::recovery_required(
+            "graph format or semantic history requires separate migration/rebuild; old data retained",
+        );
+        if head.schema_fingerprint != zg_knowledge::graph::schema::build_fingerprint()
+            .map_err(crate::graph_facts::map_error)?
+        {
+            return Err(fail());
+        }
+        if !graph_enabled {
+            let path = home.join("graph/builds").join(&head.graph_build_id);
+            let record: BuildRecord = read_record(&path.join("build.json"))?.ok_or_else(fail)?;
+            let graph = zg_knowledge::GraphHandle::open(path.join("db"), operation.limits())
+                .map_err(|_| fail())?;
+            let catalog = graph.read_build_facts(&record.spec(), &operation.context)
+                .map_err(|_| fail())?.ok_or_else(fail)?;
+            if catalog.semantic != zg_knowledge::semantic::SemanticCatalog::default() {
+                return Err(EngineError::recovery_required(
+                    "text rebuild must retain KG history; enable graph construction or migrate separately",
+                ));
+            }
+        }
+        Ok(())
+    })
+    .await
+}
+
 pub(super) async fn run(
     manifest: WorkspaceManifest,
     policy: GraphPolicy,
@@ -372,7 +429,19 @@ fn run_blocking(
     let candidate = profile::measure("host.open", || {
         Candidate::open(manifest, policy, operation, id)
     })?;
-    let previous = profile::measure("host.previous", || candidate.previous())?;
+    let previous = profile::measure("host.previous", || candidate.previous()).map_err(|error| {
+        if matches!(
+            error.code(),
+            EngineError::CANCELLED | EngineError::DEADLINE_EXCEEDED
+        ) {
+            error
+        } else {
+            EngineError::recovery_required(format!(
+                "selected graph could not be verified; old data retained: {}",
+                error.code()
+            ))
+        }
+    })?;
     if let (Some(head), Some(facts)) = (&candidate.old_head, &previous)
         && head.policy_fingerprint == candidate.policy.policy_fingerprint
         && head.text_revision == candidate.state.text_revision
@@ -380,15 +449,17 @@ fn run_blocking(
         && facts.selection_fingerprint == fingerprint(&manifest.workspace.scan)?
         && bound_matches(&candidate.storage, &candidate.files, facts)?
         && candidate.configuration_matches()?
+        && manifest.publication.as_ref().is_some_and(|p| p.graph_ready)
     {
         return Ok(GraphIndexResult {
+            build_report: None,
             text_published: work.text_published(),
             graph_candidate_committed: true,
             graph_selected: true,
             graph_build_id: Some(head.graph_build_id.clone()),
             mode: "unchanged".into(),
             domains: candidate.domains(facts)?,
-            diagnostics: Vec::new(),
+            diagnostics: retirement_diagnostic(&candidate.home, &head.domains),
         });
     }
     let catalog = profile::measure("host.collect", || {
@@ -401,7 +472,10 @@ fn run_blocking(
 }
 
 struct Candidate<'a> {
+    started: Instant,
     resources: resources::CandidateGuard,
+    reused_sources: std::cell::Cell<usize>,
+    build_report: std::cell::RefCell<Option<crate::api::index::graph::GraphBuildReport>>,
     manifest: &'a WorkspaceManifest,
     policy: &'a GraphPolicy,
     id: &'a str,
@@ -432,11 +506,27 @@ impl<'a> Candidate<'a> {
         })?;
         let files = storage.list_files()?;
         let state = TextState::baseline(&home, graph_state::catalog_digest(&files))?;
-        let old_head = GraphHead::read(&home)?;
+        let prepared = GraphHead::read(&home)?;
+        let old_head = if let Some(publication) = &manifest.publication {
+            if prepared.is_some()
+                && prepared != publication.graph
+                && prepared.as_ref().is_none_or(|h| h.graph_build_id != id)
+            {
+                return Err(EngineError::recovery_required(
+                    "graph candidate selection requires reconciliation",
+                ));
+            }
+            publication.graph.clone()
+        } else {
+            prepared
+        };
         let schema = zg_knowledge::graph::schema::build_fingerprint()
             .map_err(crate::graph_facts::map_error)?;
         Ok(Self {
+            started: Instant::now(),
             resources: resources::CandidateGuard::new(manifest, id),
+            reused_sources: std::cell::Cell::new(0),
+            build_report: std::cell::RefCell::new(None),
             manifest,
             policy,
             id,
@@ -479,13 +569,19 @@ impl<'a> Candidate<'a> {
             return Ok(None);
         }
         let home = selected.storage_home();
-        let Some(head) = read_record::<GraphHead>(&home.join("graph/HEAD.json"))? else {
+        let Some(head) = selected
+            .publication
+            .as_ref()
+            .and_then(|p| p.graph.clone())
+            .or(read_record::<GraphHead>(&home.join("graph/HEAD.json"))?)
+        else {
             return Ok(None);
         };
-        // A new generation explicitly rebuilds unsupported formats from inputs.
-        // Compatible selected data remains the semantic base until publication.
+        // Unknown formats are never treated as empty semantic bases.
         if head.schema_fingerprint != self.schema {
-            return Ok(None);
+            return Err(EngineError::recovery_required(
+                "graph format cannot be migrated; retain the selected identity and history",
+            ));
         }
         head.validate_lifecycle()?;
         Ok(Some((home, head)))
@@ -495,9 +591,10 @@ impl<'a> Candidate<'a> {
         let Some((home, head)) = self.previous_head()? else {
             return Ok(None);
         };
-        if head.schema_fingerprint != self.schema {
-            return Err(EngineError::unsupported(
-                "selected graph format requires an explicit rebuild",
+        let legacy = head.schema_fingerprint != self.schema;
+        if legacy {
+            return Err(EngineError::recovery_required(
+                "graph format cannot be migrated; selected history was preserved",
             ));
         }
         let path = home.join("graph/builds").join(&head.graph_build_id);
@@ -585,6 +682,9 @@ impl<'a> Candidate<'a> {
                             && b.record.storage_generation == collector.generation
                     })
                 });
+            if !captured.contains_key(name) && reusable.is_some() {
+                self.reused_sources.set(self.reused_sources.get() + 1);
+            }
             let mut bound = if let Some(b) = captured.remove(name).or_else(|| reusable.cloned()) {
                 b
             } else {
@@ -815,6 +915,12 @@ impl<'a> Candidate<'a> {
         let mut record = BuildRecord {
             format_version: 1,
             graph_build_id: self.id.into(),
+            generation: Some(uuid::Uuid::new_v4().to_string()),
+            base_generation: self
+                .manifest
+                .publication
+                .as_ref()
+                .map(|p| p.generation.clone()),
             operation_id: uuid::Uuid::new_v4().to_string(),
             attempt: 1,
             base_text_revision: self.state.text_revision,
@@ -858,256 +964,127 @@ impl<'a> Candidate<'a> {
             false,
             None,
         )?;
-        let graph = self.import(record, catalog)?;
-        self.resources.check(false)?;
-        attempt(
-            &path,
-            record,
-            "commit_pending",
-            "unknown",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        if let Err(error) = graph.commit_build(&record.spec(), &self.ctx) {
-            let known = match error.outcome {
-                Some(GraphOutcome::Committed) => "committed",
-                Some(GraphOutcome::Unknown | GraphOutcome::InTransaction) => "unknown",
-                _ if error.kind == GraphErrorKind::RecoveryRequired => "unknown",
-                _ => "not_applied",
-            };
-            let _ = attempt(
-                &path,
-                record,
-                if known == "unknown" {
-                    "unknown"
-                } else {
-                    "failed"
-                },
-                known,
-                "not_selected",
-                self.ctx.cancellation.is_cancelled(),
-                Some(&format!("{:?}", error.kind)),
-            );
-            return Err(graph_error(&error));
-        }
-        attempt(
-            &path,
-            record,
-            "checkpoint_pending",
-            "committed",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        profile::measure("graph.checkpoint", || graph.checkpoint()).map_err(|e| graph_error(&e))?;
-        attempt(
-            &path,
-            record,
-            "confirmed",
-            "committed",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        self.resources.check(false)?;
-        Ok(())
+        self.build_with_service(record, catalog, false)
     }
-    fn import(&self, record: &BuildRecord, catalog: &FactCatalog) -> EngineResult<GraphDbStore> {
-        let path = self.home.join("graph/builds").join(self.id);
-        attempt(
-            &path,
-            record,
-            "import_pending",
-            "unknown",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        let failure = |error: zg_knowledge::graph::GraphError| {
-            let unknown = error.kind == GraphErrorKind::RecoveryRequired
-                || matches!(
-                    error.outcome,
-                    Some(GraphOutcome::Unknown | GraphOutcome::InTransaction)
-                );
-            let _ = attempt(
-                &path,
-                record,
-                if unknown { "unknown" } else { "failed" },
-                if unknown { "unknown" } else { "not_applied" },
-                "not_selected",
-                self.ctx.cancellation.is_cancelled(),
-                Some(&format!("{:?}", error.kind)),
-            );
-            graph_error(&error)
-        };
-        let graph = profile::measure("graph.create", || {
-            GraphDbStore::create_batched_build(path.join("db"), self.limits.clone())
-        })
-        .map_err(failure)?;
-        let mut rejected = None;
-        let budget = record
-            .import_budget
-            .as_ref()
-            .ok_or_else(|| EngineError::storage_failure("missing import budget"))?;
-        let imported = profile::measure("graph.import", || {
-            graph.write_facts_batched_admitted(
-                catalog,
-                budget,
-                &self.ctx,
-                || {
-                    self.resources.check(false).map_err(|error| {
-                        rejected = Some(error);
-                        zg_knowledge::graph::GraphError::from(
-                            zg_knowledge::Error::ResourceExhausted,
-                        )
-                    })
-                },
-                |_| {},
-            )
-        });
-        if let Err(error) = imported {
-            let mapped = failure(error);
-            return Err(rejected.unwrap_or(mapped));
-        }
-        self.ctx
-            .check()
-            .map_err(zg_knowledge::graph::GraphError::from)
-            .map_err(failure)?;
-        attempt(
-            &path,
-            record,
-            "validated",
-            "not_applied",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        Ok(graph)
-    }
-    /// Resume an interrupted pre-commit candidate in place. Reopens the existing
-    /// database and continues the persisted batch prefix with the reconstructed
-    /// fixed-input catalog. The immutable record and operation identity are
-    /// supplied by the inspected caller rather than regenerated.
-    fn resume(&self, record: &BuildRecord, catalog: &FactCatalog) -> EngineResult<Vec<String>> {
-        let path = self.home.join("graph/builds").join(self.id);
-        let graph = self.resume_import(&path, record, catalog)?;
-        attempt(
-            &path,
-            record,
-            "commit_pending",
-            "unknown",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        if let Err(error) = graph.commit_build(&record.spec(), &self.ctx) {
-            let known = match error.outcome {
-                Some(GraphOutcome::Committed) => "committed",
-                Some(GraphOutcome::Unknown | GraphOutcome::InTransaction) => "unknown",
-                _ if error.kind == GraphErrorKind::RecoveryRequired => "unknown",
-                _ => "not_applied",
-            };
-            let _ = attempt(
-                &path,
-                record,
-                if known == "unknown" {
-                    "unknown"
-                } else {
-                    "failed"
-                },
-                known,
-                "not_selected",
-                self.ctx.cancellation.is_cancelled(),
-                Some(&format!("{:?}", error.kind)),
-            );
-            if known == "committed" {
-                return Err(committed_recovery(
-                    &path,
-                    record,
-                    self.ctx.cancellation.is_cancelled(),
-                    &format!("{:?}", error.kind),
-                ));
-            }
-            return Err(graph_error(&error));
-        }
-        #[cfg(test)]
-        after_resume_commit(self.id, &self.operation);
-        drop(graph);
-        self.confirm_resume(&path, record)
-    }
-
-    fn resume_import(
+    fn build_with_service(
         &self,
-        path: &std::path::Path,
         record: &BuildRecord,
         catalog: &FactCatalog,
-    ) -> EngineResult<GraphDbStore> {
+        resume: bool,
+    ) -> EngineResult<()> {
+        use zg_knowledge::service::{BuildRequest, BuildStage};
+        let path = self.home.join("graph/builds").join(self.id);
+        let database = path.join("db");
+        let rejected = std::cell::RefCell::new(None);
         let budget = record
             .import_budget
             .as_ref()
             .ok_or_else(|| EngineError::storage_failure("missing import budget"))?;
-        attempt(
-            path,
-            record,
-            "import_pending",
-            "unknown",
-            "not_selected",
-            self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        let failure = |error: zg_knowledge::graph::GraphError| {
-            let unknown = error.kind == GraphErrorKind::RecoveryRequired
-                || matches!(
-                    error.outcome,
-                    Some(GraphOutcome::Unknown | GraphOutcome::InTransaction)
-                );
-            let _ = attempt(
-                path,
-                record,
-                if unknown { "unknown" } else { "failed" },
-                if unknown { "unknown" } else { "not_applied" },
-                "not_selected",
-                self.ctx.cancellation.is_cancelled(),
-                Some(&format!("{:?}", error.kind)),
-            );
-            graph_error(&error)
-        };
-        let graph =
-            GraphDbStore::open_import(path.join("db"), false, self.limits.clone(), &self.ctx)
-                .map_err(failure)?;
-        let mut rejected = None;
-        let imported = graph.write_facts_batched_admitted(
-            catalog,
-            budget,
+        let result = zg_knowledge::KgService.build_candidate(
+            BuildRequest {
+                path: &database,
+                spec: record.spec(),
+                catalog,
+                budget,
+                limits: self.limits.clone(),
+                resume,
+            },
             &self.ctx,
             || {
                 self.resources.check(false).map_err(|error| {
-                    rejected = Some(error);
+                    *rejected.borrow_mut() = Some(error);
                     zg_knowledge::graph::GraphError::from(zg_knowledge::Error::ResourceExhausted)
                 })
             },
-            |_| {},
+            |stage| {
+                #[cfg(test)]
+                if resume && matches!(stage, BuildStage::Committed) {
+                    after_resume_commit(self.id, &self.operation);
+                }
+                let (label, effect) = match stage {
+                    BuildStage::Creating | BuildStage::Importing => ("import_pending", "unknown"),
+                    BuildStage::Validated => ("validated", "not_applied"),
+                    BuildStage::CommitPending => ("commit_pending", "unknown"),
+                    BuildStage::Committed => ("committed", "committed"),
+                    BuildStage::CheckpointPending => ("checkpoint_pending", "committed"),
+                    BuildStage::Confirmed => ("confirmed", "committed"),
+                };
+                attempt(
+                    &path,
+                    record,
+                    label,
+                    effect,
+                    "not_selected",
+                    self.ctx.cancellation.is_cancelled(),
+                    None,
+                )
+                .map_err(|error| {
+                    *rejected.borrow_mut() = Some(error);
+                    zg_knowledge::graph::GraphError::from(zg_knowledge::Error::Provider(
+                        "candidate progress could not be persisted",
+                    ))
+                })
+            },
         );
-        if let Err(error) = imported {
-            let mapped = failure(error);
-            return Err(rejected.unwrap_or(mapped));
+        match result {
+            Ok(report) => {
+                let elapsed_ms =
+                    u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+                *self.build_report.borrow_mut() =
+                    Some(crate::api::index::graph::GraphBuildReport {
+                        source_count: report.logical_sources,
+                        reused_sources: self.reused_sources.get(),
+                        rewritten_rows: report.rewritten_rows,
+                        physical_full_rebuild: report.physical_full_rebuild,
+                        elapsed_ms,
+                        peak_native_segment_bytes: report.peak_native_segment_bytes,
+                    });
+                Ok(())
+            }
+            Err(error) => Err(self.build_failure(&path, record, &error, rejected.into_inner())),
         }
-        self.ctx
-            .check()
-            .map_err(zg_knowledge::graph::GraphError::from)
-            .map_err(failure)?;
-        attempt(
+    }
+    fn build_failure(
+        &self,
+        path: &Path,
+        record: &BuildRecord,
+        error: &zg_knowledge::graph::GraphError,
+        rejected: Option<EngineError>,
+    ) -> EngineError {
+        let committed = error.outcome == Some(GraphOutcome::Committed);
+        let unknown = error.kind == GraphErrorKind::RecoveryRequired
+            || matches!(
+                error.outcome,
+                Some(GraphOutcome::Unknown | GraphOutcome::InTransaction)
+            );
+        let _ = attempt(
             path,
             record,
-            "validated",
-            "not_applied",
+            if unknown { "unknown" } else { "failed" },
+            if committed {
+                "committed"
+            } else if unknown {
+                "unknown"
+            } else {
+                "not_applied"
+            },
             "not_selected",
             self.ctx.cancellation.is_cancelled(),
-            None,
-        )?;
-        self.resources.check(false)?;
-        Ok(graph)
+            Some(&format!("{:?}", error.kind)),
+        );
+        if committed {
+            return committed_recovery(
+                path,
+                record,
+                self.ctx.cancellation.is_cancelled(),
+                "candidate_confirmation_failed",
+            );
+        }
+        rejected.unwrap_or_else(|| graph_error(error))
+    }
+    fn resume(&self, record: &BuildRecord, catalog: &FactCatalog) -> EngineResult<Vec<String>> {
+        self.build_with_service(record, catalog, true)?;
+        self.confirm_resume(&self.home.join("graph/builds").join(self.id), record)
     }
 
     fn confirm_resume(
@@ -1164,6 +1141,10 @@ impl<'a> Candidate<'a> {
             )
         })
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep expected generation, native preparation and atomic app publication in order"
+    )]
     fn select(
         &self,
         record: &BuildRecord,
@@ -1188,6 +1169,7 @@ impl<'a> Candidate<'a> {
         self.storage.close()?;
         let domains = self.domains(catalog)?;
         let head = GraphHead {
+            generation: record.generation.clone(),
             format_version: 1,
             graph_build_id: self.id.into(),
             text_revision: self.state.text_revision,
@@ -1198,6 +1180,25 @@ impl<'a> Candidate<'a> {
             domains: domains.clone(),
         };
         let path = self.home.join("graph/builds").join(self.id);
+        if work != GraphWorkMode::TextRebuild {
+            let active = crate::workspace::manifest::read_workspace_manifest(&self.manifest.path)?
+                .ok_or_else(|| EngineError::resource_busy("publication disappeared"))?;
+            if active.publication.as_ref().map(|p| &p.generation) != record.base_generation.as_ref()
+            {
+                return Err(EngineError::resource_busy(
+                    "publication base generation changed",
+                ));
+            }
+        }
+        let prepared = GraphHead::read(&self.home)?;
+        if prepared.as_ref().is_some_and(|h| {
+            Some(h.graph_build_id.as_str()) != record.base_head.as_deref()
+                && h.graph_build_id != self.id
+        }) {
+            return Err(EngineError::resource_busy(
+                "prepared graph selection changed",
+            ));
+        }
         check_context(&self.ctx)?;
         attempt(
             &path,
@@ -1208,13 +1209,17 @@ impl<'a> Candidate<'a> {
             self.ctx.cancellation.is_cancelled(),
             None,
         )?;
-        if let Err(error) = GraphHead::select(
-            &self.home,
-            &self.state,
-            record.base_head.as_deref(),
-            &self.policy.policy_fingerprint,
-            &head,
-        ) {
+        if let Err(error) = if prepared.as_ref() == Some(&head) {
+            Ok(())
+        } else {
+            GraphHead::select(
+                &self.home,
+                &self.state,
+                prepared.as_ref().map(|h| h.graph_build_id.as_str()),
+                &self.policy.policy_fingerprint,
+                &head,
+            )
+        } {
             if error.code() == EngineError::RESOURCE_BUSY {
                 // A failed compare-and-swap made no pointer change. Preserve
                 // that known outcome rather than declaring selection unknown.
@@ -1248,7 +1253,40 @@ impl<'a> Candidate<'a> {
             late,
             None,
         );
-        let mut diagnostics = Vec::new();
+        if work != GraphWorkMode::TextRebuild {
+            let mut selected =
+                crate::workspace::manifest::read_workspace_manifest(&self.manifest.path)?
+                    .ok_or_else(|| EngineError::resource_busy("publication disappeared"))?;
+            if selected.publication.as_ref().map(|p| &p.generation)
+                != record.base_generation.as_ref()
+            {
+                return Err(EngineError::recovery_required(
+                    "graph committed; publication generation conflict requires inspection",
+                ));
+            }
+            crate::workspace::manifest::write_workspace_manifest_with_graph(
+                &selected.path,
+                &selected,
+                Some(head.clone()),
+            )?;
+            selected = crate::workspace::manifest::read_workspace_manifest(&selected.path)?
+                .ok_or_else(|| EngineError::recovery_required("publication confirmation failed"))?;
+            if selected
+                .publication
+                .as_ref()
+                .and_then(|p| p.graph.as_ref())
+                .is_none_or(|g| g.graph_build_id != self.id)
+            {
+                return Err(EngineError::recovery_required(
+                    "graph publication confirmation failed",
+                ));
+            }
+        }
+        let mut diagnostics = if work == GraphWorkMode::TextRebuild {
+            Vec::new()
+        } else {
+            retirement_diagnostic(&self.home, &domains)
+        };
         if late && work != GraphWorkMode::TextRebuild {
             diagnostics.push("cancellation_arrived_after_selection".into());
         }
@@ -1256,6 +1294,7 @@ impl<'a> Candidate<'a> {
             diagnostics.push("unsupported_graph_path".into());
         }
         Ok(GraphIndexResult {
+            build_report: self.build_report.borrow().clone(),
             text_published: work.text_published(),
             graph_candidate_committed: true,
             graph_selected: work != GraphWorkMode::TextRebuild,

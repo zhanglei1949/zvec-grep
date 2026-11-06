@@ -10,7 +10,7 @@ use crate::{
     processing::{ProcessingContext, stable_digest},
 };
 
-pub const FACTS_FORMAT_VERSION: u64 = 7;
+pub const FACTS_FORMAT_VERSION: u64 = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -542,9 +542,26 @@ impl FactCatalog {
     }
 
     pub fn apply_sources(
+        self,
+        input: &crate::semantic::SemanticInput,
+        context: &ProcessingContext,
+    ) -> Result<Self> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| Error::InvalidInput("system clock before Unix epoch"))?
+            .as_millis();
+        self.apply_sources_at(
+            input,
+            context,
+            u64::try_from(now).map_err(|_| Error::ResourceExhausted)?,
+        )
+    }
+
+    pub fn apply_sources_at(
         mut self,
         input: &crate::semantic::SemanticInput,
         context: &ProcessingContext,
+        operation_ms: u64,
     ) -> Result<Self> {
         let files: BTreeMap<_, _> = self
             .files
@@ -591,7 +608,9 @@ impl FactCatalog {
                 }
             }
         }
-        self.semantic = self.semantic.apply_sources(input, context)?;
+        self.semantic = self
+            .semantic
+            .apply_sources_at(input, context, operation_ms)?;
         self.validate_semantic(context)?;
         Ok(self)
     }

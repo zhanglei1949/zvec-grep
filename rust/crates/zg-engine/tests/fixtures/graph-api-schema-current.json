@@ -1,0 +1,3221 @@
+{
+  "execution": {
+    "$defs": {
+      "BudgetLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "default": 5000,
+            "description": "Maximum candidate objects.",
+            "format": "uint64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "edges": {
+            "default": 10000,
+            "description": "Maximum visited edges.",
+            "format": "uint64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "filter_bytes": {
+            "default": 262144,
+            "description": "Maximum serialized strict-scope filter bytes.",
+            "format": "uint64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mapping_units": {
+            "default": 5000,
+            "description": "Maximum text-mapping units.",
+            "format": "uint64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nodes": {
+            "default": 2000,
+            "description": "Maximum visited nodes. Positive; the service may impose a lower ceiling.",
+            "format": "uint64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "output_bytes": {
+            "default": 65536,
+            "description": "Maximum graph output bytes.",
+            "format": "uint64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "budget": {
+        "$ref": "#/$defs/BudgetLimits",
+        "default": {
+          "candidates": 5000,
+          "edges": 10000,
+          "filter_bytes": 262144,
+          "mapping_units": 5000,
+          "nodes": 2000,
+          "output_bytes": 65536
+        },
+        "description": "Independent graph resource limits, bounded by the service allowance."
+      },
+      "graph_timeout_ms": {
+        "default": 5000,
+        "description": "Graph-stage timeout in milliseconds; the total request deadline still applies.",
+        "format": "uint64",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "request_timeout_ms": {
+        "default": 30000,
+        "description": "Total request deadline in milliseconds, bounded by the service allowance.",
+        "format": "uint64",
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "title": "ExecutionOptions",
+    "type": "object"
+  },
+  "explore_request": {
+    "$defs": {
+      "Direction": {
+        "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
+        "enum": [
+          "incoming",
+          "outgoing",
+          "both"
+        ],
+        "type": "string"
+      },
+      "EntityKind": {
+        "enum": [
+          "file",
+          "module",
+          "class",
+          "interface",
+          "function",
+          "method",
+          "field",
+          "section",
+          "type",
+          "constant"
+        ],
+        "type": "string"
+      },
+      "ExploreOperation": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "anchor": {
+                "$ref": "#/$defs/Locator"
+              },
+              "direction": {
+                "$ref": "#/$defs/Direction"
+              },
+              "operation": {
+                "const": "relation_types",
+                "type": "string"
+              }
+            },
+            "required": [
+              "operation",
+              "anchor",
+              "direction"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Read semantic objects, facts, provenance or correction history (domain=semantic).",
+            "properties": {
+              "operation": {
+                "const": "semantic",
+                "type": "string"
+              },
+              "query": {
+                "$ref": "#/$defs/SemanticQuery"
+              }
+            },
+            "required": [
+              "operation",
+              "query"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Resolve an object by name, source position or a previously returned node reference.",
+            "properties": {
+              "operation": {
+                "const": "locate",
+                "type": "string"
+              },
+              "target": {
+                "$ref": "#/$defs/Locator"
+              }
+            },
+            "required": [
+              "operation",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Read one-hop relationships for a known object; incoming calls returns its callers.",
+            "properties": {
+              "anchor": {
+                "$ref": "#/$defs/Locator"
+              },
+              "direction": {
+                "$ref": "#/$defs/Direction"
+              },
+              "operation": {
+                "const": "neighbors",
+                "type": "string"
+              },
+              "relations": {
+                "items": {
+                  "$ref": "#/$defs/RelationKind"
+                },
+                "maxItems": 9,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "operation",
+              "anchor",
+              "relations",
+              "direction"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Traverse from a known object with explicit direction, edge types and hop bounds.",
+            "properties": {
+              "anchor": {
+                "$ref": "#/$defs/Locator"
+              },
+              "operation": {
+                "const": "expand",
+                "type": "string"
+              },
+              "traversal": {
+                "$ref": "#/$defs/TraversalSpec"
+              }
+            },
+            "required": [
+              "operation",
+              "anchor",
+              "traversal"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Find a bounded shortest path between two known objects.",
+            "properties": {
+              "operation": {
+                "const": "shortest_path",
+                "type": "string"
+              },
+              "start": {
+                "$ref": "#/$defs/Locator"
+              },
+              "target": {
+                "$ref": "#/$defs/Locator"
+              },
+              "traversal": {
+                "$ref": "#/$defs/TraversalSpec"
+              }
+            },
+            "required": [
+              "operation",
+              "start",
+              "target",
+              "traversal"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Read resolved or unresolved source references and their evidence.",
+            "properties": {
+              "operation": {
+                "const": "references",
+                "type": "string"
+              },
+              "selector": {
+                "$ref": "#/$defs/ReferenceSelector"
+              }
+            },
+            "required": [
+              "operation",
+              "selector"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "GraphStamp": {
+        "additionalProperties": false,
+        "properties": {
+          "build_id": {
+            "type": "string"
+          },
+          "catalog_revision": {
+            "type": "string"
+          },
+          "configuration": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "build_id",
+          "schema",
+          "rules",
+          "configuration",
+          "catalog_revision"
+        ],
+        "type": "object"
+      },
+      "Identity": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "space_id",
+          "id"
+        ],
+        "type": "object"
+      },
+      "Locator": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "object",
+                "type": "string"
+              },
+              "object": {
+                "$ref": "#/$defs/ObjectRef"
+              }
+            },
+            "required": [
+              "by",
+              "object"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "node",
+                "type": "string"
+              },
+              "node": {
+                "$ref": "#/$defs/NodeRef"
+              }
+            },
+            "required": [
+              "by",
+              "node"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "position",
+                "type": "string"
+              },
+              "byte_offset": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EntityKind"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "source_id",
+              "byte_offset"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "name",
+                "type": "string"
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EntityKind"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "source_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "by",
+              "name"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "NodeRef": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph_build_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "workspace_id",
+          "graph_build_id",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "ObjectId": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "node_id": {
+                "type": "string"
+              },
+              "type": {
+                "const": "source_node",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "node_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "semantic_entity",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "episode",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "fact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ObjectRef": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph_build_id": {
+            "type": "string"
+          },
+          "object": {
+            "$ref": "#/$defs/ObjectId"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "workspace_id",
+          "graph_build_id",
+          "object"
+        ],
+        "type": "object"
+      },
+      "QueryDomain": {
+        "enum": [
+          "code",
+          "documents",
+          "semantic"
+        ],
+        "type": "string"
+      },
+      "ReferenceSelector": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "id",
+                "type": "string"
+              },
+              "reference_id": {
+                "type": "string"
+              },
+              "view": {
+                "$ref": "#/$defs/ViewStamp"
+              }
+            },
+            "required": [
+              "by",
+              "reference_id",
+              "view"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "owner",
+                "type": "string"
+              },
+              "owner": {
+                "$ref": "#/$defs/Locator"
+              }
+            },
+            "required": [
+              "by",
+              "owner"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "source",
+                "type": "string"
+              },
+              "source_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "source_id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "RelationKind": {
+        "enum": [
+          "contains",
+          "calls",
+          "imports",
+          "links",
+          "extends",
+          "implements",
+          "mentions",
+          "semantic_relation",
+          "episode_link"
+        ],
+        "type": "string"
+      },
+      "RelationSelector": {
+        "additionalProperties": false,
+        "properties": {
+          "edge_type": {
+            "$ref": "#/$defs/RelationKind"
+          },
+          "relation_types": {
+            "default": null,
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "edge_type"
+        ],
+        "type": "object"
+      },
+      "SemanticQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ObjectRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "direction": {
+            "$ref": "#/$defs/Direction",
+            "default": "outgoing"
+          },
+          "history": {
+            "default": false,
+            "type": "boolean"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relation_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "space_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "space_id"
+        ],
+        "type": "object"
+      },
+      "SourceFilter": {
+        "additionalProperties": false,
+        "description": "Source selection: code uses workspace-relative paths; semantic uses source IDs.",
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sources": {
+            "default": null,
+            "description": "Omitted/null means unrestricted; [] is explicitly empty, not unrestricted.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "TraversalSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "boundary": {
+            "$ref": "#/$defs/SourceFilter",
+            "default": {
+              "sources": null
+            },
+            "description": "Restrict every source admitted along the traversal path."
+          },
+          "direction": {
+            "$ref": "#/$defs/Direction",
+            "default": "outgoing",
+            "description": "incoming finds callers; outgoing finds callees for calls edges."
+          },
+          "include_start": {
+            "default": false,
+            "description": "Include the anchor in expansion results. Paths include their endpoints.",
+            "type": "boolean"
+          },
+          "max_hops": {
+            "default": 2,
+            "description": "Maximum path length (up to 8; Augment allows at most 2).",
+            "format": "uint32",
+            "maximum": 8,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_hops": {
+            "default": 1,
+            "description": "Minimum path length. Must satisfy 1 <= `min_hops` <= `max_hops`.",
+            "format": "uint32",
+            "maximum": 8,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "relations": {
+            "default": [
+              "calls"
+            ],
+            "description": "Edge types to follow; choose at least one, without duplicates.",
+            "items": {
+              "$ref": "#/$defs/RelationKind"
+            },
+            "maxItems": 9,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "result_filter": {
+            "$ref": "#/$defs/SourceFilter",
+            "default": {
+              "sources": null
+            },
+            "description": "Restrict returned sources; traversal may pass through other sources."
+          }
+        },
+        "type": "object"
+      },
+      "ViewStamp": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/GraphStamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text_revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "generation",
+          "text_revision"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "boundary": {
+        "$ref": "#/$defs/SourceFilter",
+        "default": {
+          "sources": null
+        },
+        "description": "Restrict every source along the traversal path."
+      },
+      "cursor": {
+        "default": null,
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "domain": {
+        "$ref": "#/$defs/QueryDomain",
+        "description": "Domain selects the available relation and locator types."
+      },
+      "operation": {
+        "$ref": "#/$defs/ExploreOperation"
+      },
+      "page_size": {
+        "default": 64,
+        "format": "uint16",
+        "maximum": 256,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "relation_filters": {
+        "default": [],
+        "items": {
+          "$ref": "#/$defs/RelationSelector"
+        },
+        "type": "array"
+      },
+      "result_filter": {
+        "$ref": "#/$defs/SourceFilter",
+        "default": {
+          "sources": null
+        },
+        "description": "Restrict returned sources only, without restricting intermediate path sources."
+      }
+    },
+    "required": [
+      "domain",
+      "operation"
+    ],
+    "title": "ExploreRequest",
+    "type": "object"
+  },
+  "explore_result": {
+    "$defs": {
+      "AvailableRelationType": {
+        "properties": {
+          "direction": {
+            "$ref": "#/$defs/Direction"
+          },
+          "edge_type": {
+            "$ref": "#/$defs/RelationKind"
+          },
+          "relation_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "edge_type",
+          "direction"
+        ],
+        "type": "object"
+      },
+      "BudgetUsage": {
+        "properties": {
+          "candidates": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "edges": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "filter_bytes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mapping_units": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "nodes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "output_bytes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges",
+          "candidates",
+          "mapping_units",
+          "output_bytes",
+          "filter_bytes"
+        ],
+        "type": "object"
+      },
+      "ByteSpan": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "start": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "Completion": {
+        "enum": [
+          "complete",
+          "partial"
+        ],
+        "type": "string"
+      },
+      "CoverageDiagnostic": {
+        "properties": {
+          "domain": {
+            "$ref": "#/$defs/QueryDomain"
+          },
+          "note": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "domain",
+          "ready",
+          "note"
+        ],
+        "type": "object"
+      },
+      "Direction": {
+        "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
+        "enum": [
+          "incoming",
+          "outgoing",
+          "both"
+        ],
+        "type": "string"
+      },
+      "EntityKind": {
+        "enum": [
+          "file",
+          "module",
+          "class",
+          "interface",
+          "function",
+          "method",
+          "field",
+          "section",
+          "type",
+          "constant"
+        ],
+        "type": "string"
+      },
+      "EntityRecord": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/EntityKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qualified_name": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "span": {
+            "$ref": "#/$defs/ByteSpan"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "kind",
+          "name",
+          "qualified_name",
+          "span"
+        ],
+        "type": "object"
+      },
+      "Episode": {
+        "additionalProperties": false,
+        "properties": {
+          "content_ref": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string"
+          },
+          "identity": {
+            "$ref": "#/$defs/Identity"
+          },
+          "ingested_at_ms": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "occurred_at_ms": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/$defs/SourceRef"
+          },
+          "state": {
+            "$ref": "#/$defs/EpisodeState"
+          }
+        },
+        "required": [
+          "identity",
+          "kind",
+          "source",
+          "context",
+          "ingested_at_ms",
+          "content_ref",
+          "state"
+        ],
+        "type": "object"
+      },
+      "EpisodeLink": {
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "$ref": "#/$defs/Identity"
+          },
+          "relation_type": {
+            "$ref": "#/$defs/EpisodeRelation"
+          },
+          "source": {
+            "$ref": "#/$defs/Identity"
+          },
+          "target": {
+            "$ref": "#/$defs/Identity"
+          }
+        },
+        "required": [
+          "identity",
+          "source",
+          "target",
+          "relation_type"
+        ],
+        "type": "object"
+      },
+      "EpisodeRelation": {
+        "enum": [
+          "REPLY_TO",
+          "RESULT_OF"
+        ],
+        "type": "string"
+      },
+      "EpisodeState": {
+        "enum": [
+          "active",
+          "withdrawn"
+        ],
+        "type": "string"
+      },
+      "EpisodeWithdrawal": {
+        "additionalProperties": false,
+        "properties": {
+          "changed_at_ms": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "context": {
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/$defs/SourceEvidence"
+          },
+          "expected_state": {
+            "$ref": "#/$defs/EpisodeState"
+          },
+          "target": {
+            "$ref": "#/$defs/Identity"
+          }
+        },
+        "required": [
+          "target",
+          "expected_state",
+          "context",
+          "changed_at_ms",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "EvidenceRead": {
+        "oneOf": [
+          {
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "reference": {
+                "$ref": "#/$defs/EvidenceRef"
+              },
+              "status": {
+                "const": "verified",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reference",
+              "content"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "reference": {
+                "$ref": "#/$defs/EvidenceRef"
+              },
+              "status": {
+                "const": "unavailable",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reference",
+              "reason"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "EvidenceRef": {
+        "additionalProperties": false,
+        "properties": {
+          "decoded_digest": {
+            "type": "string"
+          },
+          "raw_digest": {
+            "type": "string"
+          },
+          "reference_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "span": {
+            "$ref": "#/$defs/ByteSpan"
+          }
+        },
+        "required": [
+          "source_id",
+          "raw_digest",
+          "decoded_digest",
+          "span"
+        ],
+        "type": "object"
+      },
+      "Fact": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "changed_at_ms": {
+            "description": "KG acceptance/change time. Ordinary inputs do not control the stored value.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "context": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "description": "First acceptance time. NULL is reserved for facts migrated without a known time.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "identity": {
+            "$ref": "#/$defs/Identity"
+          },
+          "object": {
+            "$ref": "#/$defs/FactObject"
+          },
+          "relation_type": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/FactState"
+          },
+          "subject": {
+            "$ref": "#/$defs/Identity"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Identity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "identity",
+          "subject",
+          "relation_type",
+          "object",
+          "context",
+          "state",
+          "changed_at_ms",
+          "attributes"
+        ],
+        "type": "object"
+      },
+      "FactChange": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "change": {
+                "const": "supersede",
+                "type": "string"
+              },
+              "evidence": {
+                "$ref": "#/$defs/SourceEvidence"
+              },
+              "expected_state": {
+                "$ref": "#/$defs/FactState"
+              },
+              "replacement": {
+                "$ref": "#/$defs/Fact"
+              },
+              "target": {
+                "$ref": "#/$defs/Identity"
+              }
+            },
+            "required": [
+              "change",
+              "target",
+              "expected_state",
+              "replacement",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "change": {
+                "const": "retract",
+                "type": "string"
+              },
+              "changed_at_ms": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "context": {
+                "type": "string"
+              },
+              "evidence": {
+                "$ref": "#/$defs/SourceEvidence"
+              },
+              "expected_state": {
+                "$ref": "#/$defs/FactState"
+              },
+              "target": {
+                "$ref": "#/$defs/Identity"
+              }
+            },
+            "required": [
+              "change",
+              "target",
+              "expected_state",
+              "context",
+              "changed_at_ms",
+              "evidence"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FactObject": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "entity",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "scalar",
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/$defs/ScalarValue"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FactState": {
+        "enum": [
+          "active",
+          "superseded",
+          "retracted"
+        ],
+        "type": "string"
+      },
+      "GraphNode": {
+        "properties": {
+          "distance": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/$defs/EntityKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node": {
+            "$ref": "#/$defs/NodeRef"
+          },
+          "qualified_name": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "span": {
+            "$ref": "#/$defs/ByteSpan"
+          }
+        },
+        "required": [
+          "node",
+          "source_id",
+          "kind",
+          "name",
+          "qualified_name",
+          "span"
+        ],
+        "type": "object"
+      },
+      "GraphPath": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/$defs/NodeRef"
+            },
+            "type": "array"
+          },
+          "relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "relations"
+        ],
+        "type": "object"
+      },
+      "GraphStamp": {
+        "additionalProperties": false,
+        "properties": {
+          "build_id": {
+            "type": "string"
+          },
+          "catalog_revision": {
+            "type": "string"
+          },
+          "configuration": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "build_id",
+          "schema",
+          "rules",
+          "configuration",
+          "catalog_revision"
+        ],
+        "type": "object"
+      },
+      "Identity": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "space_id",
+          "id"
+        ],
+        "type": "object"
+      },
+      "LocateResult": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/$defs/GraphNode"
+            },
+            "type": "array"
+          },
+          "locator": {
+            "$ref": "#/$defs/Locator"
+          },
+          "status": {
+            "$ref": "#/$defs/LocateStatus"
+          }
+        },
+        "required": [
+          "locator",
+          "status",
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "LocateStatus": {
+        "enum": [
+          "unique",
+          "ambiguous",
+          "not_found"
+        ],
+        "type": "string"
+      },
+      "Locator": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "object",
+                "type": "string"
+              },
+              "object": {
+                "$ref": "#/$defs/ObjectRef"
+              }
+            },
+            "required": [
+              "by",
+              "object"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "node",
+                "type": "string"
+              },
+              "node": {
+                "$ref": "#/$defs/NodeRef"
+              }
+            },
+            "required": [
+              "by",
+              "node"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "position",
+                "type": "string"
+              },
+              "byte_offset": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EntityKind"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "source_id",
+              "byte_offset"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "name",
+                "type": "string"
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EntityKind"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "source_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "by",
+              "name"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Lookup": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "include",
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "system": {
+                "type": "boolean"
+              },
+              "target": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "path",
+              "system"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "type_relation",
+                "type": "string"
+              },
+              "owner": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "target": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "owner",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "name",
+                "type": "string"
+              },
+              "parts": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "parts"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "import",
+                "type": "string"
+              },
+              "path": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "path"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "destination": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "document",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "destination"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "dynamic",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Mention": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "ref_id": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/$defs/Identity"
+          }
+        },
+        "required": [
+          "ref_id",
+          "owner_id",
+          "target",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "NodeRef": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph_build_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "workspace_id",
+          "graph_build_id",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "ObjectId": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "node_id": {
+                "type": "string"
+              },
+              "type": {
+                "const": "source_node",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "node_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "semantic_entity",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "episode",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "fact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ObjectRef": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph_build_id": {
+            "type": "string"
+          },
+          "object": {
+            "$ref": "#/$defs/ObjectId"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "workspace_id",
+          "graph_build_id",
+          "object"
+        ],
+        "type": "object"
+      },
+      "QueryDomain": {
+        "enum": [
+          "code",
+          "documents",
+          "semantic"
+        ],
+        "type": "string"
+      },
+      "QueryExecution": {
+        "properties": {
+          "qualification_micros": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "query_micros": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/$defs/Completion"
+          },
+          "stop_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "usage": {
+            "$ref": "#/$defs/BudgetUsage"
+          }
+        },
+        "required": [
+          "status",
+          "usage",
+          "qualification_micros",
+          "query_micros"
+        ],
+        "type": "object"
+      },
+      "ReferenceRecord": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/RelationKind"
+          },
+          "locator": {
+            "$ref": "#/$defs/Lookup"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/$defs/ResolutionStatus"
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "kind",
+          "status",
+          "reason",
+          "locator",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "RelationKind": {
+        "enum": [
+          "contains",
+          "calls",
+          "imports",
+          "links",
+          "extends",
+          "implements",
+          "mentions",
+          "semantic_relation",
+          "episode_link"
+        ],
+        "type": "string"
+      },
+      "RelationRecord": {
+        "properties": {
+          "episode_link": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EpisodeLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fact": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Fact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/RelationKind"
+          },
+          "mention": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Mention"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ReferenceRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relation_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_object": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "target_object": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "ResolutionStatus": {
+        "enum": [
+          "resolved",
+          "ambiguous",
+          "unresolved",
+          "external",
+          "unsupported",
+          "outside_workspace"
+        ],
+        "type": "string"
+      },
+      "ScalarValue": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "SemanticChange": {
+        "description": "Necessary business changes in the current database, not graph snapshots.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "change": {
+                "$ref": "#/$defs/FactChange"
+              },
+              "type": {
+                "const": "fact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "change"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "change": {
+                "$ref": "#/$defs/EpisodeWithdrawal"
+              },
+              "type": {
+                "const": "episode",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "change"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SemanticEntity": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "identity": {
+            "$ref": "#/$defs/Identity"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "identity",
+          "kind",
+          "name",
+          "aliases",
+          "attributes"
+        ],
+        "type": "object"
+      },
+      "SemanticObject": {
+        "properties": {
+          "provenance": {
+            "items": {
+              "$ref": "#/$defs/SemanticProvenance"
+            },
+            "type": "array"
+          },
+          "record": {
+            "$ref": "#/$defs/SemanticValue"
+          },
+          "reference": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        },
+        "required": [
+          "reference",
+          "record",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "SemanticProvenance": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/$defs/SourceEvidence"
+          },
+          "read": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EvidenceRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "$ref": "#/$defs/SourceRole"
+          },
+          "unavailable_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "evidence",
+          "role"
+        ],
+        "type": "object"
+      },
+      "SemanticReadResult": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/$defs/SemanticChange"
+            },
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/$defs/EvidenceRead"
+            },
+            "type": "array"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/$defs/Mention"
+            },
+            "type": "array"
+          },
+          "objects": {
+            "items": {
+              "$ref": "#/$defs/SemanticObject"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/$defs/SemanticSource"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sources",
+          "objects",
+          "mentions",
+          "changes",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "SemanticSource": {
+        "additionalProperties": false,
+        "description": "Current source version and the last version verified by complete input or an explicit correction.",
+        "properties": {
+          "semantic_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/$defs/SourceRef"
+          },
+          "state": {
+            "$ref": "#/$defs/SemanticSourceState"
+          }
+        },
+        "required": [
+          "source",
+          "state"
+        ],
+        "type": "object"
+      },
+      "SemanticSourceState": {
+        "enum": [
+          "unspecified",
+          "complete",
+          "partial",
+          "failed",
+          "deleted"
+        ],
+        "type": "string"
+      },
+      "SemanticValue": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "source_node",
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/$defs/EntityRecord"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "entity",
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/$defs/SemanticEntity"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "episode",
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/$defs/Episode"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "fact",
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/$defs/Fact"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SourceEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "episode": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Identity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EvidenceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "$ref": "#/$defs/SourceRef"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "SourceRef": {
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "source_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_version"
+        ],
+        "type": "object"
+      },
+      "SourceRole": {
+        "oneOf": [
+          {
+            "enum": [
+              "support",
+              "correction"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "withdrawn",
+            "description": "Last contribution removed by a complete replacement or source deletion.",
+            "type": "string"
+          }
+        ]
+      },
+      "ViewStamp": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/GraphStamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text_revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "generation",
+          "text_revision"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "coverage": {
+        "$ref": "#/$defs/CoverageDiagnostic"
+      },
+      "evidence": {
+        "items": {
+          "$ref": "#/$defs/EvidenceRead"
+        },
+        "type": "array"
+      },
+      "execution": {
+        "$ref": "#/$defs/QueryExecution"
+      },
+      "locations": {
+        "items": {
+          "$ref": "#/$defs/LocateResult"
+        },
+        "type": "array"
+      },
+      "next_cursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "nodes": {
+        "items": {
+          "$ref": "#/$defs/GraphNode"
+        },
+        "type": "array"
+      },
+      "paths": {
+        "items": {
+          "$ref": "#/$defs/GraphPath"
+        },
+        "type": "array"
+      },
+      "references": {
+        "items": {
+          "$ref": "#/$defs/ReferenceRecord"
+        },
+        "type": "array"
+      },
+      "relation_types": {
+        "items": {
+          "$ref": "#/$defs/AvailableRelationType"
+        },
+        "type": "array"
+      },
+      "relations": {
+        "items": {
+          "$ref": "#/$defs/RelationRecord"
+        },
+        "type": "array"
+      },
+      "semantic": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SemanticReadResult"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "view": {
+        "$ref": "#/$defs/ViewStamp"
+      }
+    },
+    "required": [
+      "view",
+      "locations",
+      "nodes",
+      "relations",
+      "paths",
+      "references",
+      "evidence",
+      "coverage",
+      "execution"
+    ],
+    "title": "ExploreResult",
+    "type": "object"
+  },
+  "index_options": {
+    "$defs": {
+      "GraphLanguage": {
+        "enum": [
+          "rust",
+          "python",
+          "go",
+          "java",
+          "c",
+          "cpp"
+        ],
+        "type": "string"
+      },
+      "GraphModuleRoot": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "$ref": "#/$defs/GraphLanguage"
+          },
+          "layout": {
+            "$ref": "#/$defs/PackageLayout"
+          },
+          "module_prefix": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "language",
+          "namespace",
+          "module_prefix",
+          "layout"
+        ],
+        "type": "object"
+      },
+      "GraphRules": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "GraphScope": {
+        "enum": [
+          "off",
+          "code",
+          "documents",
+          "both"
+        ],
+        "type": "string"
+      },
+      "PackageLayout": {
+        "enum": [
+          "flat",
+          "src",
+          "mod_rs"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "module_roots": {
+        "default": [],
+        "items": {
+          "$ref": "#/$defs/GraphModuleRoot"
+        },
+        "type": "array"
+      },
+      "rules": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/GraphRules"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "scope": {
+        "$ref": "#/$defs/GraphScope"
+      }
+    },
+    "required": [
+      "scope"
+    ],
+    "title": "GraphOptions",
+    "type": "object"
+  },
+  "query_mode": {
+    "$defs": {
+      "BodyRegion": {
+        "description": "Text to search: full includes nested entities; own includes only the selected entity's own text.",
+        "enum": [
+          "full",
+          "own"
+        ],
+        "type": "string"
+      },
+      "Direction": {
+        "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
+        "enum": [
+          "incoming",
+          "outgoing",
+          "both"
+        ],
+        "type": "string"
+      },
+      "EntityKind": {
+        "enum": [
+          "file",
+          "module",
+          "class",
+          "interface",
+          "function",
+          "method",
+          "field",
+          "section",
+          "type",
+          "constant"
+        ],
+        "type": "string"
+      },
+      "Identity": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "space_id",
+          "id"
+        ],
+        "type": "object"
+      },
+      "Locator": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "object",
+                "type": "string"
+              },
+              "object": {
+                "$ref": "#/$defs/ObjectRef"
+              }
+            },
+            "required": [
+              "by",
+              "object"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "node",
+                "type": "string"
+              },
+              "node": {
+                "$ref": "#/$defs/NodeRef"
+              }
+            },
+            "required": [
+              "by",
+              "node"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "position",
+                "type": "string"
+              },
+              "byte_offset": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EntityKind"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "source_id",
+              "byte_offset"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "by": {
+                "const": "name",
+                "type": "string"
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EntityKind"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "source_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "by",
+              "name"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "NodeRef": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph_build_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "workspace_id",
+          "graph_build_id",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "ObjectId": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "node_id": {
+                "type": "string"
+              },
+              "type": {
+                "const": "source_node",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "node_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "semantic_entity",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "episode",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "identity": {
+                "$ref": "#/$defs/Identity"
+              },
+              "type": {
+                "const": "fact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "identity"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ObjectRef": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "graph_build_id": {
+            "type": "string"
+          },
+          "object": {
+            "$ref": "#/$defs/ObjectId"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "workspace_id",
+          "graph_build_id",
+          "object"
+        ],
+        "type": "object"
+      },
+      "RelationKind": {
+        "enum": [
+          "contains",
+          "calls",
+          "imports",
+          "links",
+          "extends",
+          "implements",
+          "mentions",
+          "semantic_relation",
+          "episode_link"
+        ],
+        "type": "string"
+      },
+      "ScopeSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "$ref": "#/$defs/Locator",
+            "description": "Traversal seed, not an exact scope by itself. Disambiguate names with `source_id`."
+          },
+          "region": {
+            "$ref": "#/$defs/BodyRegion",
+            "default": "full"
+          },
+          "traversal": {
+            "$ref": "#/$defs/TraversalSpec",
+            "default": {
+              "boundary": {
+                "sources": null
+              },
+              "direction": "outgoing",
+              "include_start": false,
+              "max_hops": 2,
+              "min_hops": 1,
+              "relations": [
+                "calls"
+              ],
+              "result_filter": {
+                "sources": null
+              }
+            },
+            "description": "Select entities whose text may be searched. Default: outgoing calls, 1..2 hops, excludes anchor."
+          }
+        },
+        "required": [
+          "anchor"
+        ],
+        "type": "object"
+      },
+      "SourceFilter": {
+        "additionalProperties": false,
+        "description": "Source selection: code uses workspace-relative paths; semantic uses source IDs.",
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sources": {
+            "default": null,
+            "description": "Omitted/null means unrestricted; [] is explicitly empty, not unrestricted.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "TraversalSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "boundary": {
+            "$ref": "#/$defs/SourceFilter",
+            "default": {
+              "sources": null
+            },
+            "description": "Restrict every source admitted along the traversal path."
+          },
+          "direction": {
+            "$ref": "#/$defs/Direction",
+            "default": "outgoing",
+            "description": "incoming finds callers; outgoing finds callees for calls edges."
+          },
+          "include_start": {
+            "default": false,
+            "description": "Include the anchor in expansion results. Paths include their endpoints.",
+            "type": "boolean"
+          },
+          "max_hops": {
+            "default": 2,
+            "description": "Maximum path length (up to 8; Augment allows at most 2).",
+            "format": "uint32",
+            "maximum": 8,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_hops": {
+            "default": 1,
+            "description": "Minimum path length. Must satisfy 1 <= `min_hops` <= `max_hops`.",
+            "format": "uint32",
+            "maximum": 8,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "relations": {
+            "default": [
+              "calls"
+            ],
+            "description": "Edge types to follow; choose at least one, without duplicates.",
+            "items": {
+              "$ref": "#/$defs/RelationKind"
+            },
+            "maxItems": 9,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "result_filter": {
+            "$ref": "#/$defs/SourceFilter",
+            "default": {
+              "sources": null
+            },
+            "description": "Restrict returned sources; traversal may pass through other sources."
+          }
+        },
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "description": "Ordinary retrieval (default). No graph expansion or graph-derived scope.",
+        "properties": {
+          "mode": {
+            "const": "off",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "Retrieve normally, then add bounded graph evidence from the top retrieved entities.",
+        "properties": {
+          "expansion": {
+            "additionalProperties": false,
+            "default": {
+              "boundary": {
+                "sources": null
+              },
+              "direction": "outgoing",
+              "include_start": false,
+              "max_hops": 2,
+              "min_hops": 1,
+              "relations": [
+                "calls"
+              ],
+              "result_filter": {
+                "sources": null
+              }
+            },
+            "description": "Explicit edge types, direction and hops; at most 2 hops. Ordinary ranking stays unchanged.",
+            "properties": {
+              "boundary": {
+                "$ref": "#/$defs/SourceFilter",
+                "default": {
+                  "sources": null
+                },
+                "description": "Restrict every source admitted along the traversal path."
+              },
+              "direction": {
+                "$ref": "#/$defs/Direction",
+                "default": "outgoing",
+                "description": "incoming finds callers; outgoing finds callees for calls edges."
+              },
+              "include_start": {
+                "default": false,
+                "description": "Include the anchor in expansion results. Paths include their endpoints.",
+                "type": "boolean"
+              },
+              "max_hops": {
+                "default": 2,
+                "description": "Maximum path length (up to 8; Augment allows at most 2).",
+                "format": "uint32",
+                "maximum": 2,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "min_hops": {
+                "default": 1,
+                "description": "Minimum path length. Must satisfy 1 <= `min_hops` <= `max_hops`.",
+                "format": "uint32",
+                "maximum": 2,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "relations": {
+                "default": [
+                  "calls"
+                ],
+                "description": "Edge types to follow; choose at least one, without duplicates.",
+                "items": {
+                  "$ref": "#/$defs/RelationKind"
+                },
+                "maxItems": 9,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "result_filter": {
+                "$ref": "#/$defs/SourceFilter",
+                "default": {
+                  "sources": null
+                },
+                "description": "Restrict returned sources; traversal may pass through other sources."
+              }
+            },
+            "type": "object"
+          },
+          "mode": {
+            "const": "augment",
+            "type": "string"
+          },
+          "seeds": {
+            "default": 5,
+            "description": "Number of retrieved entities used as graph seeds (default 5, range 1..5).",
+            "format": "uint32",
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "Resolve a strict graph-derived scope first, then retrieve only within its mapped text.",
+        "properties": {
+          "mode": {
+            "const": "constrain",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/$defs/ScopeSpec",
+            "description": "Required anchor and traversal. Empty/failed scope must not widen to ordinary retrieval."
+          }
+        },
+        "required": [
+          "mode",
+          "scope"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "GraphQueryMode"
+  }
+}

@@ -1,6 +1,6 @@
 use super::{
     EntityInput, Episode, Fact, IdentityResolution, Mention, ObjectId, SemanticEntity,
-    SourceAssociation, SourceRef, SourceRole, resolve_identity,
+    SourceAssociation, SourceRef, resolve_identity,
 };
 use crate::{
     Error, Result,
@@ -19,7 +19,7 @@ pub enum SemanticSourceState {
     Deleted,
 }
 
-/// Current source version and the version of its last complete contribution.
+/// Current source version and the last version verified by complete input or an explicit correction.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SemanticSource {
@@ -51,6 +51,8 @@ pub struct SemanticCatalog {
     pub sources: Vec<SemanticSource>,
     pub entities: Vec<SemanticEntity>,
     pub episodes: Vec<Episode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub episode_links: Vec<super::EpisodeLink>,
     pub facts: Vec<Fact>,
     pub associations: Vec<SourceAssociation>,
     pub mentions: Vec<Mention>,
@@ -102,6 +104,8 @@ impl SemanticCatalog {
             .sort_by(|a, b| a.source.source_id.cmp(&b.source.source_id));
         self.entities.sort_by(|a, b| a.identity.cmp(&b.identity));
         self.episodes.sort_by(|a, b| a.identity.cmp(&b.identity));
+        self.episode_links
+            .sort_by(|a, b| a.identity.cmp(&b.identity));
         self.facts.sort_by(|a, b| a.identity.cmp(&b.identity));
         self.mentions.sort_by(|a, b| a.ref_id.cmp(&b.ref_id));
         self.deferred_mentions
@@ -121,11 +125,16 @@ impl SemanticCatalog {
         Ok(())
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "validate the complete semantic catalog and all cross-record references"
+    )]
     pub fn validate(&self, context: &ProcessingContext) -> Result<()> {
         context.check_output(
             self.sources.len()
                 + self.entities.len()
                 + self.episodes.len()
+                + self.episode_links.len()
                 + self.facts.len()
                 + self.associations.len()
                 + self.mentions.len()
@@ -162,6 +171,19 @@ impl SemanticCatalog {
             }
         }
         let mut facts = BTreeMap::new();
+        let mut links = BTreeSet::new();
+        for link in &self.episode_links {
+            context.check()?;
+            link.validate()?;
+            if !links.insert(&link.identity)
+                || !episodes.contains_key(&link.source)
+                || !episodes.contains_key(&link.target)
+            {
+                return Err(Error::InvalidInput(
+                    "duplicate episode link or missing endpoint",
+                ));
+            }
+        }
         for fact in &self.facts {
             context.check()?;
             fact.validate()?;
@@ -179,20 +201,33 @@ impl SemanticCatalog {
         for association in &self.associations {
             context.check()?;
             association.validate()?;
+            if let Some(identity) = &association.evidence.episode {
+                let episode = episodes
+                    .get(identity)
+                    .ok_or(Error::InvalidInput("missing source episode"))?;
+                if episode.source != association.evidence.source {
+                    return Err(Error::InvalidInput("episode source version mismatch"));
+                }
+                match &association.target {
+                    ObjectId::SemanticEntity { identity: target }
+                    | ObjectId::Fact { identity: target }
+                        if target.space_id == identity.space_id => {}
+                    _ => {
+                        return Err(Error::InvalidInput(
+                            "episode contribution outside identity space",
+                        ));
+                    }
+                }
+            }
             let exists = match &association.target {
                 ObjectId::SemanticEntity { identity } => entities.contains(identity),
                 ObjectId::Fact { identity } => facts.contains_key(identity),
                 _ => false,
             };
-            let source = sources
+            let _source = sources
                 .get(&association.evidence.source.source_id)
                 .ok_or(Error::InvalidInput("missing association source"))?;
-            if !exists
-                || !associations.insert(stable_digest(association)?)
-                || (association.role == SourceRole::Support
-                    && source.semantic_version.as_ref()
-                        != Some(&association.evidence.source.source_version))
-            {
+            if !exists || !associations.insert(stable_digest(association)?) {
                 return Err(Error::InvalidInput(
                     "invalid semantic association target or version",
                 ));

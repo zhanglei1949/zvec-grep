@@ -19,6 +19,7 @@ fn source() -> SourceRef {
 }
 fn evidence() -> SourceEvidence {
     SourceEvidence {
+        episode: None,
         source: source(),
         locator: None,
     }
@@ -44,9 +45,10 @@ fn entity_input() -> EntityInput {
 }
 fn fact(value: &str) -> Fact {
     Fact {
+        created_at_ms: None,
         identity: id(value),
         subject: id("project"),
-        predicate: "OWNER".into(),
+        relation_type: "OWNER".into(),
         object: FactObject::Entity {
             identity: id("person"),
         },
@@ -67,6 +69,7 @@ fn batch() -> SemanticBatch {
 }
 fn input(change: SourceChange) -> SemanticInput {
     SemanticInput {
+        episode_links: Vec::new(),
         space_id: "workspace".into(),
         update_scope: vec![source().source_id],
         sources: vec![change],
@@ -331,6 +334,7 @@ fn provenance_reuses_evidence_validation_without_treating_episode_ids_as_paths()
         source_version: "v1".into(),
     };
     let mut evidence = SourceEvidence {
+        episode: None,
         source,
         locator: Some(locator.clone()),
     };

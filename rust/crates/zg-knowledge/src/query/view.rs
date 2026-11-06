@@ -60,10 +60,12 @@ impl ViewStamp {
     pub fn check_node(&self, node: &NodeRef) -> QueryResult<()> {
         self.validate()?;
         node.validate()?;
-        if self
-            .graph
-            .as_ref()
-            .is_none_or(|g| g.build_id != node.graph_build_id)
+        if self.generation != node.generation
+            || self.workspace_id != node.workspace_id
+            || self
+                .graph
+                .as_ref()
+                .is_none_or(|g| g.build_id != node.graph_build_id)
         {
             return Err(mismatch());
         }
@@ -81,11 +83,15 @@ fn mismatch() -> QueryError {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NodeRef {
+    pub generation: String,
+    pub workspace_id: String,
     pub graph_build_id: String,
     pub node_id: String,
 }
 impl NodeRef {
     pub fn validate(&self) -> QueryResult<()> {
+        nonempty(&self.generation)?;
+        nonempty(&self.workspace_id)?;
         nonempty(&self.graph_build_id)?;
         nonempty(&self.node_id)
     }
@@ -115,7 +121,7 @@ pub struct GraphReadNeeds {
 }
 impl GraphReadNeeds {
     pub fn validate(&self) -> QueryResult<()> {
-        if self.relations.len() > 6
+        if self.relations.len() > 9
             || self
                 .relations
                 .iter()
@@ -168,6 +174,8 @@ pub struct KgReadView<L> {
     capabilities: Vec<GraphReadCapabilities>,
     unavailable_reason: Option<String>,
     semantic_access: Option<super::SemanticAccess>,
+    #[cfg(feature = "graphdb")]
+    graph_handle: Option<crate::GraphHandle>,
 }
 impl<L> KgReadView<L> {
     pub fn new(
@@ -247,12 +255,30 @@ impl<L> KgReadView<L> {
             capabilities,
             unavailable_reason,
             semantic_access: None,
+            #[cfg(feature = "graphdb")]
+            graph_handle: None,
         })
     }
     pub fn with_semantic_access(mut self, access: super::SemanticAccess) -> QueryResult<Self> {
         access.validate()?;
         self.semantic_access = Some(access);
         Ok(self)
+    }
+    #[cfg(feature = "graphdb")]
+    pub fn with_graph_handle(mut self, handle: crate::GraphHandle) -> QueryResult<Self> {
+        self.stamp.require_graph()?;
+        self.graph_handle = Some(handle);
+        Ok(self)
+    }
+    #[cfg(feature = "graphdb")]
+    pub(crate) fn graph_handle(&self) -> QueryResult<&crate::GraphHandle> {
+        self.graph_handle.as_ref().ok_or_else(|| {
+            QueryError::new(
+                QueryErrorKind::GraphUnavailable,
+                "view",
+                "graph resource was not retained",
+            )
+        })
     }
     pub fn semantic_access(&self) -> QueryResult<&super::SemanticAccess> {
         self.semantic_access.as_ref().ok_or_else(|| {

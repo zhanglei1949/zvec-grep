@@ -3,10 +3,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex, Weak,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::{Arc, Mutex, Weak},
 };
 use tokio::sync::Notify;
 
@@ -26,9 +23,14 @@ pub(crate) struct WriterSession {
     pub(crate) storage: IndexStore,
     pub(crate) models: Vec<ModelRuntimeLease>,
     pub(crate) manifest: WorkspaceManifest,
-    active: AtomicUsize,
+    readers: Mutex<Readers>,
     drained: Notify,
     _home_lock: Arc<FileLock>,
+}
+
+struct Readers {
+    accepting: bool,
+    active: usize,
 }
 
 pub(crate) struct WriterRegistration {
@@ -51,9 +53,31 @@ impl WriterSession {
             storage,
             models,
             manifest,
-            active: AtomicUsize::new(0),
+            readers: Mutex::new(Readers {
+                accepting: true,
+                active: 0,
+            }),
             drained: Notify::new(),
             _home_lock: home_lock,
+        }
+    }
+
+    async fn drain_readers(&self) {
+        loop {
+            let notified = self.drained.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            {
+                let mut readers = self
+                    .readers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                readers.accepting = false;
+                if readers.active == 0 {
+                    return;
+                }
+            }
+            notified.await;
         }
     }
 }
@@ -83,7 +107,16 @@ impl WriterContexts {
         if session.manifest.storage_home() != storage_home {
             return None;
         }
-        session.active.fetch_add(1, Ordering::AcqRel);
+        {
+            let mut readers = session
+                .readers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if !readers.accepting {
+                return None;
+            }
+            readers.active += 1;
+        }
         Some(WriterLease { session })
     }
 }
@@ -105,9 +138,7 @@ impl WriterRegistration {
 
     pub(crate) async fn retire(&self) {
         self.unpublish();
-        while self.session.active.load(Ordering::Acquire) != 0 {
-            self.session.drained.notified().await;
-        }
+        self.session.drain_readers().await;
     }
 }
 
@@ -119,8 +150,57 @@ impl Drop for WriterRegistration {
 
 impl Drop for WriterLease {
     fn drop(&mut self) {
-        if self.session.active.fetch_sub(1, Ordering::AcqRel) == 1 {
-            self.session.drained.notify_one();
+        let mut readers = self
+            .session
+            .readers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        readers.active -= 1;
+        if readers.active == 0 {
+            self.session.drained.notify_waiters();
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::pipelines::indexing::storage::IndexStorage for WriterSession {
+    async fn prepare_write(&self) -> crate::EngineResult<()> {
+        self.drain_readers().await;
+        Ok(())
+    }
+    fn is_read_only(&self) -> bool {
+        self.storage.is_read_only()
+    }
+    fn list_files(&self) -> crate::EngineResult<Vec<crate::domain::FileRecord>> {
+        self.storage.list_files()
+    }
+    fn resolve_file_ids(
+        &self,
+        paths: &[PathBuf],
+    ) -> crate::EngineResult<Vec<crate::domain::FileId>> {
+        self.storage.resolve_file_ids(paths)
+    }
+    fn replace_file(
+        &self,
+        file: &crate::domain::FileRecord,
+        entities: &[crate::domain::Entity],
+        entries: &[crate::storage::types::IndexedFragment],
+        graph: &crate::domain::FileGraphResult,
+    ) -> crate::EngineResult<()> {
+        self.storage
+            .replace_file_with_graph(file, entities, entries, graph)
+    }
+    fn mark_file_failed(
+        &self,
+        file: &crate::domain::FileRecord,
+        error: &str,
+    ) -> crate::EngineResult<()> {
+        self.storage.mark_file_failed(file, error)
+    }
+    fn delete_file(&self, id: crate::domain::FileId) -> crate::EngineResult<()> {
+        self.storage.delete_file(id)
+    }
+    fn finalize_writes(&self) -> crate::EngineResult<()> {
+        self.storage.finalize_writes()
     }
 }

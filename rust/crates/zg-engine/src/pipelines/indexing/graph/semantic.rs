@@ -26,7 +26,7 @@ pub(super) fn apply(
         return Err(EngineError::resource_busy("semantic base facts changed"));
     }
     let mut catalog = catalog
-        .apply_sources(&input.input, ctx)
+        .apply_sources_at(&input.input, ctx, record.created_epoch_ms)
         .map_err(crate::graph_facts::map_error)?;
     catalog.semantic.last_operation = record.semantic_operation()?;
     Ok(catalog)
@@ -201,6 +201,7 @@ fn replay(
         ));
     }
     Ok(GraphIndexResult {
+        build_report: None,
         text_published: false,
         graph_candidate_committed: true,
         graph_selected: true,

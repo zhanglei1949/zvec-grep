@@ -88,9 +88,10 @@ pub(super) fn semantic_fixture() -> TestResult<(FactCatalog, crate::graph::build
     .enumerate()
     {
         data.facts.push(Fact {
+            created_at_ms: None,
             identity: id(&format!("scalar-{index}")),
             subject: id("project"),
-            predicate: format!("attribute-{index}"),
+            relation_type: format!("attribute-{index}"),
             object: FactObject::Scalar {
                 value: serde_json::from_value(value)?,
             },
@@ -107,6 +108,7 @@ pub(super) fn semantic_fixture() -> TestResult<(FactCatalog, crate::graph::build
                 identity: fact.identity.clone(),
             },
             evidence: SourceEvidence {
+                episode: None,
                 source: source("a.py"),
                 locator: None,
             },
@@ -118,6 +120,7 @@ pub(super) fn semantic_fixture() -> TestResult<(FactCatalog, crate::graph::build
             identity: id("person"),
         },
         evidence: SourceEvidence {
+            episode: None,
             source: source("a.py"),
             locator: Some(data.mentions[0].evidence.clone()),
         },
@@ -128,6 +131,7 @@ pub(super) fn semantic_fixture() -> TestResult<(FactCatalog, crate::graph::build
 
 fn semantic_records() -> TestResult<SemanticCatalog> {
     Ok(SemanticCatalog {
+        episode_links: Vec::new(),
         sources: vec![current("a.py"), current("episode:meeting")],
         entities: vec![
             SemanticEntity {
@@ -168,9 +172,10 @@ fn semantic_records() -> TestResult<SemanticCatalog> {
             state: EpisodeState::Active,
         }],
         facts: vec![Fact {
+            created_at_ms: None,
             identity: id("f1"),
             subject: id("project"),
-            predicate: "owner".into(),
+            relation_type: "owner".into(),
             object: FactObject::Entity {
                 identity: id("person"),
             },
@@ -414,7 +419,7 @@ fn registered_identities_survive_reopen_and_a_second_candidate() -> TestResult {
         rebuilt.semantic.entities.push(entity);
         let mut fact = rebuilt.semantic.facts[0].clone();
         fact.identity = id(&format!("new-fact-{index}"));
-        fact.predicate = format!("new-predicate-{index}");
+        fact.relation_type = format!("new-predicate-{index}");
         rebuilt.semantic.facts.push(fact);
     }
     rebuilt.semantic.normalize()?;
@@ -622,6 +627,7 @@ fn declared_fact_states_predecessors_and_correction_evidence_survive_reopen() ->
     catalog.semantic.associations.push(SourceAssociation {
         target: ObjectId::Fact { identity: id("f2") },
         evidence: SourceEvidence {
+            episode: None,
             source: SourceRef {
                 source_id: "a.py".into(),
                 source_version: "v0".into(),

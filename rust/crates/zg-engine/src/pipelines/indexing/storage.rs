@@ -8,7 +8,12 @@ use crate::{
     storage::{IndexStore, types::IndexedFragment},
 };
 
+#[async_trait::async_trait]
 pub(crate) trait IndexStorage: Send + Sync {
+    /// Stop borrowing the published data and drain readers before mutating it.
+    async fn prepare_write(&self) -> EngineResult<()> {
+        Ok(())
+    }
     fn is_read_only(&self) -> bool;
     fn list_files(&self) -> EngineResult<Vec<FileRecord>>;
     fn resolve_file_ids(&self, paths: &[PathBuf]) -> EngineResult<Vec<FileId>>;

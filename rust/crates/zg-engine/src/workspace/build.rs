@@ -14,7 +14,7 @@ use crate::{
     utils::{atomic_write, sync_directory},
 };
 
-use super::manifest::{WORKSPACE_MANIFEST_FILE, WorkspaceManifest, write_workspace_manifest};
+use super::manifest::{WORKSPACE_MANIFEST_FILE, WorkspaceManifest};
 
 const BUILD_FILE: &str = "build.json";
 
@@ -71,6 +71,45 @@ pub(crate) fn has_generation_storage(home: &Path) -> Result<bool, EngineError> {
     Ok(false)
 }
 
+/// Without a readable manifest, graph-bearing generations cannot be classified
+/// as disposable text. Preserve them for explicit recovery.
+pub(crate) fn has_graph_storage(home: &Path) -> Result<bool, EngineError> {
+    fn graph_data(path: &Path) -> Result<bool, EngineError> {
+        for marker in ["graph/HEAD.json", "graph/graph.sqlite"] {
+            if path.join(marker).try_exists().map_err(build_io)? {
+                return Ok(true);
+            }
+        }
+        match fs::read_dir(path.join("graph/builds")) {
+            Ok(mut entries) => {
+                if let Some(entry) = entries.next() {
+                    entry.map_err(build_io)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(build_io(error)),
+        }
+    }
+    if graph_data(home)? {
+        return Ok(true);
+    }
+    let entries = match fs::read_dir(home.join("generations")) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(build_io(error)),
+    };
+    for entry in entries {
+        let entry = entry.map_err(build_io)?;
+        if graph_data(&entry.path())? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// Remove abandoned builds or finish post-publication cleanup under the write lock.
 /// The active manifest is the only commit marker; unfinished work is never resumed.
 pub(crate) fn recover_build(home: &Path) -> Result<(), EngineError> {
@@ -115,6 +154,7 @@ fn recover_build_with(
 pub(crate) fn prepare_build(mut target: WorkspaceManifest) -> Result<WorkspaceBuild, EngineError> {
     let previous_manifest = read_optional(&target.path.join(WORKSPACE_MANIFEST_FILE))?;
     target.storage_generation = Some(Uuid::new_v4().to_string());
+    target.publication = None;
     let build = WorkspaceBuild {
         target,
         previous_manifest,
@@ -161,8 +201,15 @@ fn publish_build_with(
     updated_time: u64,
     delete_storage: &impl Fn(&Path) -> Result<(), EngineError>,
 ) -> Result<(), EngineError> {
+    let current = read_optional(&build.target.path.join(WORKSPACE_MANIFEST_FILE))?;
+    if current != build.previous_manifest {
+        return Err(EngineError::resource_busy(
+            "publication base changed before generation selection",
+        ));
+    }
     build.target.record_update(updated_time);
-    write_workspace_manifest(&build.target.path, &build.target)?;
+    let graph = crate::storage::graph_state::GraphHead::read(&build.target.storage_home())?;
+    super::manifest::write_workspace_manifest_with_graph(&build.target.path, &build.target, graph)?;
     // Publication succeeded. Cleanup failure must not turn it into a failed build;
     // keep the ownership record so the next writer can retry cleanup.
     let _ = recover_build_with(&build.target.path, false, delete_storage);
@@ -329,6 +376,21 @@ fn build_io(error: std::io::Error) -> EngineError {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn missing_manifest_does_not_make_old_graph_storage_disposable() {
+        let home = tempfile::tempdir().expect("home");
+        assert!(!super::has_graph_storage(home.path()).expect("empty"));
+        let graph = home
+            .path()
+            .join("generations")
+            .join(uuid::Uuid::new_v4().to_string())
+            .join("graph");
+        std::fs::create_dir_all(&graph).expect("graph");
+        std::fs::write(graph.join("HEAD.json"), b"unknown old format").expect("old marker");
+        assert!(super::has_graph_storage(home.path()).expect("protected graph"));
+    }
+
+    use crate::workspace::manifest::write_workspace_manifest;
     use tempfile::tempdir;
 
     use crate::domain::{
@@ -382,6 +444,8 @@ mod tests {
         )
         .expect("manifest");
         manifest.storage_generation = Some(Uuid::new_v4().to_string());
+        manifest.publication =
+            crate::workspace::publication::snapshot(&manifest, None).expect("publication");
         manifest
     }
 

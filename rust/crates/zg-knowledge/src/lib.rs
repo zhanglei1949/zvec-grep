@@ -10,4 +10,9 @@ pub mod semantic;
 #[cfg(feature = "graphdb")]
 pub mod graph;
 
+#[cfg(feature = "graphdb")]
+pub mod service;
+#[cfg(feature = "graphdb")]
+pub use service::{GraphHandle, KgService};
+
 pub use error::{Error, Result};

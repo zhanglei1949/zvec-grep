@@ -22,6 +22,72 @@ pub enum ReferencePartition {
     Implements,
 }
 pub trait GraphReader {
+    /// Stable filtered edge pages. Native adapters override this to use keyset queries.
+    fn neighbors_after(
+        &self,
+        read: &super::NeighborRead<'_>,
+        context: &RequestContext,
+    ) -> QueryResult<Vec<RelationRecord>> {
+        let crate::semantic::ObjectId::SourceNode { node_id } = read.anchor else {
+            return Err(super::QueryError::new(
+                super::QueryErrorKind::Unsupported,
+                "neighbors",
+                "semantic adjacency unavailable",
+            ));
+        };
+        let mut offset = 0;
+        let mut selected = Vec::new();
+        loop {
+            context.check()?;
+            let page = self.neighbors(
+                std::slice::from_ref(node_id),
+                read.selector.edge_type,
+                read.direction,
+                offset,
+                context,
+            )?;
+            let count = page.len();
+            for edge in page {
+                let key = edge.key();
+                if read.after.is_none_or(|after| key > *after)
+                    && (!read.skip_group
+                        || read
+                            .after
+                            .is_none_or(|after| key.relation_type > after.relation_type))
+                {
+                    selected.push(edge);
+                }
+            }
+            if count < 256 {
+                break;
+            }
+            offset += 256;
+            context.charge(super::BudgetUsage {
+                candidates: count as u64,
+                ..Default::default()
+            })?;
+        }
+        selected.sort_by_key(RelationRecord::key);
+        selected.truncate(256);
+        Ok(selected)
+    }
+    /// A backend may select candidates and their provenance directly. Test/read adapters
+    /// without predicate support retain the bounded partition fallback.
+    fn semantic_selection(
+        &self,
+        _query: &super::SemanticQuery,
+        _context: &RequestContext,
+    ) -> QueryResult<Option<crate::semantic::SemanticCatalog>> {
+        Ok(None)
+    }
+    /// Exact endpoint metadata and support, without exploring its incident facts.
+    fn semantic_object(
+        &self,
+        query: &super::SemanticQuery,
+        context: &RequestContext,
+    ) -> QueryResult<Option<crate::semantic::SemanticCatalog>> {
+        self.semantic_selection(query, context)
+    }
     fn source_nodes(
         &self,
         ids: &[String],

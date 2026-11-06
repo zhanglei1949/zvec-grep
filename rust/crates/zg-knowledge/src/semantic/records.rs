@@ -23,10 +23,15 @@ impl SourceRef {
 pub struct SourceEvidence {
     pub source: SourceRef,
     pub locator: Option<EvidenceRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub episode: Option<Identity>,
 }
 impl SourceEvidence {
     pub fn validate(&self) -> Result<()> {
         self.source.validate()?;
+        if let Some(episode) = &self.episode {
+            episode.validate()?;
+        }
         if let Some(locator) = &self.locator {
             if locator.source_id != self.source.source_id {
                 return Err(Error::InvalidInput("semantic evidence source mismatch"));
@@ -118,20 +123,54 @@ pub enum FactObject {
 pub struct Fact {
     pub identity: Identity,
     pub subject: Identity,
-    pub predicate: String,
+    #[serde(alias = "predicate")]
+    pub relation_type: String,
     pub object: FactObject,
     pub context: String,
     pub state: FactState,
     pub supersedes: Option<Identity>,
+    /// KG acceptance/change time. Ordinary inputs do not control the stored value.
     pub changed_at_ms: u64,
+    /// First acceptance time. NULL is reserved for facts migrated without a known time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at_ms: Option<u64>,
     pub attributes: Map<String, Value>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EpisodeRelation {
+    ReplyTo,
+    ResultOf,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EpisodeLink {
+    pub identity: Identity,
+    pub source: Identity,
+    pub target: Identity,
+    pub relation_type: EpisodeRelation,
+}
+impl EpisodeLink {
+    pub fn validate(&self) -> Result<()> {
+        self.identity.validate()?;
+        self.source.validate()?;
+        self.target.validate()?;
+        same_space(&self.identity.space_id, &self.source.space_id)?;
+        same_space(&self.identity.space_id, &self.target.space_id)?;
+        if self.source == self.target {
+            return Err(Error::InvalidInput("episode link cannot self-reference"));
+        }
+        Ok(())
+    }
 }
 impl Fact {
     pub fn validate(&self) -> Result<()> {
         self.identity.validate()?;
         self.subject.validate()?;
         same_space(&self.subject.space_id, &self.identity.space_id)?;
-        identifier(&self.predicate)?;
+        identifier(&self.relation_type)?;
         identifier(&self.context)?;
         if let FactObject::Entity { identity } = &self.object {
             identity.validate()?;

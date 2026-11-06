@@ -500,7 +500,7 @@ mod tests {
         assert!(
             super::require_query_capability(
                 &serde_json::json!({
-                    "protocol_version":17,"capabilities":["explore.code.v1"]
+                    "protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":["explore.code.v1"]
                 }),
                 "explore.code.v1"
             )
@@ -512,13 +512,13 @@ mod tests {
     fn augmentation_requires_current_protocol_and_its_own_capability() {
         for value in [
             serde_json::json!({"protocol_version":13,"capabilities":["augment.code.v1"]}),
-            serde_json::json!({"protocol_version":17,"capabilities":["explore.code.v1"]}),
+            serde_json::json!({"protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":["explore.code.v1"]}),
         ] {
             assert!(super::require_query_capability(&value, "augment.code.v1").is_err());
         }
         assert!(
             super::require_query_capability(
-                &serde_json::json!({"protocol_version":17,"capabilities":["augment.code.v1"]}),
+                &serde_json::json!({"protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":["augment.code.v1"]}),
                 "augment.code.v1"
             )
             .is_ok()
@@ -566,8 +566,7 @@ mod constrain_capability_tests {
     fn constrain_requires_its_own_declared_capability() {
         let old = serde_json::json!({"protocol_version":15,"capabilities":["explore.code.v1","augment.code.v1"]});
         assert!(super::require_query_capability(&old, "constrain.code.v1").is_err());
-        let current =
-            serde_json::json!({"protocol_version":17,"capabilities":["constrain.code.v1"]});
+        let current = serde_json::json!({"protocol_version":zg_daemon_protocol::CURRENT_DAEMON_PROTOCOL_VERSION,"capabilities":["constrain.code.v1"]});
         assert!(super::require_query_capability(&current, "constrain.code.v1").is_ok());
     }
 }

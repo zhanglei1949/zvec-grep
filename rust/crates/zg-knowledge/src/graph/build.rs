@@ -273,8 +273,9 @@ impl GraphDbStore {
 
     /// Read an immutable build's facts and verify its commit proof in the same
     /// fresh snapshot. Used when carrying selected facts into a new candidate.
-    /// The v2 raw contract uses the same v7 rows and can supply a rebuild base;
-    /// query admission and new commits still require the current contract.
+    /// Raw-fact contracts may be upgraded within the current physical schema;
+    /// this does not decode or migrate older storage formats. Query admission
+    /// and new commits still require the current raw-fact contract.
     pub fn read_build_facts(
         &self,
         spec: &BuildSpec,

@@ -29,6 +29,9 @@ impl SemanticBatch {
         let mut facts = BTreeSet::new();
         for fact in &self.facts {
             fact.validate()?;
+            if fact.created_at_ms.is_some() {
+                return Err(Error::InvalidInput("created_at is system-owned"));
+            }
             same_space(&fact.identity.space_id, space_id)?;
             if !facts.insert(&fact.identity)
                 || fact.state != FactState::Active
@@ -153,6 +156,9 @@ impl FactChange {
                 evidence,
             } => {
                 replacement.validate()?;
+                if replacement.created_at_ms.is_some() {
+                    return Err(Error::InvalidInput("created_at is system-owned"));
+                }
                 evidence.validate()?;
                 same_space(&replacement.identity.space_id, &target.space_id)?;
                 if *expected_state != FactState::Active
@@ -212,6 +218,8 @@ pub struct SemanticInput {
     pub update_scope: Vec<String>,
     pub sources: Vec<SourceChange>,
     pub episodes: Vec<Episode>,
+    #[serde(default)]
+    pub episode_links: Vec<super::EpisodeLink>,
     pub fact_changes: Vec<FactChange>,
     #[serde(default)]
     pub episode_withdrawals: Vec<super::EpisodeWithdrawal>,
@@ -262,6 +270,14 @@ impl SemanticInput {
                 .is_some_and(|source| **source != episode.source)
             {
                 return Err(Error::InvalidInput("episode source version mismatch"));
+            }
+        }
+        let mut links = BTreeSet::new();
+        for link in &self.episode_links {
+            link.validate()?;
+            same_space(&link.identity.space_id, &self.space_id)?;
+            if !links.insert(&link.identity) {
+                return Err(Error::InvalidInput("duplicate episode link"));
             }
         }
         let mut targets = BTreeSet::new();

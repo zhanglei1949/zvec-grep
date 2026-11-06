@@ -49,7 +49,7 @@
                         "$ref": "#/$defs/RelationKind"
                       },
                       "minItems": 1,
-                      "maxItems": 6,
+                      "maxItems": 9,
                       "default": [
                         "calls"
                       ],
@@ -178,6 +178,15 @@
               },
               "maxItems": 2000,
               "default": null
+            },
+            "kinds": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false
@@ -220,6 +229,23 @@
         },
         "Locator": {
           "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "$ref": "#/$defs/ObjectRef"
+                },
+                "by": {
+                  "type": "string",
+                  "const": "object"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "by",
+                "object"
+              ]
+            },
             {
               "type": "object",
               "properties": {
@@ -310,9 +336,127 @@
             }
           ]
         },
+        "ObjectRef": {
+          "type": "object",
+          "properties": {
+            "generation": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "graph_build_id": {
+              "type": "string"
+            },
+            "object": {
+              "$ref": "#/$defs/ObjectId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "generation",
+            "workspace_id",
+            "graph_build_id",
+            "object"
+          ]
+        },
+        "ObjectId": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "node_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "source_node"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "node_id"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/Identity"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "semantic_entity"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "identity"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/Identity"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "episode"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "identity"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/Identity"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "fact"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "identity"
+              ]
+            }
+          ]
+        },
+        "Identity": {
+          "type": "object",
+          "properties": {
+            "space_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "space_id",
+            "id"
+          ]
+        },
         "NodeRef": {
           "type": "object",
           "properties": {
+            "generation": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
             "graph_build_id": {
               "type": "string"
             },
@@ -322,6 +466,8 @@
           },
           "additionalProperties": false,
           "required": [
+            "generation",
+            "workspace_id",
             "graph_build_id",
             "node_id"
           ]
@@ -351,7 +497,7 @@
                 "$ref": "#/$defs/RelationKind"
               },
               "minItems": 1,
-              "maxItems": 6,
+              "maxItems": 9,
               "default": [
                 "calls"
               ],

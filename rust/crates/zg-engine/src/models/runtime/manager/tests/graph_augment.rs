@@ -395,6 +395,22 @@ async fn graph_augment_writer_text_degrades_and_unstable_text_fails() {
         result.graph.expect("explicit degradation").diagnostics,
         ["writer_view_unavailable"]
     );
+    let storage_home = manifest.storage_home();
+    let mut state = TextState::read(&storage_home)
+        .expect("state")
+        .expect("present");
+    state.state = TextPhase::Mutating;
+    crate::storage::graph_state::write_record(&storage_home.join("graph/STATE.json"), &state)
+        .expect("writer has unfinished text mutation");
+    let mut ordinary = opts.clone();
+    ordinary.graph = GraphQueryMode::Off {};
+    let error = indexed_search::service::context(&service, &manager, &ordinary, None, false)
+        .await
+        .expect_err("writer borrowing cannot bypass text recovery");
+    assert_eq!(error.code(), crate::EngineError::RECOVERY_REQUIRED);
+    state.state = TextPhase::Stable;
+    crate::storage::graph_state::write_record(&storage_home.join("graph/STATE.json"), &state)
+        .expect("restore stable fixture before retiring writer");
     writer.retire().await;
     drop(writer);
     drop(service);
@@ -412,7 +428,7 @@ async fn graph_augment_writer_text_degrades_and_unstable_text_fails() {
     let error = indexed_search::service::context(&service, &manager, &opts, None, false)
         .await
         .expect_err("unsafe text cannot degrade");
-    assert_eq!(error.code(), crate::EngineError::STORAGE_FAILURE);
+    assert_eq!(error.code(), crate::EngineError::RECOVERY_REQUIRED);
 }
 
 fn register_writer(

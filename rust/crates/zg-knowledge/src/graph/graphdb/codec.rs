@@ -4,9 +4,9 @@ use super::super::{
     GraphError, GraphErrorKind, GraphResult, profile,
     schema::{
         AnchorRow, AssociationRow, BindingRow, CatalogRow, DeferredMentionRow, DiagnosticRow,
-        EpisodeRow, FileRow, MetadataRow, NodeRow, RELATIONS, ReferenceRow, STRUCTURE_RELATIONS,
-        ScalarFactRow, ScopeRow, SemanticChangeRow, SemanticEntityRow, SemanticOperationRow,
-        SemanticRelationRow, SemanticSourceRow,
+        EpisodeLinkRow, EpisodeRow, FileRow, MetadataRow, NodeRow, RELATIONS, ReferenceRow,
+        STRUCTURE_RELATIONS, ScalarFactRow, ScopeRow, SemanticChangeRow, SemanticEntityRow,
+        SemanticOperationRow, SemanticRelationRow, SemanticSourceRow,
     },
 };
 use super::StoreCounts;
@@ -68,6 +68,10 @@ pub(super) fn catalog_digest(catalog: &FactCatalog) -> GraphResult<String> {
     values!(&semantic.deferred_mentions);
     output.push_str("],\"entities\":[");
     values!(&semantic.entities);
+    if !semantic.episode_links.is_empty() {
+        output.push_str("],\"episode_links\":[");
+        values!(&semantic.episode_links);
+    }
     output.push_str("],\"episodes\":[");
     values!(&semantic.episodes);
     output.push_str("],\"facts\":[");
@@ -142,6 +146,7 @@ pub(super) enum Mutation<'a> {
     SemanticSource(&'a SemanticSourceRow),
     SemanticEntity(&'a SemanticEntityRow),
     Episode(&'a EpisodeRow),
+    EpisodeLink(&'a EpisodeLinkRow),
     ScalarFact(&'a ScalarFactRow),
     Association(&'a AssociationRow),
     DeferredMention(&'a DeferredMentionRow),
@@ -198,6 +203,7 @@ impl Mutation<'_> {
             Self::SemanticSource(value) => row!("SemanticSource", value),
             Self::SemanticEntity(value) => row!("SemanticEntity", value),
             Self::Episode(value) => row!("Episode", value),
+            Self::EpisodeLink(value) => row!("EpisodeLink", value),
             Self::ScalarFact(value) => row!("ScalarFact", value),
             Self::Association(value) => row!("Association", value),
             Self::SemanticChange(value) => row!("SemanticChange", value),
@@ -340,6 +346,7 @@ pub(super) struct FactRows {
     semantic_sources: Vec<SemanticSourceRow>,
     semantic_entities: Vec<SemanticEntityRow>,
     episodes: Vec<EpisodeRow>,
+    episode_links: Vec<EpisodeLinkRow>,
     scalar_facts: Vec<ScalarFactRow>,
     associations: Vec<AssociationRow>,
     semantic_relations: Vec<SemanticRelationRow>,
@@ -350,7 +357,7 @@ pub(super) struct FactRows {
 }
 impl FactRows {
     pub(super) fn digest(&self) -> GraphResult<String> {
-        let mut digest = crate::processing::stable_digest(&"kg-rows-v7")?;
+        let mut digest = crate::processing::stable_digest(&"kg-rows-v8")?;
         for row in self.iter_mutations() {
             digest = crate::processing::stable_digest(&(digest, row))?;
         }
@@ -383,6 +390,7 @@ impl FactRows {
                     .iter()
                     .map(Mutation::SemanticRelation),
             )
+            .chain(self.episode_links.iter().map(Mutation::EpisodeLink))
             .chain(self.edges.iter().map(Mutation::Edge))
     }
     fn edge(&mut self, name: &str, source: &str, target: &str, version: Option<String>) {
@@ -646,6 +654,8 @@ impl FactRows {
             .sort_by(|a, b| a.source_id.cmp(&b.source_id));
         self.semantic_entities.sort_by(|a, b| a.id.cmp(&b.id));
         self.episodes.sort_by(|a, b| a.id.cmp(&b.id));
+        self.episode_links
+            .sort_by(|a, b| (&a.source, &a.target, &a.id).cmp(&(&b.source, &b.target, &b.id)));
         self.scalar_facts.sort_by(|a, b| a.id.cmp(&b.id));
         self.associations.sort_by(|a, b| a.id.cmp(&b.id));
         self.deferred_mentions.sort_by(|a, b| a.id.cmp(&b.id));
@@ -667,6 +677,7 @@ impl FactRows {
             + self.semantic_sources.len()
             + self.semantic_entities.len()
             + self.episodes.len()
+            + self.episode_links.len()
             + self.scalar_facts.len()
             + self.associations.len()
             + self.semantic_relations.len()
@@ -726,6 +737,7 @@ impl FactRows {
                 Mutation::SemanticSource(row) => row.insert(tx, options)?,
                 Mutation::SemanticEntity(row) => row.insert(tx, options)?,
                 Mutation::Episode(row) => row.insert(tx, options)?,
+                Mutation::EpisodeLink(row) => row.insert(tx, options)?,
                 Mutation::ScalarFact(row) => row.insert(tx, options)?,
                 Mutation::Association(row) => row.insert(tx, options)?,
                 Mutation::SemanticRelation(row) => row.insert(tx, options)?,
@@ -781,7 +793,8 @@ impl FactRows {
             deferred_mentions,
             changes,
             operations,
-            semantic_relations
+            semantic_relations,
+            episode_links
         );
         for edge in &self.edges {
             context.check()?;
@@ -807,6 +820,7 @@ impl FactRows {
             semantic_sources: SemanticSourceRow::read(tx, options)?,
             semantic_entities: SemanticEntityRow::read(tx, options)?,
             episodes: EpisodeRow::read(tx, options)?,
+            episode_links: EpisodeLinkRow::read(tx, options)?,
             scalar_facts: ScalarFactRow::read(tx, options)?,
             associations: AssociationRow::read(tx, options)?,
             deferred_mentions: DeferredMentionRow::read(tx, options)?,
@@ -871,6 +885,7 @@ impl FactRows {
             "KgSemanticRelation".into(),
             number(self.semantic_relations.len())?,
         );
+        relations.insert("KgEpisodeLink".into(), number(self.episode_links.len())?);
         Ok(StoreCounts { nodes, relations })
     }
 
@@ -1173,7 +1188,7 @@ impl super::GraphDbStore {
     /// or running a second resolver on the public query path.
     pub(crate) fn verify_rows(&self, context: &ProcessingContext) -> GraphResult<String> {
         self.with_read(|tx, options| {
-            let mut digest = crate::processing::stable_digest(&"kg-rows-v7")?;
+            let mut digest = crate::processing::stable_digest(&"kg-rows-v8")?;
             let mut count = 0usize;
             let mut scratch = Vec::new();
             let mut canonical_bytes = 0u64;
@@ -1226,6 +1241,19 @@ impl super::GraphDbStore {
                 &mut digest,
                 &mut scratch,
             )?;
+            {
+                let result = EpisodeLinkRow::query(tx, options)?;
+                let mut rows = result.rows();
+                while let Some(row) = rows.next()? {
+                    context.check()?;
+                    count += 1;
+                    context.check_output(count)?;
+                    digest = chained_digest(&digest, &mut scratch, "EpisodeLink", |buffer| {
+                        EpisodeLinkRow::write_raw(&row, buffer)
+                    })?;
+                    canonical_bytes = canonical_bytes.saturating_add(scratch.len() as u64);
+                }
+            }
             canonical_bytes += verify_reference_edges(
                 tx,
                 options,

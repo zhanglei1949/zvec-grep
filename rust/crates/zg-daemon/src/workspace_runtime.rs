@@ -258,9 +258,7 @@ impl WorkspaceRuntimeManager {
             ..IndexOptions::default()
         };
         if policy == RefreshPolicy::Background {
-            let reply = self
-                .search_background(engine, request, options, started)
-                .await?;
+            let reply = Box::pin(self.search_background(engine, request, options, started)).await?;
             return account_scope_preflight(reply, preflight);
         }
         let requested_root = canonical_root(request.root.as_deref())
@@ -1661,6 +1659,9 @@ mod tests {
         let engine = Arc::new(ZvecGrep::new());
         let manager = WorkspaceRuntimeManager::native(Arc::clone(&engine));
         let mut options = ExploreOptions::new(ExploreRequest {
+            page_size: 64,
+            cursor: None,
+            relation_filters: Vec::new(),
             domain: QueryDomain::Code,
             operation: ExploreOperation::Locate {
                 target: Locator::Name {

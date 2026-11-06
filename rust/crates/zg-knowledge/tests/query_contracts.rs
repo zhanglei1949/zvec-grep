@@ -111,6 +111,7 @@ fn traversal_and_source_validation_preserve_path_boundaries() {
         );
     }
     let explicit_empty = SourceFilter {
+        kinds: None,
         sources: Some(vec![]),
     };
     explicit_empty.validate().expect("valid empty boundary");
@@ -121,6 +122,9 @@ fn traversal_and_source_validation_preserve_path_boundaries() {
         kind: None,
     };
     let request = ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation: ExploreOperation::ShortestPath {
             start: locator.clone(),
@@ -160,10 +164,15 @@ fn all_view_components_participate_in_binding() {
         );
     }
     let stale = NodeRef {
+        generation: original.generation.clone(),
+        workspace_id: original.workspace_id.clone(),
         graph_build_id: "old".into(),
         node_id: "n".into(),
     };
     let request = ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation: ExploreOperation::Locate {
             target: Locator::Node { node: stale },

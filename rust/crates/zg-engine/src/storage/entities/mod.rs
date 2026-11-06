@@ -5,12 +5,12 @@ use zvec_rust::{Collection, CollectionSchema, DataType, Doc};
 
 use crate::{
     EngineError, EngineResult,
-    domain::{CodeMetadata, Entity, EntityId, EntityMetadata, FileId},
+    domain::{Entity, EntityId, EntityMetadata, FileId},
 };
 
 use super::zvec::{
-    WRITE_BATCH, collect_entity_ids, corrupt, doc_key, fetch_map, native, open_collection, scalar,
-    string_field, u32_field, write_docs,
+    corrupt, doc_key, fetch_map, native, open_collection, scalar, string_field, u32_field,
+    write_docs,
 };
 
 mod codec;
@@ -85,69 +85,13 @@ impl Entities {
             .collect()
     }
 
-    /// Fetch endpoint identity and ownership without loading content or metadata.
-    pub(super) fn fetch_file_ids(
-        &self,
-        ids: &[EntityId],
-    ) -> EngineResult<HashMap<EntityId, FileId>> {
-        let mut owners = HashMap::with_capacity(ids.len());
-        for batch in ids.chunks(WRITE_BATCH) {
-            let keys: Vec<_> = batch.iter().map(EntityId::as_str).collect();
-            for doc in native(
-                self.collection
-                    .fetch_with_options(&keys, Some(&["entity_id", "file_id"]), false),
-                "fetch entity ownership",
-            )? {
-                let id = string_field(&doc, "entity_id")?;
-                if doc_key(&doc)? != id {
-                    return Err(corrupt("entity identity differs from its index fields"));
-                }
-                owners.insert(
-                    EntityId::from_string(id),
-                    FileId::new(u32_field(&doc, "file_id")?),
-                );
-            }
-        }
-        Ok(owners)
-    }
-
-    /// Read code metadata and ownership without loading canonical bodies.
-    pub(super) fn fetch_code_metadata(
-        &self,
-        ids: &[EntityId],
-    ) -> EngineResult<HashMap<EntityId, (FileId, CodeMetadata)>> {
-        let mut owners = HashMap::new();
-        for batch in ids.chunks(WRITE_BATCH) {
-            let keys: Vec<_> = batch.iter().map(EntityId::as_str).collect();
-            for doc in native(
-                self.collection.fetch_with_options(
-                    &keys,
-                    Some(&["entity_id", "file_id", "metadata"]),
-                    false,
-                ),
-                "fetch symbol metadata",
-            )? {
-                let id = string_field(&doc, "entity_id")?;
-                if doc_key(&doc)? != id {
-                    return Err(corrupt("entity identity differs from its index fields"));
-                }
-                if let Some(EntityMetadata::Code(metadata)) = decode_metadata(&doc)? {
-                    owners.insert(
-                        EntityId::from_string(id),
-                        (FileId::new(u32_field(&doc, "file_id")?), metadata),
-                    );
-                }
-            }
-        }
-        Ok(owners)
-    }
-
     /// Read every canonical ID before replacing or deleting a file's entities.
     /// The caller must hold the store lock throughout this read and the update.
     /// Full query batches are split into disjoint indexed ranges so a retrieval
     /// limit cannot silently omit IDs needed to invalidate incoming graph edges.
+    #[cfg(test)]
     pub(super) fn list_ids_for_file(&self, file_id: FileId) -> EngineResult<Vec<String>> {
-        collect_entity_ids(
+        super::zvec::collect_entity_ids(
             &self.collection,
             &format!("file_id = {}", file_id.get()),
             |doc| {

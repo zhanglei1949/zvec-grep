@@ -258,10 +258,14 @@ fn reconcile(
     let pointer = head
         .as_ref()
         .filter(|h| h.graph_build_id == record.graph_build_id);
-    let selected = generation_selected && pointer.is_some();
-    if options.action == GraphRecoveryAction::Discard && pointer.is_some() {
+    let selected = generation_selected
+        && active
+            .and_then(|m| m.publication.as_ref())
+            .and_then(|p| p.graph.as_ref())
+            .is_some_and(|h| h.graph_build_id == record.graph_build_id);
+    if options.action == GraphRecoveryAction::Discard && (pointer.is_some() || selected) {
         return Err(EngineError::resource_busy(
-            "cannot discard a graph referenced by HEAD",
+            "cannot discard a graph referenced by the publication or prepared selection",
         ));
     }
     if options.action == GraphRecoveryAction::Discard && known_precommit(diagnostic.as_ref()) {
@@ -425,7 +429,13 @@ fn reconcile(
             && policy_matches
             && sources_match
             && valid
-            && (selected || head.as_ref().map(|h| &h.graph_build_id) == record.base_head.as_ref())
+            && (selected
+                || ((head.as_ref().map(|h| &h.graph_build_id) == record.base_head.as_ref()
+                    || pointer.is_some())
+                    && active
+                        .and_then(|m| m.publication.as_ref())
+                        .map(|p| &p.generation)
+                        == record.base_generation.as_ref()))
             && record.rules_fingerprint == record.expected_rules_fingerprint()?;
     }
     // Read-only inspection never repairs a dirty fence, checkpoints or writes
@@ -442,7 +452,9 @@ fn reconcile(
         }
         let manifest = active.ok_or_else(invalid)?;
         let policy = policy.as_ref().ok_or_else(invalid)?;
-        if head.as_ref().map(|h| &h.graph_build_id) != record.base_head.as_ref() {
+        if head.as_ref().map(|h| &h.graph_build_id) != record.base_head.as_ref()
+            && pointer.is_none()
+        {
             return Err(EngineError::resource_busy(
                 "graph recovery selection base changed",
             ));

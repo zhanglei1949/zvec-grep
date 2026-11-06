@@ -26,9 +26,13 @@ fn member(values: Option<&Vec<String>>, value: &str) -> bool {
 }
 fn read<R: GraphReader>(
     reader: &R,
-    space: &str,
+    query: &SemanticQuery,
     context: &RequestContext,
 ) -> QueryResult<SemanticCatalog> {
+    if let Some(selected) = reader.semantic_selection(query, context)? {
+        return Ok(selected);
+    }
+    let space = &query.space_id;
     let mut catalog = SemanticCatalog::default();
     for partition in [
         SemanticPartition::Sources,
@@ -73,6 +77,7 @@ struct Selection<'a> {
     associations: BTreeMap<&'a ObjectId, Vec<&'a SourceAssociation>>,
     current: BTreeSet<&'a Identity>,
     build: &'a str,
+    stamp: &'a super::ViewStamp,
 }
 impl Selection<'_> {
     fn object(&self, id: ObjectId, record: SemanticValue) -> SemanticObject {
@@ -96,6 +101,8 @@ impl Selection<'_> {
         SemanticObject {
             reference: ObjectRef {
                 graph_build_id: self.build.into(),
+                generation: self.stamp.generation.clone(),
+                workspace_id: self.stamp.workspace_id.clone(),
                 object: id,
             },
             record,
@@ -182,9 +189,7 @@ impl Selection<'_> {
                         && self.entity_matches(entity)
                         && self.query.anchor.as_ref().is_none_or(|a| a.object == id));
                 let provenance = self.associations.get(&id)?;
-                let live = provenance
-                    .iter()
-                    .any(|a| a.role == SourceRole::Support || a.role == SourceRole::Correction);
+                let live = provenance.iter().any(|a| self.data.effective_support(a));
                 (selected && (self.query.history || live))
                     .then(|| self.object(id, SemanticValue::Entity(entity.clone())))
             })
@@ -204,7 +209,7 @@ impl Selection<'_> {
                 let id = ObjectId::Episode {
                     identity: episode.identity.clone(),
                 };
-                if self.query.predicate.is_some()
+                if self.query.relation_type.is_some()
                     || self.query.name.is_some()
                     || self.query.anchor.as_ref().is_some_and(|a| a.object != id)
                     || self.query.kind.as_ref().is_some_and(|k| k != &episode.kind)
@@ -221,11 +226,14 @@ impl Selection<'_> {
                 Some(SemanticObject {
                     reference: ObjectRef {
                         graph_build_id: self.build.into(),
+                        generation: self.stamp.generation.clone(),
+                        workspace_id: self.stamp.workspace_id.clone(),
                         object: id,
                     },
                     record: SemanticValue::Episode(episode.clone()),
                     provenance: vec![SemanticProvenance {
                         evidence: SourceEvidence {
+                            episode: None,
                             source: episode.source.clone(),
                             locator: None,
                         },
@@ -240,11 +248,12 @@ impl Selection<'_> {
             .collect()
     }
 }
-fn select(
+pub(in crate::query) fn select(
     data: &SemanticCatalog,
     query: &SemanticQuery,
     access: &SemanticAccess,
     build: &str,
+    stamp: &super::ViewStamp,
     ctx: &RequestContext,
 ) -> QueryResult<SemanticReadResult> {
     let mut associations: BTreeMap<_, Vec<_>> = BTreeMap::new();
@@ -260,10 +269,11 @@ fn select(
         associations,
         current: data.current_facts().map(|f| &f.identity).collect(),
         build,
+        stamp,
     };
     let (mut objects, mut identities) = selection.facts(ctx)?;
     let contextual =
-        query.context.is_some() || access.contexts.is_some() || query.predicate.is_some();
+        query.context.is_some() || access.contexts.is_some() || query.relation_type.is_some();
     if let Some(ObjectRef {
         object: ObjectId::SourceNode { node_id },
         ..
@@ -319,7 +329,7 @@ fn change_evidence(change: &mut SemanticChange) -> &mut SourceEvidence {
         SemanticChange::Episode { change } => &mut change.evidence,
     }
 }
-fn evidence<L, E: EvidenceProvider<L>>(
+pub(in crate::query) fn evidence<L, E: EvidenceProvider<L>>(
     provider: &E,
     view: &KgReadView<L>,
     result: &mut SemanticReadResult,
@@ -377,6 +387,7 @@ fn source_nodes<R: GraphReader>(
     reader: &R,
     result: &mut SemanticReadResult,
     build: &str,
+    stamp: &super::ViewStamp,
     ctx: &RequestContext,
 ) -> QueryResult<()> {
     let ids = result
@@ -404,6 +415,8 @@ fn source_nodes<R: GraphReader>(
             .extend(nodes.into_iter().map(|node| SemanticObject {
                 reference: ObjectRef {
                     graph_build_id: build.into(),
+                    generation: stamp.generation.clone(),
+                    workspace_id: stamp.workspace_id.clone(),
                     object: ObjectId::SourceNode {
                         node_id: node.id.clone(),
                     },
@@ -435,7 +448,7 @@ pub(super) fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
         .iter()
         .any(|f| f.sources.as_ref().is_some_and(Vec::is_empty));
     if member(access.spaces.as_ref(), &query.space_id) && !empty_sources {
-        let mut data = read(reader, &query.space_id, context)?;
+        let mut data = read(reader, query, context)?;
         data.sources.retain(|s| {
             permits(&access.sources, &s.source.source_id)
                 && permits(&request.boundary, &s.source.source_id)
@@ -458,11 +471,14 @@ pub(super) fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
         };
         data.facts.retain(|f| {
             allowed_context(&f.context)
-                && query.predicate.as_ref().is_none_or(|p| p == &f.predicate)
+                && query
+                    .relation_type
+                    .as_ref()
+                    .is_none_or(|p| p == &f.relation_type)
         });
         data.episodes.retain(|e| allowed_context(&e.context));
         let build = &view.stamp().require_graph()?.build_id;
-        result = select(&data, query, access, build, context)?;
+        result = select(&data, query, access, build, view.stamp(), context)?;
         let used = result
             .objects
             .iter()
@@ -482,12 +498,14 @@ pub(super) fn explore<L, R: GraphReader, E: EvidenceProvider<L>>(
             .cloned()
             .collect();
         evidence(provider, view, &mut result, context)?;
-        source_nodes(reader, &mut result, build, context)?;
+        source_nodes(reader, &mut result, build, view.stamp(), context)?;
     }
     result
         .objects
         .sort_by(|a, b| a.reference.object.cmp(&b.reference.object));
     let mut output = ExploreResult {
+        next_cursor: None,
+        relation_types: Vec::new(),
         semantic: Some(result),
         view: view.stamp().clone(),
         locations: vec![],

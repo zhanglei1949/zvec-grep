@@ -38,7 +38,7 @@ process.stdout.write(JSON.stringify(JSON.parse(s).tools.map(publicTool)));
         search.validate({**base, "graph": {"mode": "off"}})
         search.validate({**base, "graph": {"mode": "augment", "seeds": 2, "expansion": {"direction": "incoming", "max_hops": 1}}, "graphExecution": {"budget": {"nodes": 50}}})
         search.validate({**base, "graph": {"mode": "constrain", "scope": {"anchor": {"by": "name", "name": "f"}}}})
-        checks["zvec_grep_explore"].validate({"root": "/app", "request": {"domain": "code", "operation": {"operation": "neighbors", "anchor": {"by": "name", "name": "f"}, "relations": ["calls"], "direction": "incoming"}}})
+        checks["zvec_grep_explore"].validate({"root": "/app", "request": {"domain": "code", "page_size": 1, "cursor": "opaque", "operation": {"operation": "neighbors", "anchor": {"by": "name", "name": "f"}, "relations": ["calls"], "direction": "incoming"}}})
         for graph in ({"mode": "constrain"}, {"mode": "augment", "seeds": 0}, {"mode": "augment", "expansion": {"max_hops": 3}}):
             with self.assertRaises(ValidationError):
                 search.validate({**base, "graph": graph})

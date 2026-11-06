@@ -152,11 +152,11 @@ fn batched_admission_refusal_preserves_native_prefix_and_can_resume()
 }
 
 #[test]
-fn borrowed_mutations_and_root_keep_the_v7_digest_contract()
+fn borrowed_mutations_and_root_keep_the_v8_digest_contract()
 -> Result<(), Box<dyn std::error::Error>> {
     let (catalog, spec) = build_fixture()?;
     let rows = FactRows::encode(&catalog)?;
-    let mut original = stable_digest(&"kg-rows-v7")?;
+    let mut original = stable_digest(&"kg-rows-v8")?;
     assert_eq!(
         super::super::codec::catalog_digest(&catalog)?,
         stable_digest(&catalog)?

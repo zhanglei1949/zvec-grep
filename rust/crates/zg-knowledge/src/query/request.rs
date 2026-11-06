@@ -1,4 +1,7 @@
 use serde::{Deserialize, Serialize};
+fn default_page_size() -> u16 {
+    super::DEFAULT_PAGE_SIZE
+}
 
 use super::{NodeRef, QueryError, QueryResult, nonempty, source_id};
 
@@ -19,6 +22,9 @@ pub enum RelationKind {
     Links,
     Extends,
     Implements,
+    Mentions,
+    SemanticRelation,
+    EpisodeLink,
 }
 
 /// Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.
@@ -38,6 +44,9 @@ pub use crate::relations::EntityKind;
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "by", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Locator {
+    Object {
+        object: super::ObjectRef,
+    },
     Node {
         node: NodeRef,
     },
@@ -55,6 +64,10 @@ pub enum Locator {
 impl Locator {
     pub fn validate(&self) -> QueryResult<()> {
         match self {
+            Self::Object { object } => object
+                .object
+                .validate()
+                .map_err(|_| QueryError::invalid("invalid object locator")),
             Self::Node { node } => node.validate(),
             Self::Position { source_id: id, .. } => source_id(id),
             Self::Name {
@@ -79,9 +92,19 @@ pub struct SourceFilter {
     /// Omitted/null means unrestricted; [] is explicitly empty, not unrestricted.
     #[schemars(length(max = 2000))]
     pub sources: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<Vec<String>>,
 }
 impl SourceFilter {
     pub fn validate(&self) -> QueryResult<()> {
+        if let Some(kinds) = &self.kinds {
+            if kinds.len() > 256 {
+                return Err(QueryError::invalid("too many node kinds"));
+            }
+            for kind in kinds {
+                nonempty(kind)?;
+            }
+        }
         if let Some(ids) = &self.sources {
             if ids.len() > 2000 {
                 return Err(QueryError::invalid("too many source filters"));
@@ -98,7 +121,7 @@ impl SourceFilter {
 #[serde(default, deny_unknown_fields)]
 pub struct TraversalSpec {
     /// Edge types to follow; choose at least one, without duplicates.
-    #[schemars(length(min = 1, max = 6), extend("uniqueItems" = true))]
+    #[schemars(length(min = 1, max = 9), extend("uniqueItems" = true))]
     pub relations: Vec<RelationKind>,
     /// incoming finds callers; outgoing finds callees for calls edges.
     pub direction: Direction,
@@ -135,10 +158,8 @@ impl TraversalSpec {
                 "hops must satisfy 1 <= min <= max <= 8",
             ));
         }
-        if self.relations.is_empty() || self.relations.len() > 6 {
-            return Err(QueryError::invalid(
-                "expected one to six business relation kinds",
-            ));
+        if self.relations.is_empty() || self.relations.len() > 9 {
+            return Err(QueryError::invalid("expected one to nine relation kinds"));
         }
         for (i, kind) in self.relations.iter().enumerate() {
             if self.relations[..i].contains(kind) {
@@ -261,6 +282,10 @@ pub enum ReferenceSelector {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExploreOperation {
+    RelationTypes {
+        anchor: Locator,
+        direction: Direction,
+    },
     /// Read semantic objects, facts, provenance or correction history (domain=semantic).
     Semantic { query: super::SemanticQuery },
     /// Resolve an object by name, source position or a previously returned node reference.
@@ -268,7 +293,7 @@ pub enum ExploreOperation {
     /// Read one-hop relationships for a known object; incoming calls returns its callers.
     Neighbors {
         anchor: Locator,
-        #[schemars(length(min = 1, max = 6), extend("uniqueItems" = true))]
+        #[schemars(length(min = 1, max = 9), extend("uniqueItems" = true))]
         relations: Vec<RelationKind>,
         direction: Direction,
     },
@@ -290,6 +315,13 @@ pub enum ExploreOperation {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExploreRequest {
+    #[serde(default = "default_page_size")]
+    #[schemars(range(min = 1, max = 256))]
+    pub page_size: u16,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub relation_filters: Vec<super::RelationSelector>,
     /// Domain selects the available relation and locator types.
     pub domain: QueryDomain,
     pub operation: ExploreOperation,
@@ -302,10 +334,56 @@ pub struct ExploreRequest {
 }
 impl ExploreRequest {
     pub fn validate(&self) -> QueryResult<()> {
-        if matches!(self.operation, ExploreOperation::Semantic { .. }) {
-            if self.domain != QueryDomain::Semantic {
+        if matches!(self.operation, ExploreOperation::Semantic { .. })
+            && self.domain != QueryDomain::Semantic
+        {
+            return Err(QueryError::invalid(
+                "semantic operation requires semantic domain",
+            ));
+        }
+        if self.page_size == 0 || self.page_size > super::MAX_PAGE_SIZE {
+            return Err(QueryError::invalid("page_size must be in 1..=256"));
+        }
+        if !self.relation_filters.is_empty()
+            && !matches!(
+                self.operation,
+                ExploreOperation::Neighbors { .. } | ExploreOperation::RelationTypes { .. }
+            )
+        {
+            return Err(QueryError::invalid(
+                "relation_filters are supported by neighbors and relation_types",
+            ));
+        }
+        for (index, selector) in self.relation_filters.iter().enumerate() {
+            selector.validate()?;
+            if self.relation_filters[..index]
+                .iter()
+                .any(|previous| previous.edge_type == selector.edge_type)
+            {
+                return Err(QueryError::invalid("duplicate relation filter"));
+            }
+            if let ExploreOperation::Neighbors { relations, .. } = &self.operation
+                && !relations.contains(&selector.edge_type)
+            {
                 return Err(QueryError::invalid(
-                    "semantic operation requires semantic domain",
+                    "relation filter must narrow the selected edge types",
+                ));
+            }
+        }
+        if self.cursor.is_some()
+            && !matches!(
+                self.operation,
+                ExploreOperation::RelationTypes { .. } | ExploreOperation::Neighbors { .. }
+            )
+        {
+            return Err(QueryError::invalid("operation does not support pagination"));
+        }
+        if self.domain == QueryDomain::Semantic {
+            if matches!(self.operation, ExploreOperation::Semantic { .. })
+                && (self.boundary.kinds.is_some() || self.result_filter.kinds.is_some())
+            {
+                return Err(QueryError::invalid(
+                    "semantic selection uses query.kind; kinds filters apply to graph steps and results",
                 ));
             }
             super::semantic::validate_sources(&self.boundary)?;
@@ -315,6 +393,7 @@ impl ExploreRequest {
             self.result_filter.validate()?;
         }
         match &self.operation {
+            ExploreOperation::RelationTypes { anchor, .. } => anchor.validate(),
             ExploreOperation::Semantic { query } => query.validate(),
             ExploreOperation::Locate { target } => target.validate(),
             ExploreOperation::Neighbors {
@@ -363,6 +442,9 @@ impl Locator {
         if let Self::Node { node } = self {
             view.check_node(node)?;
         }
+        if let Self::Object { object } = self {
+            object.validate_for(view)?;
+        }
         Ok(())
     }
 }
@@ -379,6 +461,7 @@ impl ExploreRequest {
             }
             ExploreOperation::Locate { target } => target.validate_for(view),
             ExploreOperation::Neighbors { anchor, .. }
+            | ExploreOperation::RelationTypes { anchor, .. }
             | ExploreOperation::Expand { anchor, .. } => anchor.validate_for(view),
             ExploreOperation::ShortestPath { start, target, .. } => {
                 start.validate_for(view)?;

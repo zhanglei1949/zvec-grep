@@ -1,4 +1,5 @@
 //! Business graph operations over static, parameterized native statements.
+mod pages;
 use super::{
     GraphDbStore,
     codec::{ResolvedReference, unjson, untag},
@@ -86,7 +87,10 @@ fn table(kind: RelationKind) -> QueryResult<&'static str> {
         RelationKind::Imports => Ok("KgImports"),
         RelationKind::Extends => Ok("KgExtends"),
         RelationKind::Implements => Ok("KgImplements"),
-        RelationKind::Links => Err(QueryError::new(
+        RelationKind::Links
+        | RelationKind::Mentions
+        | RelationKind::SemanticRelation
+        | RelationKind::EpisodeLink => Err(QueryError::new(
             QueryErrorKind::Unsupported,
             "graph_read",
             "relation unsupported in code explore",
@@ -226,6 +230,41 @@ impl GraphDbStore {
     }
 }
 impl GraphReader for GraphDbStore {
+    fn neighbors_after(
+        &self,
+        read: &crate::query::NeighborRead<'_>,
+        ctx: &RequestContext,
+    ) -> QueryResult<Vec<RelationRecord>> {
+        pages::read(self, read, ctx)
+    }
+    fn semantic_selection(
+        &self,
+        query: &crate::query::SemanticQuery,
+        context: &RequestContext,
+    ) -> QueryResult<Option<crate::semantic::SemanticCatalog>> {
+        self.with_read(|tx, options| {
+            super::codec::FactRows::select_semantic(tx, options, query, context, false)
+        })
+        .map(Some)
+        .map_err(|e| error(&e))
+    }
+
+    fn semantic_object(
+        &self,
+        query: &crate::query::SemanticQuery,
+        context: &RequestContext,
+    ) -> QueryResult<Option<crate::semantic::SemanticCatalog>> {
+        if query.anchor.is_none() {
+            return Err(QueryError::invalid(
+                "exact semantic object requires an anchor",
+            ));
+        }
+        self.with_read(|tx, options| {
+            super::codec::FactRows::select_semantic(tx, options, query, context, true)
+        })
+        .map(Some)
+        .map_err(|e| error(&e))
+    }
     fn source_nodes(
         &self,
         ids: &[String],
@@ -313,6 +352,7 @@ impl GraphReader for GraphDbStore {
         context.check()?;
         self.with_read(|tx,options| {
             let rows = match locator {
+                Locator::Object{object}=>match &object.object {crate::semantic::ObjectId::SourceNode{node_id}=>NodeRow::select(tx,options,"WHERE n.id=$id",params!{"id"=>node_id},offset)?,_=>return Err(invalid())},
                 Locator::Node{node}=>NodeRow::select(tx,options,"WHERE n.domain='code' AND n.id=$id",params!{"id"=>&node.node_id},offset)?,
                 Locator::Name{name,source_id,kind}=> {
                     let kind=kind.map(|k|serde_json::to_value(k).map(|v|v.as_str().unwrap_or_default().to_owned())).transpose().map_err(|_|invalid())?.unwrap_or_default();
@@ -391,6 +431,12 @@ impl GraphReader for GraphDbStore {
                     })
                     .transpose()?;
                 Ok(RelationRecord {
+                    mention: None,
+                    episode_link: None,
+                    relation_type: None,
+                    source_object: None,
+                    target_object: None,
+                    fact: None,
                     id: reference
                         .as_ref()
                         .map_or_else(|| format!("contains:{source}:{target}"), |r| r.id.clone()),

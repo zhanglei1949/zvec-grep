@@ -27,7 +27,7 @@ pub(super) use crate::error::query_error;
 
 struct Lease {
     // Field order keeps the admission lock until both native facades are gone.
-    reader: zg_knowledge::graph::GraphDbStore,
+    reader: zg_knowledge::GraphHandle,
     read: ReadSessionLease,
     manifest: WorkspaceManifest,
     root: PathBuf,
@@ -64,7 +64,11 @@ impl kg::ReadViewProvider for Provider {
                 },
                 kg::GraphReadCapabilities {
                     domain: kg::QueryDomain::Semantic,
-                    relations: vec![],
+                    relations: vec![
+                        kg::RelationKind::Mentions,
+                        kg::RelationKind::SemanticRelation,
+                        kg::RelationKind::EpisodeLink,
+                    ],
                     text_mapping: false,
                 },
             ]
@@ -73,6 +77,7 @@ impl kg::ReadViewProvider for Provider {
             .collect(),
             None,
         )?
+        .with_graph_handle(self.lease.reader.clone())?
         .with_semantic_access(kg::SemanticAccess {
             spaces: None,
             contexts: None,
@@ -191,8 +196,9 @@ fn execute_selected(
     let reader = &selected.provider.lease.reader;
     let evidence = evidence::HostEvidence { reader };
     let _business = zg_knowledge::graph::profile::stage("explore.business");
-    let mut result =
-        kg::explore(reader, &evidence, &selected.view, request, context).map_err(query_error)?;
+    let mut result = zg_knowledge::KgService
+        .explore(&selected.view, &evidence, request, context)
+        .map_err(query_error)?;
     result.execution.qualification_micros = selected.qualification_micros;
     context.check().map_err(query_error)?;
     Ok(result)
@@ -209,7 +215,6 @@ fn qualify(
     control: QueryControl,
     domain: kg::QueryDomain,
 ) -> EngineResult<QualifiedView> {
-    use kg::ReadViewProvider;
     let started = Instant::now();
     let limits = GraphLimits {
         max_rows: 4_000_000,
@@ -240,8 +245,9 @@ fn qualify(
             _admission: admission,
         }),
     };
-    let view = provider
+    let view = zg_knowledge::KgService
         .open_view(
+            &provider,
             &kg::ReadViewRequest {
                 graph: kg::GraphRequirement::Required,
                 needs: Some(kg::GraphReadNeeds {

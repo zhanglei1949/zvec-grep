@@ -187,6 +187,7 @@ pub(crate) async fn index_workspace(
         },
     );
     let finalize_started = Instant::now();
+    prepare_storage_write(context).await?;
     context.storage.finalize_writes().map_err(|error| {
         EngineError::storage_failure(format!("failed to finalize index storage: {error}"))
     })?;
@@ -522,6 +523,9 @@ async fn run_index_pass(
     );
 
     let delete_started = Instant::now();
+    if !diff.deleted.is_empty() {
+        prepare_storage_write(context).await?;
+    }
     delete_stale_files(context, &diff.deleted)?;
     timings.record(
         "index_delete_stale",
@@ -781,6 +785,7 @@ async fn index_candidates(
             }
             Err(error) => {
                 let file = candidate.scanned.to_record()?;
+                prepare_storage_write(context).await?;
                 let reason = mark_file_failed(context.storage, &file, "prepare", &error)?;
                 record_file_failed(&mut stats, &file, &reason);
                 report_indexing(
@@ -800,6 +805,7 @@ async fn index_candidates(
 
         if prepared.fragments.is_empty() {
             let commit_started = Instant::now();
+            prepare_storage_write(context).await?;
             let detail = commit_file(context.storage, prepared, Vec::new(), &mut stats)?;
             timings.record("index_commit", commit_started.elapsed(), 1);
             report_indexing(context, &stats, diff, progress_base, Some(detail), None);
@@ -855,6 +861,7 @@ async fn index_candidates(
             && let Some(outcome) = running.next().await
             && let Err(error) =
                 apply_embedding_outcome(context, diff, progress_base, timings, &mut stats, outcome)
+                    .await
         {
             drain_embedding_futures(&mut running).await;
             return Err(error);
@@ -868,6 +875,7 @@ async fn index_candidates(
     while let Some(outcome) = running.next().await {
         if let Err(error) =
             apply_embedding_outcome(context, diff, progress_base, timings, &mut stats, outcome)
+                .await
         {
             drain_embedding_futures(&mut running).await;
             return Err(error);
@@ -927,7 +935,7 @@ async fn drain_embedding_futures(running: &mut FuturesUnordered<EmbeddingFuture<
     while running.next().await.is_some() {}
 }
 
-fn apply_embedding_outcome(
+async fn apply_embedding_outcome(
     context: &IndexingContext<'_>,
     diff: &DiffPlan,
     progress_base: Option<ProgressBase>,
@@ -937,6 +945,9 @@ fn apply_embedding_outcome(
 ) -> Result<(), EngineError> {
     let outcome = outcome.map_err(ModelError::into_engine_error)?;
     timings.record("index_embedding", outcome.duration, outcome.outcomes.len());
+    if !outcome.outcomes.is_empty() {
+        prepare_storage_write(context).await?;
+    }
     apply_embedding_files(
         context,
         diff,
@@ -945,6 +956,19 @@ fn apply_embedding_outcome(
         stats,
         outcome.outcomes,
     )
+}
+
+async fn prepare_storage_write(context: &IndexingContext<'_>) -> Result<(), EngineError> {
+    let ready = context.storage.prepare_write();
+    if let Some(signal) = &context.signal {
+        tokio::select! {
+            biased;
+            () = signal.cancelled() => Err(EngineError::cancelled("index write admission cancelled")),
+            result = ready => result,
+        }
+    } else {
+        ready.await
+    }
 }
 
 fn apply_embedding_files(

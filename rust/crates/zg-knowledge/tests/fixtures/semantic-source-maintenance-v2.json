@@ -1,0 +1,316 @@
+{
+  "version": 2,
+  "input_fixture_sha256": "883bfb19bc5021cd5f2f1687d0d96c5ef43538e9fdf321bb3687e11d6eac9d61",
+  "scenarios": [
+    {
+      "name": "two_sources_delete_one_then_all_and_repeat",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "second-source",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md",
+              "b.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "delete-a",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "b.md"
+            ]
+          },
+          "withdrawn": {
+            "f1": [
+              "a.md"
+            ]
+          }
+        },
+        {
+          "case": "delete-b",
+          "current": [],
+          "support": {},
+          "withdrawn": {
+            "f1": [
+              "a.md",
+              "b.md"
+            ]
+          }
+        },
+        {
+          "case": "delete-b",
+          "current": [],
+          "support": {},
+          "withdrawn": {
+            "f1": [
+              "a.md",
+              "b.md"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "complete_empty_replaces_only_one_source",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "second-source",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md",
+              "b.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "complete-empty",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "b.md"
+            ]
+          },
+          "withdrawn": {
+            "f1": [
+              "a.md"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ordinary_conflict_is_not_a_correction",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "new-statement-without-correction",
+          "current": [
+            "f1",
+            "f2"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ],
+            "f2": [
+              "c.md"
+            ]
+          },
+          "withdrawn": {}
+        }
+      ]
+    },
+    {
+      "name": "complete_replay_reuses_ids_and_contributions",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        }
+      ]
+    },
+    {
+      "name": "semantic-omitted",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "semantic-omitted",
+          "current": [],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {},
+          "source_state": {
+            "source": {
+              "source_id": "a.md",
+              "source_version": "v2"
+            },
+            "semantic_version": "v1",
+            "state": "unspecified"
+          }
+        }
+      ]
+    },
+    {
+      "name": "semantic-partial",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "semantic-partial",
+          "current": [],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {},
+          "source_state": {
+            "source": {
+              "source_id": "a.md",
+              "source_version": "v2"
+            },
+            "semantic_version": "v1",
+            "state": "partial"
+          }
+        }
+      ]
+    },
+    {
+      "name": "semantic-failed",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "semantic-failed",
+          "current": [],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {},
+          "source_state": {
+            "source": {
+              "source_id": "a.md",
+              "source_version": "v2"
+            },
+            "semantic_version": "v1",
+            "state": "failed"
+          }
+        }
+      ]
+    },
+    {
+      "name": "scope-without-changes",
+      "steps": [
+        {
+          "case": "initial",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        },
+        {
+          "case": "scope-without-changes",
+          "current": [
+            "f1"
+          ],
+          "support": {
+            "f1": [
+              "a.md"
+            ]
+          },
+          "withdrawn": {}
+        }
+      ]
+    }
+  ]
+}

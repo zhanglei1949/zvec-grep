@@ -26,6 +26,10 @@ fn identity(kind: &str, i: usize) -> Identity {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one complete example fixture with explicit provenance"
+)]
 fn fixture(catalog: &FactCatalog) -> Result<SemanticCatalog, Box<dyn std::error::Error>> {
     let file = catalog
         .files
@@ -96,9 +100,10 @@ fn fixture(catalog: &FactCatalog) -> Result<SemanticCatalog, Box<dyn std::error:
         ] {
             let fact = identity(kind, i);
             data.facts.push(Fact {
+                created_at_ms: None,
                 identity: fact.clone(),
                 subject: entity.clone(),
-                predicate: kind.into(),
+                relation_type: kind.into(),
                 object,
                 context: "benchmark".into(),
                 state: FactState::Active,
@@ -109,6 +114,7 @@ fn fixture(catalog: &FactCatalog) -> Result<SemanticCatalog, Box<dyn std::error:
             data.associations.push(SourceAssociation {
                 target: ObjectId::Fact { identity: fact },
                 evidence: SourceEvidence {
+                    episode: None,
                     source: source.clone(),
                     locator: None,
                 },
@@ -118,6 +124,7 @@ fn fixture(catalog: &FactCatalog) -> Result<SemanticCatalog, Box<dyn std::error:
         data.associations.push(SourceAssociation {
             target: ObjectId::SemanticEntity { identity: entity },
             evidence: SourceEvidence {
+                episode: None,
                 source: source.clone(),
                 locator: None,
             },

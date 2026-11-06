@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 use zg_knowledge::{
-    graph::GraphDbStore,
+    GraphHandle,
     query::{
         BudgetUsage, ByteSpan, EvidenceProvider, EvidenceRead, EvidenceRef, KgReadView, QueryError,
         QueryErrorKind, QueryResult, RequestContext, SourceRecord,
@@ -16,11 +16,11 @@ use zg_knowledge::{
 };
 const MAX_RETAINED_BYTES: usize = 256 << 20;
 pub(super) struct HostEvidence<'a> {
-    pub reader: &'a GraphDbStore,
+    pub reader: &'a GraphHandle,
 }
 struct Snapshots<'a> {
     lease: &'a Lease,
-    reader: &'a GraphDbStore,
+    reader: &'a GraphHandle,
     context: &'a RequestContext,
     files: HashMap<String, Option<String>>,
     entities: HashMap<String, Cow<'a, Entity>>,
@@ -83,7 +83,7 @@ impl EvidenceProvider<Arc<Lease>> for HostEvidence<'_> {
 impl<'a> Snapshots<'a> {
     fn new(
         view: &'a KgReadView<Arc<Lease>>,
-        reader: &'a GraphDbStore,
+        reader: &'a GraphHandle,
         context: &'a RequestContext,
         verified_entities: Option<&'a BTreeMap<String, Entity>>,
     ) -> QueryResult<Self> {

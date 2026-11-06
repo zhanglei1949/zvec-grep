@@ -30,6 +30,7 @@ fn changed_source(base: &FactCatalog) -> TestResult<FactCatalog> {
 fn change(catalog: &FactCatalog, update: SemanticUpdate) -> TestResult<FactCatalog> {
     Ok(catalog.clone().apply_sources(
         &SemanticInput {
+            episode_links: Vec::new(),
             space_id: "workspace".into(),
             update_scope: vec!["a.py".into()],
             sources: vec![SourceChange::Upsert {

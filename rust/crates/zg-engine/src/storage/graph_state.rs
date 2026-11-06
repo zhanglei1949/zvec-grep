@@ -134,6 +134,8 @@ impl TextState {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct GraphHead {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation: Option<String>,
     pub format_version: u32,
     pub graph_build_id: String,
     pub text_revision: u64,
@@ -292,16 +294,6 @@ impl TextFence {
             return Ok(());
         }
         let current = TextState::read(&self.home)?;
-        let exists = |p: PathBuf| {
-            p.try_exists()
-                .map_err(|e| EngineError::from_io("inspect graph fence", &e))
-        };
-        if current.is_none()
-            && !exists(self.home.join("graph/HEAD.json"))?
-            && !exists(self.home.join("graph/builds"))?
-        {
-            return Ok(());
-        }
         let files = snapshot()?;
         let revision = current
             .as_ref()

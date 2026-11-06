@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObjectRef {
+    pub generation: String,
+    pub workspace_id: String,
     pub graph_build_id: String,
     pub object: ObjectId,
 }
@@ -16,7 +18,10 @@ impl ObjectRef {
         self.object
             .validate()
             .map_err(|_| QueryError::invalid("invalid object identity"))?;
-        if view.require_graph()?.build_id != self.graph_build_id {
+        if view.generation != self.generation
+            || view.workspace_id != self.workspace_id
+            || view.require_graph()?.build_id != self.graph_build_id
+        {
             return Err(QueryError::new(
                 super::QueryErrorKind::ViewMismatch,
                 "view",
@@ -35,7 +40,8 @@ pub struct SemanticQuery {
     pub context: Option<String>,
     pub name: Option<String>,
     pub kind: Option<String>,
-    pub predicate: Option<String>,
+    #[serde(alias = "predicate")]
+    pub relation_type: Option<String>,
     #[serde(default)]
     pub history: bool,
     #[serde(default)]
@@ -47,12 +53,14 @@ impl SemanticQuery {
             .chain(self.context.iter())
             .chain(self.name.iter())
             .chain(self.kind.iter())
-            .chain(self.predicate.iter())
+            .chain(self.relation_type.iter())
         {
             nonempty(value)?;
         }
         if let Some(anchor) = &self.anchor {
             nonempty(&anchor.graph_build_id)?;
+            nonempty(&anchor.generation)?;
+            nonempty(&anchor.workspace_id)?;
             anchor
                 .object
                 .validate()
@@ -70,7 +78,7 @@ impl SemanticQuery {
 }
 
 /// Provider-owned authorization. Client filters only narrow this grant.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct SemanticAccess {
     pub spaces: Option<Vec<String>>,
     pub contexts: Option<Vec<String>>,
@@ -78,6 +86,11 @@ pub struct SemanticAccess {
 }
 impl SemanticAccess {
     pub fn validate(&self) -> QueryResult<()> {
+        if self.sources.kinds.is_some() {
+            return Err(QueryError::invalid(
+                "source authorization accepts source IDs, not node-kind filters",
+            ));
+        }
         for value in self
             .spaces
             .iter()
@@ -90,6 +103,14 @@ impl SemanticAccess {
     }
 }
 pub(super) fn validate_sources(filter: &SourceFilter) -> QueryResult<()> {
+    if let Some(kinds) = &filter.kinds {
+        if kinds.len() > 256 {
+            return Err(QueryError::invalid("too many node kinds"));
+        }
+        for kind in kinds {
+            nonempty(kind)?;
+        }
+    }
     if let Some(sources) = &filter.sources {
         if sources.len() > 2000 {
             return Err(QueryError::invalid("too many semantic sources"));

@@ -92,26 +92,3 @@ pub(crate) struct FileGraphResult {
     pub edges: Vec<FileEdge>,
     pub pending_refs: Vec<PendingRef>,
 }
-
-impl GraphEdgeKind {
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Contains => "contains",
-            Self::Calls => "calls",
-            Self::Imports => "imports",
-            Self::Extends => "extends",
-            Self::Implements => "implements",
-        }
-    }
-}
-
-impl EdgeProvenance {
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::FileLocal => "file_local",
-            Self::ImportScoped => "import_scoped",
-            Self::QualifiedNameMatch => "qualified_name_match",
-            Self::WorkspaceUnique => "workspace_unique",
-        }
-    }
-}

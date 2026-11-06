@@ -18,6 +18,24 @@ impl SemanticCatalog {
         input: &SemanticInput,
         context: &ProcessingContext,
     ) -> Result<Self> {
+        let epoch_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| Error::InvalidInput("system clock before Unix epoch"))?
+            .as_millis();
+        self.apply_sources_at(
+            input,
+            context,
+            u64::try_from(epoch_ms).map_err(|_| Error::ResourceExhausted)?,
+        )
+    }
+
+    /// Persist this operation time with the candidate before import; recovery reuses it.
+    pub fn apply_sources_at(
+        &self,
+        input: &SemanticInput,
+        context: &ProcessingContext,
+        operation_ms: u64,
+    ) -> Result<Self> {
         context.check()?;
         context.check_input(canonical_json(input)?.len())?;
         input.validate()?;
@@ -54,14 +72,28 @@ impl SemanticCatalog {
             }
         }
         for &(source, batch) in &batches {
-            next.contribute(source, batch, &mut contributions, context)?;
+            next.contribute(source, batch, &mut contributions, context, operation_ms)?;
         }
-        next.support(&batches, contributions);
         for episode in &input.episodes {
             context.check()?;
             next.add_episode(episode)?;
         }
-        next.apply_corrections(input, &self.associations, context)?;
+        next.support(&batches, contributions)?;
+        for link in &input.episode_links {
+            link.validate()?;
+            if let Some(old) = next
+                .episode_links
+                .iter()
+                .find(|old| old.identity == link.identity)
+            {
+                if old != link {
+                    return Err(Error::Conflict("episode link identity contents conflict"));
+                }
+            } else {
+                next.episode_links.push(link.clone());
+            }
+        }
+        next.apply_corrections(input, &self.associations, context, operation_ms)?;
         next.normalize()?;
         next.validate(context)?;
         Ok(next)
@@ -69,56 +101,49 @@ impl SemanticCatalog {
 
     /// Active facts backed by a current contribution; query authorization is separate.
     pub fn current_facts(&self) -> impl Iterator<Item = &Fact> {
-        let mut supported: BTreeSet<_> = self
-            .associations
-            .iter()
-            .filter_map(|a| {
-                if a.role == SourceRole::Support
-                    && let ObjectId::Fact { identity } = &a.target
-                {
-                    Some(identity)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let live_sources: BTreeSet<_> = self
-            .sources
-            .iter()
-            .filter(|s| s.state != SemanticSourceState::Deleted)
-            .map(|s| &s.source.source_id)
-            .collect();
-        let mut corrections: std::collections::BTreeMap<_, Vec<_>> =
-            std::collections::BTreeMap::new();
-        for association in self.associations.iter().filter(|a| {
-            a.role == SourceRole::Correction && live_sources.contains(&a.evidence.source.source_id)
-        }) {
-            if let ObjectId::Fact { identity } = &association.target {
-                corrections
-                    .entry((identity, &association.evidence.source))
-                    .or_default()
-                    .push(&association.evidence);
-            }
-        }
-        for change in &self.changes {
-            if let super::SemanticChange::Fact {
-                change:
-                    super::FactChange::Supersede {
-                        replacement,
-                        evidence,
-                        ..
-                    },
-            } = change
-                && corrections
-                    .get(&(&replacement.identity, &evidence.source))
-                    .is_some_and(|items| items.contains(&evidence))
-            {
-                supported.insert(&replacement.identity);
-            }
-        }
-        self.facts.iter().filter(move |fact| {
-            fact.state == FactState::Active && supported.contains(&fact.identity)
+        self.facts.iter().filter(|fact| {
+            fact.state == FactState::Active
+                && self.associations.iter().any(|a| {
+                    matches!(&a.target, ObjectId::Fact { identity } if identity == &fact.identity)
+                        && self.effective_support(a)
+                })
         })
+    }
+
+    /// Shared eligibility rule. Query callers restrict the catalog to authorized contributions first.
+    #[must_use]
+    pub fn effective_support(&self, association: &SourceAssociation) -> bool {
+        association.role == SourceRole::Support
+            && self.sources.iter().any(|source| {
+                source.state != SemanticSourceState::Deleted
+                    && source.source == association.evidence.source
+                    && source.semantic_version.as_ref() == Some(&source.source.source_version)
+            })
+            && association
+                .evidence
+                .episode
+                .as_ref()
+                .is_none_or(|identity| {
+                    self.episodes.iter().any(|episode| {
+                        &episode.identity == identity
+                            && episode.source == association.evidence.source
+                            && episode.state == super::EpisodeState::Active
+                    })
+                })
+    }
+
+    pub(crate) fn source_episode(&self, source: &SourceRef) -> Result<Option<super::Identity>> {
+        let mut episodes = self
+            .episodes
+            .iter()
+            .filter(|episode| &episode.source == source);
+        let first = episodes.next().map(|episode| episode.identity.clone());
+        if episodes.next().is_some() {
+            return Err(Error::Conflict(
+                "ambiguous source episode requires explicit evidence binding",
+            ));
+        }
+        Ok(first)
     }
 
     pub(crate) fn change_source(&mut self, change: &SourceChange) -> Result<()> {
@@ -167,29 +192,21 @@ impl SemanticCatalog {
     }
 
     fn withdraw(&mut self, source: &str) {
-        let targets: BTreeSet<_> = self
-            .associations
-            .iter()
-            .filter(|a| {
-                matches!(a.role, SourceRole::Support | SourceRole::Correction)
-                    && a.evidence.source.source_id == source
-            })
-            .map(|a| a.target.clone())
-            .collect();
-        self.associations.retain(|a| {
-            !(a.role == SourceRole::Withdrawn
-                && a.evidence.source.source_id == source
-                && targets.contains(&a.target))
-        });
-        for association in &mut self.associations {
-            if matches!(
-                association.role,
-                SourceRole::Support | SourceRole::Correction
-            ) && association.evidence.source.source_id == source
+        let mut retained = Vec::new();
+        for mut association in std::mem::take(&mut self.associations) {
+            if association.evidence.source.source_id == source
+                && matches!(
+                    association.role,
+                    SourceRole::Support | SourceRole::Correction
+                )
             {
                 association.role = SourceRole::Withdrawn;
             }
+            if !retained.contains(&association) {
+                retained.push(association);
+            }
         }
+        self.associations = retained;
         self.mentions
             .retain(|mention| mention.evidence.source_id != source);
         self.deferred_mentions
@@ -202,12 +219,13 @@ impl SemanticCatalog {
         batch: &SemanticBatch,
         contributions: &mut Contributions,
         context: &ProcessingContext,
+        operation_ms: u64,
     ) -> Result<()> {
         for fact in &batch.facts {
             context.check()?;
             if let Some(existing) = self.facts.iter().find(|f| f.identity == fact.identity) {
                 if existing.subject != fact.subject
-                    || existing.predicate != fact.predicate
+                    || existing.relation_type != fact.relation_type
                     || existing.object != fact.object
                     || existing.context != fact.context
                     || existing.attributes != fact.attributes
@@ -216,7 +234,10 @@ impl SemanticCatalog {
                 }
                 // Source replay cannot rewrite a business correction or its timestamp.
             } else {
-                self.facts.push(fact.clone());
+                let mut fact = fact.clone();
+                fact.created_at_ms = Some(operation_ms);
+                fact.changed_at_ms = operation_ms;
+                self.facts.push(fact);
             }
             contributions.insert((
                 source.clone(),
@@ -252,7 +273,11 @@ impl SemanticCatalog {
         Ok(())
     }
 
-    fn support(&mut self, batches: &[(&SourceRef, &SemanticBatch)], contributions: Contributions) {
+    fn support(
+        &mut self,
+        batches: &[(&SourceRef, &SemanticBatch)],
+        contributions: Contributions,
+    ) -> Result<()> {
         for (source, batch) in batches {
             for mention in &batch.mentions {
                 let association = SourceAssociation {
@@ -260,6 +285,7 @@ impl SemanticCatalog {
                         identity: mention.target.clone(),
                     },
                     evidence: SourceEvidence {
+                        episode: self.source_episode(source)?,
                         source: (*source).clone(),
                         locator: Some(mention.evidence.clone()),
                     },
@@ -284,18 +310,25 @@ impl SemanticCatalog {
                 self.associations.push(SourceAssociation {
                     target,
                     evidence: SourceEvidence {
-                        source,
+                        episode: self.source_episode(&source)?,
+                        source: source.clone(),
                         locator: None,
                     },
                     role: SourceRole::Support,
                 });
             }
         }
-        let current: BTreeSet<_> = supported.iter().map(|(s, t)| (&s.source_id, t)).collect();
+        let live = self
+            .associations
+            .iter()
+            .filter(|a| a.role == SourceRole::Support)
+            .map(|a| (a.target.clone(), a.evidence.clone()))
+            .collect::<Vec<_>>();
         self.associations.retain(|a| {
             a.role != SourceRole::Withdrawn
-                || !current.contains(&(&a.evidence.source.source_id, &a.target))
+                || !live.contains(&(a.target.clone(), a.evidence.clone()))
         });
+        Ok(())
     }
 
     fn add_episode(&mut self, episode: &Episode) -> Result<()> {

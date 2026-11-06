@@ -40,6 +40,9 @@ pub fn augment<L, R: GraphReader, E: EvidenceProvider<L>>(
         return Err(QueryError::invalid("augment requires graph mode augment"));
     };
     let needs = read_needs(&ExploreRequest {
+        page_size: 64,
+        cursor: None,
+        relation_filters: Vec::new(),
         domain: QueryDomain::Code,
         operation: ExploreOperation::Expand {
             anchor: Locator::Name {

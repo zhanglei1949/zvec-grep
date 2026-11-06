@@ -349,10 +349,10 @@ fn graph_fence_failed_source_and_delete_invalidate_prior_baseline() {
         .replace_fixture_file(&file, &[entity])
         .expect("initial write");
     writer.checkpoint().expect("checkpoint");
-    assert!(dir.path().join("graph/graph.sqlite").exists());
+    assert!(!dir.path().join("graph/graph.sqlite").exists());
     assert!(
-        !dir.path().join("graph/STATE.json").exists(),
-        "ordinary indexing creates no GraphDB text fence"
+        dir.path().join("graph/STATE.json").exists(),
+        "text publication is fenced even before enabling GraphDB"
     );
     assert!(!dir.path().join("graph/HEAD.json").exists());
     let baseline = TextState::baseline(

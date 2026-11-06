@@ -56,9 +56,9 @@ fn input(name: &str) -> SemanticInput {
 }
 fn scenarios() -> Vec<Scenario> {
     let values: Expectations =
-        serde_json::from_str(include_str!("fixtures/semantic-source-maintenance-v1.json"))
+        serde_json::from_str(include_str!("fixtures/semantic-source-maintenance-v2.json"))
             .expect("fixed expectations");
-    assert_eq!(values.version, 1);
+    assert_eq!(values.version, 2);
     assert_eq!(
         values.input_fixture_sha256,
         zg_storage::sha256_hex(include_bytes!("fixtures/semantic-source-changes-v1.json"))
@@ -400,7 +400,7 @@ fn fact_identity_checks_full_assertion_and_preserves_the_first_timestamp() {
                     value: ScalarValue::Boolean(true),
                 }
             }
-            _ => fact.predicate = "different".into(),
+            _ => fact.relation_type = "different".into(),
         }
         assert!(
             matches!(

@@ -75,10 +75,10 @@ fn graph_facts_ids_ranges_and_fingerprints_match_pre_consolidation_bytes() {
 
 #[cfg(feature = "graphdb")]
 #[test]
-fn semantic_changes_v7_schema_is_an_explicit_format_break() {
+fn semantic_changes_v8_schema_is_an_explicit_format_break() {
     let expected: Value = serde_json::from_str(include_str!("fixtures/module-contract.json"))
         .expect("frozen pre-consolidation contract");
-    assert_eq!(zg_knowledge::graph::schema::SCHEMA_VERSION, 7);
+    assert_eq!(zg_knowledge::graph::schema::SCHEMA_VERSION, 8);
     assert_ne!(
         zg_knowledge::graph::schema::fingerprint().expect("facts schema"),
         expected["schema"]

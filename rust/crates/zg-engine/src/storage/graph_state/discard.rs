@@ -39,6 +39,27 @@ fn directory(path: &Path) -> EngineResult<bool> {
         _ => Err(invalid()),
     }
 }
+#[cfg(any(test, feature = "knowledge-graph-graphdb"))]
+fn publication_references(home: &Path, id: &str) -> EngineResult<bool> {
+    let Some(generations) = home
+        .parent()
+        .filter(|p| p.file_name().is_some_and(|name| name == "generations"))
+    else {
+        return Ok(false);
+    };
+    let Some(root) = generations.parent() else {
+        return Err(invalid());
+    };
+    Ok(
+        crate::workspace::manifest::read_workspace_manifest(root)?.is_some_and(|m| {
+            m.storage_home() == home
+                && m.publication
+                    .as_ref()
+                    .and_then(|p| p.graph.as_ref())
+                    .is_some_and(|graph| graph.graph_build_id == id)
+        }),
+    )
+}
 impl DiscardRecord {
     pub fn is_removed(&self) -> bool {
         self.phase == Phase::Removed
@@ -88,7 +109,9 @@ impl DiscardRecord {
             candidate_committed: committed,
             phase: Phase::Registered,
         };
-        if GraphHead::read(home)?.is_some_and(|h| h.graph_build_id == id) {
+        if publication_references(home, id)?
+            || GraphHead::read(home)?.is_some_and(|h| h.graph_build_id == id)
+        {
             return Err(invalid());
         }
         record.save(home)?;
@@ -114,7 +137,9 @@ impl DiscardRecord {
         home: &Path,
         remove: impl FnOnce(&Path) -> std::io::Result<()>,
     ) -> EngineResult<Self> {
-        if GraphHead::read(home)?.is_some_and(|h| h.graph_build_id == self.graph_build_id) {
+        if publication_references(home, &self.graph_build_id)?
+            || GraphHead::read(home)?.is_some_and(|h| h.graph_build_id == self.graph_build_id)
+        {
             return Err(invalid());
         }
         let builds = home.join("graph/builds");

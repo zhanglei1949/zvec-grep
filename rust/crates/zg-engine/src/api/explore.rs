@@ -3,12 +3,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 pub use zg_knowledge::query::{
-    BudgetLimits, BudgetUsage, ByteSpan, Completion, CoverageDiagnostic, Direction, EntityKind,
-    EntityRecord, EvidenceRead, EvidenceRef, ExecutionOptions, ExploreOperation, ExploreRequest,
-    ExploreResult, GraphNode, GraphPath, GraphStamp, LocateResult, LocateStatus, Locator, NodeRef,
-    ObjectRef, QueryDomain, QueryExecution, ReferenceRecord, ReferenceSelector, RelationKind,
-    RelationRecord, SemanticObject, SemanticProvenance, SemanticQuery, SemanticReadResult,
-    SemanticValue, SourceFilter, TraversalSpec, ViewStamp,
+    AvailableRelationType, BudgetLimits, BudgetUsage, ByteSpan, Completion, CoverageDiagnostic,
+    Direction, EntityKind, EntityRecord, EvidenceRead, EvidenceRef, ExecutionOptions,
+    ExploreOperation, ExploreRequest, ExploreResult, GraphNode, GraphPath, GraphStamp,
+    LocateResult, LocateStatus, Locator, NodeRef, ObjectRef, QueryDomain, QueryExecution,
+    ReferenceRecord, ReferenceSelector, RelationKind, RelationRecord, RelationSelector,
+    SemanticObject, SemanticProvenance, SemanticQuery, SemanticReadResult, SemanticValue,
+    SourceFilter, TraversalSpec, ViewStamp,
 };
 pub use zg_knowledge::relations::{Lookup, ResolutionStatus};
 
@@ -45,6 +46,36 @@ impl ExploreOptions {
 }
 
 fn ensure_supported(request: &ExploreRequest) -> crate::EngineResult<()> {
+    if request.domain == QueryDomain::Semantic
+        && matches!(
+            request.operation,
+            ExploreOperation::Semantic { .. }
+                | ExploreOperation::Neighbors { .. }
+                | ExploreOperation::RelationTypes { .. }
+        )
+    {
+        let requested = match &request.operation {
+            ExploreOperation::Neighbors { relations, .. } => relations.as_slice(),
+            _ => &[],
+        };
+        if requested
+            .iter()
+            .chain(request.relation_filters.iter().map(|s| &s.edge_type))
+            .any(|kind| {
+                !matches!(
+                    kind,
+                    RelationKind::Mentions
+                        | RelationKind::SemanticRelation
+                        | RelationKind::EpisodeLink
+                )
+            })
+        {
+            return Err(crate::EngineError::unsupported(
+                "semantic adjacency relation unsupported",
+            ));
+        }
+        return Ok(());
+    }
     if matches!(request.operation, ExploreOperation::Semantic { .. }) {
         return Ok(());
     }
@@ -66,16 +97,11 @@ fn ensure_supported(request: &ExploreRequest) -> crate::EngineResult<()> {
         }
         _ => &[],
     };
-    if relations.iter().any(|kind| {
-        !matches!(
-            kind,
-            RelationKind::Contains
-                | RelationKind::Calls
-                | RelationKind::Imports
-                | RelationKind::Extends
-                | RelationKind::Implements
-        )
-    }) {
+    if relations
+        .iter()
+        .chain(request.relation_filters.iter().map(|s| &s.edge_type))
+        .any(|kind| !super::context::graph::CODE_RELATION_KINDS.contains(kind))
+    {
         return Err(crate::EngineError::unsupported(
             "code explore relation unsupported",
         ));

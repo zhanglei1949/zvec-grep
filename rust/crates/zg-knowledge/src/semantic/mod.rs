@@ -13,8 +13,8 @@ pub use changes::{EpisodeWithdrawal, SemanticChange, SemanticOperation};
 pub use identity::{EntityInput, Identity, IdentityResolution, ObjectId, resolve_identity};
 pub use input::{FactChange, SemanticBatch, SemanticInput, SemanticUpdate, SourceChange};
 pub use records::{
-    Episode, EpisodeState, Fact, FactObject, FactState, Mention, ScalarValue, SemanticEntity,
-    SourceAssociation, SourceEvidence, SourceRef, SourceRole,
+    Episode, EpisodeLink, EpisodeRelation, EpisodeState, Fact, FactObject, FactState, Mention,
+    ScalarValue, SemanticEntity, SourceAssociation, SourceEvidence, SourceRef, SourceRole,
 };
 
 use crate::{Error, Result};

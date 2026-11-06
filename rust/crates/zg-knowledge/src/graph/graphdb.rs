@@ -355,6 +355,12 @@ impl GraphDbStore {
     pub fn counts(&self) -> GraphResult<StoreCounts> {
         self.with_read(|tx, options| FactRows::read(tx, options)?.counts())
     }
+    pub(crate) fn peak_native_segment_bytes(&self) -> GraphResult<u64> {
+        let mut connection = self.database.connect()?;
+        let peak = connection.storage_stats()?.peak_segment_bytes;
+        connection.close()?;
+        Ok(peak)
+    }
     pub fn checkpoint(&self) -> GraphResult<()> {
         if self.read_only {
             return Err(GraphError::local(GraphErrorKind::ReadOnly));

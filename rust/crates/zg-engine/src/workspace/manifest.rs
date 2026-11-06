@@ -25,6 +25,7 @@ pub(crate) struct WorkspaceManifest {
     pub path: PathBuf,
     pub index_version: Option<u32>,
     pub storage_generation: Option<String>,
+    pub publication: Option<super::publication::Publication>,
     pub embedding_runtimes: BTreeMap<String, ModelConfig>,
 }
 
@@ -55,6 +56,8 @@ struct ManifestData {
     index_version: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     storage_generation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    publication: Option<super::publication::Publication>,
     created_time: u64,
     updated_time: u64,
     #[serde(default)]
@@ -89,6 +92,7 @@ impl TryFrom<ManifestData> for WorkspaceManifest {
             path: input.path,
             index_version: input.index_version,
             storage_generation: input.storage_generation,
+            publication: input.publication,
             embedding_runtimes: input.embedding_runtimes,
         };
         manifest
@@ -121,6 +125,7 @@ impl From<WorkspaceManifest> for ManifestData {
                 .map_or_else(BTreeMap::new, |index| index.embedding_routes().clone()),
             index_version: manifest.index_version,
             storage_generation: manifest.storage_generation,
+            publication: manifest.publication,
             created_time: workspace.created_epoch_ms,
             updated_time: workspace.updated_epoch_ms,
             embedding_runtimes: manifest.embedding_runtimes,
@@ -140,6 +145,7 @@ impl WorkspaceManifest {
             workspace,
             index_version,
             storage_generation: None,
+            publication: None,
             embedding_runtimes,
         };
         manifest.validate()?;
@@ -183,6 +189,9 @@ impl WorkspaceManifest {
     }
 
     pub(crate) fn validate(&self) -> Result<(), EngineError> {
+        if let Some(publication) = &self.publication {
+            publication.validate(self.storage_generation.as_deref())?;
+        }
         if self.workspace.index_enabled() {
             require_current_index_version(self.index_version)?;
         } else if self.index_version.is_some() || self.storage_generation.is_some() {
@@ -327,6 +336,21 @@ pub(crate) fn write_workspace_manifest(
     home: &Path,
     manifest: &WorkspaceManifest,
 ) -> Result<(), EngineError> {
+    write_workspace_manifest_with_graph(
+        home,
+        manifest,
+        manifest.publication.as_ref().and_then(|p| p.graph.clone()),
+    )
+}
+
+pub(crate) fn write_workspace_manifest_with_graph(
+    home: &Path,
+    manifest: &WorkspaceManifest,
+    graph: Option<crate::storage::graph_state::GraphHead>,
+) -> Result<(), EngineError> {
+    let mut selected = manifest.clone();
+    selected.publication = super::publication::snapshot(manifest, graph)?;
+    let manifest = &selected;
     manifest.validate_published()?;
     let mut builder = fs::DirBuilder::new();
     builder.recursive(false);
@@ -439,6 +463,11 @@ mod tests {
         manifest
     }
 
+    fn prepare_publication(manifest: &mut WorkspaceManifest) {
+        manifest.publication =
+            crate::workspace::publication::snapshot(manifest, None).expect("publication");
+    }
+
     #[test]
     fn enabled_manifests_require_a_generation_at_persistence_boundaries() {
         let directory = tempdir().expect("workspace");
@@ -464,9 +493,10 @@ mod tests {
             assert!(error.to_string().contains("storageGeneration"));
         }
         fs::create_dir(&home).expect("workspace home");
-        let build = crate::workspace::build::prepare_build(draft).expect("allocate generation");
+        let mut build = crate::workspace::build::prepare_build(draft).expect("allocate generation");
         assert!(build.target.storage_generation.is_some());
         assert!(build.target.storage_home().is_dir());
+        prepare_publication(&mut build.target);
         write_workspace_manifest(&home, &build.target).expect("publish allocated generation");
         assert_eq!(
             read_workspace_manifest(&home).expect("read manifest"),
@@ -587,6 +617,7 @@ mod tests {
             home.join("generations").join(generation)
         );
 
+        prepare_publication(&mut manifest);
         write_workspace_manifest(&home, &manifest).expect("persist at resolved home");
         assert_eq!(
             read_workspace_manifest(&home).expect("read resolved home"),
@@ -599,8 +630,8 @@ mod tests {
     fn writes_and_reads_a_single_workspace_root() {
         let directory = tempdir().expect("temporary directory");
         let home = directory.path().join(".zvec-grep");
-        let manifest = fixture_manifest(&home);
-
+        let mut manifest = fixture_manifest(&home);
+        prepare_publication(&mut manifest);
         write_workspace_manifest(&home, &manifest).expect("write manifest");
         let text = fs::read_to_string(workspace_manifest_path(&home)).expect("manifest text");
         let json: serde_json::Value = serde_json::from_str(&text).expect("manifest json");
@@ -662,6 +693,7 @@ mod tests {
         let moved = directory.path().join("moved");
         fs::create_dir(&original).expect("original workspace");
         let mut manifest = fixture_manifest(&original.join(".zvec-grep"));
+        prepare_publication(&mut manifest);
         write_workspace_manifest(&manifest.path, &manifest).expect("original manifest");
         fs::rename(&original, &moved).expect("move workspace");
         let relocated = read_workspace_manifest(&moved.join(".zvec-grep"))
@@ -839,6 +871,7 @@ mod tests {
         let directory = tempdir().expect("temporary directory");
         let home = directory.path().join(".zvec-grep");
         let mut manifest = fixture_manifest(&home);
+        prepare_publication(&mut manifest);
         write_workspace_manifest(&home, &manifest).expect("initial manifest");
         let path = workspace_manifest_path(&home);
         fs::set_permissions(&home, fs::Permissions::from_mode(0o750))

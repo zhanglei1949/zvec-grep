@@ -262,6 +262,7 @@ fn open_read(
     manifest: &WorkspaceManifest,
     options: &ContextOptions,
 ) -> Result<(ReadSessionLease, Option<String>), EngineError> {
+    crate::workspace::publication::require_readable_text(manifest)?;
     #[cfg(feature = "knowledge-graph-graphdb")]
     if !options.graph.is_off() {
         let selected = match cache {
@@ -396,6 +397,7 @@ async fn try_writer_context(
     {
         return Ok(None);
     }
+    crate::workspace::publication::require_readable_text(&active)?;
     // Use the exact configuration that passed the writer-key check, including
     // authorization, rather than resolving mutable configuration a second time.
     let acquired = if uses_vectors(request) {
@@ -417,6 +419,7 @@ async fn try_writer_context(
     )
     .await?
     .into_parts();
+    crate::workspace::publication::require_readable_text(&active)?;
     if !options.graph.is_off() {
         result.graph = Some(
             crate::api::context::graph_result::GraphSupplement::degraded(

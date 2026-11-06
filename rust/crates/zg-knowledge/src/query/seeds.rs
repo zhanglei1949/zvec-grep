@@ -121,6 +121,8 @@ impl SeedSelection {
                 }
                 self.seeds.push(SeedMapping {
                     node: NodeRef {
+                        generation: view.stamp().generation.clone(),
+                        workspace_id: view.stamp().workspace_id.clone(),
                         graph_build_id: view.stamp().require_graph()?.build_id.clone(),
                         node_id: owner.id,
                     },

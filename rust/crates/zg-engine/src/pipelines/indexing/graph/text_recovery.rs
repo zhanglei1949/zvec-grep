@@ -104,6 +104,7 @@ pub(crate) async fn run(
                     ));
                 }
                 // Do not overwrite a known repair with a late cancellation result.
+                crate::workspace::manifest::write_workspace_manifest(&manifest.path, &manifest)?;
                 repaired = true;
             }
             Ok(TextStateRecoveryResult {

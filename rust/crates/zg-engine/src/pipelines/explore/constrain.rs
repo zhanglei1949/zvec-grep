@@ -209,8 +209,9 @@ fn prepare(
         bytes: std::cell::Cell::new(0),
         entities: std::cell::RefCell::new(BTreeMap::new()),
     };
-    let mut resolution =
-        kg::resolve_scope(&lease.reader, &text, &selected.view, scope, ctx).map_err(query_error)?;
+    let mut resolution = zg_knowledge::KgService
+        .resolve_scope(&selected.view, &text, scope, ctx)
+        .map_err(query_error)?;
     resolution.execution.qualification_micros = selected.qualification_micros;
     let entities = text.entities.into_inner();
     let files = lease.read.storage().list_files()?;
@@ -266,7 +267,7 @@ fn prepare(
 
 fn call_evidence(
     view: &kg::KgReadView<Arc<super::Lease>>,
-    reader: &zg_knowledge::graph::GraphDbStore,
+    reader: &zg_knowledge::GraphHandle,
     resolution: &kg::ScopeResolution,
     units: &[kg::ScopeUnit],
     entities: &BTreeMap<String, Entity>,

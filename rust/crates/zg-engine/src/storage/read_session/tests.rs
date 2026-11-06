@@ -171,6 +171,7 @@ fn write_text(home: &Path, storage_home: &Path, text: &str) {
             }],
         )
         .expect("replace indexed text");
+    storage.checkpoint().expect("stable publication input");
     storage.close().expect("checkpoint");
 }
 
@@ -495,6 +496,46 @@ fn failed_open_can_be_retried_without_leaking_a_residency_lock() {
             .len(),
         1
     );
+}
+
+#[tokio::test]
+async fn ordinary_retrieval_rejects_dirty_text_and_a_rolled_back_publication() {
+    use crate::storage::graph_state::{self, TextPhase, TextState};
+    let fixture = Fixture::new();
+    let indexing = WorkspaceIndexService::new();
+    let models = ModelRuntimeManager::new();
+    let cache = cache();
+    let (_, options) = fixture.publish();
+    context(&indexing, &models, &options, Some(&cache), false)
+        .await
+        .expect("warm ordinary text query");
+    let manifest_path = crate::workspace::manifest::workspace_manifest_path(&fixture.home);
+    let published = fs::read(&manifest_path).expect("original publication");
+    let mut state = TextState::read(&fixture.storage_home)
+        .expect("state")
+        .expect("baseline");
+    state.text_revision += 1;
+    for phase in [TextPhase::Mutating, TextPhase::Stable] {
+        state.state = phase;
+        {
+            let _writer = acquire_home_lock(&fixture.home, LockMode::Write, "test.failure")
+                .expect("writer admission");
+            graph_state::write_record(&fixture.storage_home.join("graph/STATE.json"), &state)
+                .expect("simulate failed or checkpointed in-place write");
+            fs::write(&manifest_path, &published).expect("roll back publication only");
+        }
+        for read_cache in [None, Some(&cache)] {
+            let error = context(&indexing, &models, &options, read_cache, false)
+                .await
+                .expect_err("ordinary retrieval must not read unreconciled storage");
+            assert_eq!(error.code(), crate::EngineError::RECOVERY_REQUIRED);
+        }
+        assert_eq!(
+            fs::read(&manifest_path).expect("retained publication"),
+            published
+        );
+    }
+    cache.close();
 }
 
 #[tokio::test]

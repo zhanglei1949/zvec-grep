@@ -13,6 +13,7 @@ zg 的图事实与持久化组件。代码图和文档图分别处理；engine �
 | query | 视图与预算契约、类型化分页读取、有界代码及语义对象 explore、来源授权交集及必要业务历史；租约、正文和异步任务由宿主提供 |
 | semantic | 语义身份、实体、Episode、事实、来源关联及结构化变更契约；当前目录、身份登记、完整来源贡献替换及持久化校验；公开读取复用 query::explore |
 | error | 图处理边界的分类错误；原生事务 outcome 由 GraphError 单独表达 |
+| service（graphdb feature） | KgService 薄门面和 GraphHandle；复用读租约，构建候选但不选择 zg 发布版本 |
 
 Rust/Python/Go/Java/C/C++ 的 Tree-sitter 留在 engine，同次解析产生检索实体和图事实。Markdown 关系解析固定使用 pulldown-cmark=0.13.5 与 ENABLE_TABLES；这次只调整实现位置，不替换 engine 的 Markdown 检索分段。
 
@@ -54,16 +55,18 @@ cargo run --manifest-path rust/Cargo.toml --locked -p zg-knowledge --features gr
 
 模块收敛范围、逐项测试去向和新旧契约比较保留在 [收敛报告](../../../knowledge/MODULE_CONSOLIDATION_REPORT.md) 历史快照。A1/A2 修复、L1 资源实测、代码/文档分域状态及 HEAD fsync、R1/R2 残留见 [G2 总验收](../../../knowledge/G2_ACCEPTANCE_REPORT.md)；G2.4 已带残留收尾，不代表完整原生故障门通过。G3.1 已接入代码 explore，见[实现与验证](../../../knowledge/G3_1_IMPLEMENTATION_REPORT.md)；代码 Augment、Constrain 已接入，文档图查询待接入。历史独立 SDK 和迁移报告保留在 [历史索引](../../../knowledge/HISTORY.md)，不作为当前功能说明。
 
-物理 Schema 与事实格式均为 v7，事实契约为 `zg-relations-v3`；旧候选须显式重建。SourceNode 沿用 `KgEntity`，新增固定 SemanticEntity／Episode 点、MENTIONS／SEMANTIC_RELATION 边及来源／标量事实辅助记录。`FactCatalog::with_semantic` 接收当前规范目录，复用既有写读、分批导入和提交核验；`inherit_semantic` 保留范围外记录并接收宿主明确的来源观察，`apply_sources` 应用结构化完整结果，缺省／部分／失败保留旧贡献；公开语义读取通过既有 explore 返回有类型对象及出处。原生时间保留为 TIMESTAMP_TZ，属性为独立 JSON 对象，kind／predicate 不生成新表列，来源支持退出使用既有辅助表的 Withdrawn 角色，失效提及使用固定 KgDeferredMention 辅助表，均不参与业务路径。显式更正／撤回及 Episode 退出保存为固定 KgSemanticChange 辅助记录，最近语义尝试以 KgSemanticOperation 保存；既有来源替换不会重置已退出事实。Rust 宿主通过 `ZvecGrep::apply_semantics` 提交完整候选，恢复重放 build.json 中的固定输入；来源维护、必要更正、重开和固定输入恢复已通过本地功能验证。
+物理 Schema 与事实格式均为 v8，事实契约为 `zg-relations-v3`；旧候选须显式重建。SourceNode 沿用 `KgEntity`，新增固定 SemanticEntity／Episode 点、MENTIONS／SEMANTIC_RELATION 边及来源／标量事实辅助记录。`FactCatalog::with_semantic` 接收当前规范目录，复用既有写读、分批导入和提交核验；`inherit_semantic` 保留范围外记录并接收宿主明确的来源观察，`apply_sources` 应用结构化完整结果，缺省／部分／失败保留旧贡献；公开语义读取通过既有 explore 返回有类型对象及出处。原生时间保留为 TIMESTAMP_TZ，属性为独立 JSON 对象，kind／predicate 不生成新表列，来源支持退出使用既有辅助表的 Withdrawn 角色，失效提及使用固定 KgDeferredMention 辅助表，均不参与业务路径。显式更正／撤回及 Episode 退出保存为固定 KgSemanticChange 辅助记录，最近语义尝试以 KgSemanticOperation 保存；既有来源替换不会重置已退出事实。Rust 宿主通过 `ZvecGrep::apply_semantics` 提交完整候选，恢复重放 build.json 中的固定输入；来源维护、必要更正、重开和固定输入恢复已通过本地功能验证。
 
 CONTAINS 只保留直接父子边；CALLS／IMPORTS／LINKS 的每个已解析引用在边上保存一次，未解析引用单独保存。EXTENDS／IMPLEMENTS 已贯通 Rust 显式 supertrait／trait impl 与 Python 静态基类的抽取、解析和公开遍历；动态、泛型及隐式实现边界仍显式未解析。作用域、绑定、来源支持及目录辅助记录不参加业务遍历。TextMap 按来源共享，不复制正文、片段或向量。
 
 代码抽取支持 Rust 模式／条件绑定、仓库内通配导入和重导出，以及 Python with、异常变量、推导式、global/nonlocal/del 和模式捕获。未知外部通配名称、动态目标和歧义保留引用诊断；Python 通配导入、宏模式绑定及新式注解作用域仍显式不支持。无约束、仅含生命周期参数或无参数的固有 impl 支持类型与方法均唯一的 `Type::f()`、`Self::f()`、use 别名及无泛型的路径型 type 别名；类型／const 泛型、生命周期约束或特化、where 条件 impl、trait 派发、接收者类型推断和宏展开仍不支持。来源完整性与静态解析率分别报告，ready 条件不变。
 
-公开查询使用定位、节点、邻接、引用和来源的类型化分页读取，每页最多 256 条。发布资格仍逐页核对完整提交摘要和文本绑定，成本单独计时；业务查询不调用 read_facts 或构造 FactCatalog。旧 v4／v5／v6 格式明确拒绝，由显式完整重建产生新候选；不在查询中迁移。当前目录的身份与必要业务记录须由接入方随重建输入携带。
+公开查询使用定位、节点、邻接、引用和来源的类型化分页读取，每页最多 256 条。发布资格仍逐页核对完整提交摘要和文本绑定，成本单独计时；业务查询不调用 read_facts 或构造 FactCatalog。旧物理格式（含 v7）明确拒绝并保留旧库，迁移或重建另行处理；不按空图继续，也不在查询中迁移。
 
 M3 语义读取复用现有 SourceFilter、ObjectId、KgReadView、RequestContext 和 EvidenceProvider；Provider-owned SemanticAccess 默认拒绝，来源授权先于共享支持累计。当前／必要更正记录显式区分，历史正文不可用时清除未验证偏移并返回原因。`resolve_semantic_scope` 使用既有 TextMap／fragment 映射，非完整结果或缺失映射不能扩大范围。产品文档及语义 Context 检索仍待后续接入，详见 [当前验收矩阵](../../../knowledge/S2_ACCEPTANCE_MATRIX.md)。
 
-M4／M6 通过既有 lookup、binding 行和查询路径增加 Go／Java／C／C++ 静态范围；Java 显式继承／实现与 C++ 具名基类复用 EXTENDS／IMPLEMENTS。辅助行 ID 保持 v7 的既有算法。已核验的 v7／v2 提交可提供显式重建基图，当前查询及新提交仍要求 v3，不复用旧代码规则。逐语言支持边界及剩余工作见 [当前验收矩阵](../../../knowledge/S2_ACCEPTANCE_MATRIX.md)。
+M4／M6 通过既有 lookup、binding 行和查询路径增加 Go／Java／C／C++ 静态范围；Java 显式继承／实现与 C++ 具名基类复用 EXTENDS／IMPLEMENTS。辅助行 ID 保持 v7 的既有算法。当前物理格式中已核验的 v2 事实可供代码重新解析，当前查询及新提交仍要求 v3；这不包含旧物理格式的自动迁移。逐语言支持边界及剩余工作见 [当前验收矩阵](../../../knowledge/S2_ACCEPTANCE_MATRIX.md)。
 
 M7 六语言混合工作区与公共模型的四入口功能验收见[当前验收矩阵](../../../knowledge/S2_ACCEPTANCE_MATRIX.md)。JS／TS 代码图本阶段跳过；同语料成本测量完成但六项门禁未过，不将功能通过记为完整 S2 或低成本增量维护完成。
+
+一致性、发布版本、分页和旧格式处理以[本轮实现说明](../../../knowledge/KG_CONSISTENCY_IMPLEMENTATION.md)为准。当前事实只由有效 Support 支撑；缺省／部分／失败输入保留历史，版本未核验的支持不参与当前查询。查询引用绑定逻辑 generation；RelationTypes／Neighbors 使用稳定游标。完整候选重写的成本不等同于物理增量。

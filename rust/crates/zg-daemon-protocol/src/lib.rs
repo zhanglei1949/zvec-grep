@@ -11,7 +11,7 @@ use zg_engine::api::{
     info::{InfoOptions, InfoResult},
 };
 
-pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 17;
+pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 18;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "request")]
@@ -231,6 +231,7 @@ mod explore_tests {
                 seeds: 2,
                 expansion: TraversalSpec {
                     boundary: SourceFilter {
+                        kinds: None,
                         sources: Some(vec![]),
                     },
                     ..Default::default()
@@ -259,8 +260,11 @@ mod explore_tests {
     }
     #[test]
     fn explore_is_explicit_in_current_protocol_and_preserves_deadlines() {
-        assert_eq!(CURRENT_DAEMON_PROTOCOL_VERSION, 17);
+        assert_eq!(CURRENT_DAEMON_PROTOCOL_VERSION, 18);
         let mut options = ExploreOptions::new(ExploreRequest {
+            page_size: 64,
+            cursor: None,
+            relation_filters: Vec::new(),
             domain: QueryDomain::Code,
             operation: ExploreOperation::Locate {
                 target: Locator::Name {

@@ -41,6 +41,7 @@ fn discard_refuses_a_head_selected_after_registration() {
     let (dir, id, op) = fixture();
     let record = DiscardRecord::start(dir.path(), &id, &op, 1, true).expect("start");
     let head = GraphHead {
+        generation: None,
         format_version: 1,
         graph_build_id: id.clone(),
         text_revision: 0,
