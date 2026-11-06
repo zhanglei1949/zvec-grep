@@ -1,0 +1,894 @@
+{
+  "graphdb_enabled": true,
+  "tool_names": [
+    "zvec_grep_explore",
+    "zvec_grep_search"
+  ],
+  "search_tool": {
+    "name": "zvec_grep_search",
+    "description": "Retrieve workspace content for implementation, architecture, lifecycle, design rationale, and cross-file synthesis. Use it when exact lookup alone cannot answer a workspace-grounded question. Results include bounded source snippets by default and query-group metadata; set preview: \"full\" to return all available content of each retrieved item without changing retrieval or ranking. Treat sufficient returned content as already-read evidence. Use native Grep or rg instead when exact lookup alone is sufficient. Read freshness and background_refresh from the response without a status preflight; when results are served_from_current_index, use them if sufficient. A missing index can request user model selection and authorization; accepted setup starts a background build and returns indexing status. Retry after completion. Choose graph.mode explicitly: off (default) retrieves content; augment retrieves content then adds bounded graph evidence; constrain resolves a strict graph scope before retrieval. For known callers/callees, paths or provenance, use zvec_grep_explore directly. For calls, incoming means callers and outgoing means callees. Preserve user scope; never retry failed or empty constrain as off. Read completion and truncation; Complete describes execution, not answer completeness.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "GraphQueryMode": {
+          "oneOf": [
+            {
+              "description": "Ordinary retrieval (default). No graph expansion or graph-derived scope.",
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "const": "off"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "mode"
+              ]
+            },
+            {
+              "description": "Retrieve normally, then add bounded graph evidence from the top retrieved entities.",
+              "type": "object",
+              "properties": {
+                "seeds": {
+                  "description": "Number of retrieved entities used as graph seeds (default 5, range 1..5).",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 1,
+                  "maximum": 5,
+                  "default": 5
+                },
+                "expansion": {
+                  "description": "Explicit edge types, direction and hops; at most 2 hops. Ordinary ranking stays unchanged.",
+                  "type": "object",
+                  "properties": {
+                    "relations": {
+                      "description": "Edge types to follow; choose at least one, without duplicates.",
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/RelationKind"
+                      },
+                      "minItems": 1,
+                      "maxItems": 6,
+                      "default": [
+                        "calls"
+                      ],
+                      "uniqueItems": true
+                    },
+                    "direction": {
+                      "description": "incoming finds callers; outgoing finds callees for calls edges.",
+                      "$ref": "#/$defs/Direction",
+                      "default": "outgoing"
+                    },
+                    "min_hops": {
+                      "description": "Minimum path length. Must satisfy 1 <= `min_hops` <= `max_hops`.",
+                      "type": "integer",
+                      "format": "uint32",
+                      "minimum": 1,
+                      "maximum": 2,
+                      "default": 1
+                    },
+                    "max_hops": {
+                      "description": "Maximum path length (up to 8; Augment allows at most 2).",
+                      "type": "integer",
+                      "format": "uint32",
+                      "minimum": 1,
+                      "maximum": 2,
+                      "default": 2
+                    },
+                    "include_start": {
+                      "description": "Include the anchor in expansion results. Paths include their endpoints.",
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "boundary": {
+                      "description": "Restrict every source admitted along the traversal path.",
+                      "$ref": "#/$defs/SourceFilter",
+                      "default": {
+                        "sources": null
+                      }
+                    },
+                    "result_filter": {
+                      "description": "Restrict returned sources; traversal may pass through other sources.",
+                      "$ref": "#/$defs/SourceFilter",
+                      "default": {
+                        "sources": null
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "default": {
+                    "relations": [
+                      "calls"
+                    ],
+                    "direction": "outgoing",
+                    "min_hops": 1,
+                    "max_hops": 2,
+                    "include_start": false,
+                    "boundary": {
+                      "sources": null
+                    },
+                    "result_filter": {
+                      "sources": null
+                    }
+                  }
+                },
+                "mode": {
+                  "type": "string",
+                  "const": "augment"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "mode"
+              ]
+            },
+            {
+              "description": "Resolve a strict graph-derived scope first, then retrieve only within its mapped text.",
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "description": "Required anchor and traversal. Empty/failed scope must not widen to ordinary retrieval.",
+                  "$ref": "#/$defs/ScopeSpec"
+                },
+                "mode": {
+                  "type": "string",
+                  "const": "constrain"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "mode",
+                "scope"
+              ]
+            }
+          ]
+        },
+        "RelationKind": {
+          "type": "string",
+          "enum": [
+            "contains",
+            "calls",
+            "imports",
+            "extends",
+            "implements"
+          ]
+        },
+        "Direction": {
+          "description": "Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.",
+          "type": "string",
+          "enum": [
+            "incoming",
+            "outgoing",
+            "both"
+          ]
+        },
+        "SourceFilter": {
+          "description": "Source selection: code uses workspace-relative paths; semantic uses source IDs.",
+          "type": "object",
+          "properties": {
+            "sources": {
+              "description": "Omitted/null means unrestricted; [] is explicitly empty, not unrestricted.",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 2000,
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        },
+        "ScopeSpec": {
+          "type": "object",
+          "properties": {
+            "anchor": {
+              "description": "Traversal seed, not an exact scope by itself. Disambiguate names with `source_id`.",
+              "$ref": "#/$defs/Locator"
+            },
+            "traversal": {
+              "description": "Select entities whose text may be searched. Default: outgoing calls, 1..2 hops, excludes anchor.",
+              "$ref": "#/$defs/TraversalSpec",
+              "default": {
+                "relations": [
+                  "calls"
+                ],
+                "direction": "outgoing",
+                "min_hops": 1,
+                "max_hops": 2,
+                "include_start": false,
+                "boundary": {
+                  "sources": null
+                },
+                "result_filter": {
+                  "sources": null
+                }
+              }
+            },
+            "region": {
+              "$ref": "#/$defs/BodyRegion",
+              "default": "full"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "anchor"
+          ]
+        },
+        "Locator": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "node": {
+                  "$ref": "#/$defs/NodeRef",
+                  "description": "Reuse a node reference from the same published graph view."
+                },
+                "by": {
+                  "type": "string",
+                  "const": "node"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "by",
+                "node"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "source_id": {
+                  "type": "string",
+                  "description": "Workspace-relative source path, for example src/auth.rs; disambiguates a symbol name."
+                },
+                "byte_offset": {
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "description": "UTF-8 byte offset in that indexed source version."
+                },
+                "kind": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/EntityKind"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "by": {
+                  "type": "string",
+                  "const": "position"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "by",
+                "source_id",
+                "byte_offset"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Known indexed symbol name; use locate if the name is ambiguous."
+                },
+                "source_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Workspace-relative source path, for example src/auth.rs; disambiguates a symbol name."
+                },
+                "kind": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/EntityKind"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "by": {
+                  "type": "string",
+                  "const": "name"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "by",
+                "name"
+              ]
+            }
+          ]
+        },
+        "NodeRef": {
+          "type": "object",
+          "properties": {
+            "graph_build_id": {
+              "type": "string"
+            },
+            "node_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "graph_build_id",
+            "node_id"
+          ]
+        },
+        "EntityKind": {
+          "type": "string",
+          "enum": [
+            "file",
+            "module",
+            "class",
+            "interface",
+            "function",
+            "method",
+            "field",
+            "section",
+            "type",
+            "constant"
+          ]
+        },
+        "TraversalSpec": {
+          "type": "object",
+          "properties": {
+            "relations": {
+              "description": "Edge types to follow; choose at least one, without duplicates.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RelationKind"
+              },
+              "minItems": 1,
+              "maxItems": 6,
+              "default": [
+                "calls"
+              ],
+              "uniqueItems": true
+            },
+            "direction": {
+              "description": "incoming finds callers; outgoing finds callees for calls edges.",
+              "$ref": "#/$defs/Direction",
+              "default": "outgoing"
+            },
+            "min_hops": {
+              "description": "Minimum path length. Must satisfy 1 <= `min_hops` <= `max_hops`.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 1,
+              "maximum": 8,
+              "default": 1
+            },
+            "max_hops": {
+              "description": "Maximum path length (up to 8; Augment allows at most 2).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 1,
+              "maximum": 8,
+              "default": 2
+            },
+            "include_start": {
+              "description": "Include the anchor in expansion results. Paths include their endpoints.",
+              "type": "boolean",
+              "default": false
+            },
+            "boundary": {
+              "description": "Restrict every source admitted along the traversal path.",
+              "$ref": "#/$defs/SourceFilter",
+              "default": {
+                "sources": null
+              }
+            },
+            "result_filter": {
+              "description": "Restrict returned sources; traversal may pass through other sources.",
+              "$ref": "#/$defs/SourceFilter",
+              "default": {
+                "sources": null
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "BodyRegion": {
+          "description": "Text to search: full includes nested entities; own includes only the selected entity's own text.",
+          "type": "string",
+          "enum": [
+            "full",
+            "own"
+          ]
+        },
+        "ExecutionOptions": {
+          "type": "object",
+          "properties": {
+            "request_timeout_ms": {
+              "description": "Total request deadline in milliseconds, bounded by the service allowance.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 30000,
+              "maximum": 30000
+            },
+            "graph_timeout_ms": {
+              "description": "Graph-stage timeout in milliseconds; the total request deadline still applies.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 5000,
+              "maximum": 5000
+            },
+            "budget": {
+              "description": "Independent graph resource limits, bounded by the service allowance.",
+              "$ref": "#/$defs/BudgetLimits",
+              "default": {
+                "nodes": 2000,
+                "edges": 10000,
+                "candidates": 5000,
+                "mapping_units": 5000,
+                "output_bytes": 65536,
+                "filter_bytes": 262144
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "BudgetLimits": {
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "description": "Maximum visited nodes. Positive; the service may impose a lower ceiling.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 2000,
+              "maximum": 2000
+            },
+            "edges": {
+              "description": "Maximum visited edges.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 10000,
+              "maximum": 10000
+            },
+            "candidates": {
+              "description": "Maximum candidate objects.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 5000,
+              "maximum": 5000
+            },
+            "mapping_units": {
+              "description": "Maximum text-mapping units.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 5000,
+              "maximum": 5000
+            },
+            "output_bytes": {
+              "description": "Maximum graph output bytes.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 65536,
+              "maximum": 65536
+            },
+            "filter_bytes": {
+              "description": "Maximum serialized strict-scope filter bytes.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 1,
+              "default": 262144,
+              "maximum": 262144
+            }
+          },
+          "additionalProperties": false
+        },
+        "QueryListInput": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "maxItems": 32
+            }
+          ]
+        },
+        "GlobListInput": {
+          "description": "Public string/list globs plus the existing typed-rule extension.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/GlobInput"
+              }
+            }
+          ]
+        },
+        "GlobInput": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "caseInsensitive": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pattern"
+          ]
+        },
+        "PathListInput": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1024
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "maxItems": 128
+            }
+          ]
+        },
+        "SymbolTypeInput": {
+          "type": "string",
+          "enum": [
+            "alias",
+            "class",
+            "enum",
+            "function",
+            "interface",
+            "module",
+            "value"
+          ]
+        },
+        "TimeInput": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "maxLength": 128
+            }
+          ]
+        },
+        "FreshnessInput": {
+          "type": "string",
+          "enum": [
+            "eventual",
+            "wait_for_fresh"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "graph": {
+          "description": "Agent chooses: omitted/off for content retrieval; augment adds graph evidence; constrain searches only a graph-derived scope. Known relationship questions use `zvec_grep_explore` directly.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GraphQueryMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "graphExecution": {
+          "description": "Request deadline and graph-stage limits; requires graph.mode=augment or constrain.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "root": {
+          "description": "Absolute workspace root visible to the daemon.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "query": {
+          "description": "One primary hybrid-search group.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "queries": {
+          "description": "One or more primary hybrid-search groups.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueryListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fts": {
+          "description": "Supplemental lexical-route groups.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueryListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vector": {
+          "description": "Supplemental semantic/vector-route groups.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueryListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "description": "Maximum returned items per query group or fused plan.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "preview": {
+          "description": "Source display only: short bounds snippets; full preserves all available retrieved content and outline without changing retrieval or ranking.",
+          "type": "string",
+          "enum": [
+            "short",
+            "full"
+          ],
+          "default": "short"
+        },
+        "globs": {
+          "description": "Ordered path glob rules; later matching rules take precedence.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GlobListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "insensitiveGlobs": {
+          "description": "Ordered case-insensitive rg glob rules, applied after globs.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fileTypes": {
+          "description": "Ripgrep type names, such as ts, py, h or cpp.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excludedFileTypes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "includedFormats": {
+          "description": "Formats inferred from indexed file names, such as rust or markdown; source contents are not inspected.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excludedFormats": {
+          "description": "Exclude matching file-name formats, taking precedence over included formats.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "categories": {
+          "description": "Categories inferred from indexed file names, such as code or document.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excludedCategories": {
+          "description": "Exclude matching file-name categories, taking precedence over categories.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PathListInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "embeddingConcurrency": {
+          "description": "Index-only refresh budget; query-vector inference keeps its own defaults.\nControls llama.cpp contexts or concurrent batches/requests for other backends.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 1
+        },
+        "fuse": {
+          "description": "Collapse all query groups into one ranked plan.",
+          "type": "boolean"
+        },
+        "preferSymbol": {
+          "description": "Prefer exact indexed symbols.",
+          "type": "boolean"
+        },
+        "symbolTypes": {
+          "description": "Restrict indexed results to symbol types.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SymbolTypeInput"
+          },
+          "maxItems": 7
+        },
+        "modifiedAfter": {
+          "description": "Only query files modified after this time.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modifiedBefore": {
+          "description": "Only query files modified before this time.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trace": {
+          "description": "Include per-hit search trace.",
+          "type": "boolean"
+        },
+        "freshness": {
+          "description": "Search now or wait for delivered workspace changes to be indexed.\nResident servers cover watcher notifications received before the refresh\nbarrier; OS notifications delivered later require a subsequent refresh.",
+          "$ref": "#/$defs/FreshnessInput"
+        },
+        "autoUpdate": {
+          "description": "Allow eventual search to schedule a background index update.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "root"
+      ],
+      "examples": [
+        {
+          "root": "/absolute/workspace",
+          "query": "凭据刷新逻辑"
+        },
+        {
+          "root": "/absolute/workspace",
+          "query": "凭据刷新实现",
+          "graph": {
+            "mode": "augment",
+            "seeds": 2,
+            "expansion": {
+              "relations": [
+                "calls"
+              ],
+              "direction": "incoming",
+              "min_hops": 1,
+              "max_hops": 1,
+              "include_start": false
+            }
+          }
+        },
+        {
+          "root": "/absolute/workspace",
+          "query": "401 处理代码",
+          "graph": {
+            "mode": "constrain",
+            "scope": {
+              "anchor": {
+                "by": "name",
+                "name": "refresh_token",
+                "source_id": "src/auth.rs"
+              },
+              "traversal": {
+                "relations": [
+                  "calls"
+                ],
+                "direction": "incoming",
+                "min_hops": 1,
+                "max_hops": 1,
+                "include_start": false
+              },
+              "region": "own"
+            }
+          }
+        }
+      ]
+    },
+    "annotations": {
+      "title": "Search with zvec-grep",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  }
+}

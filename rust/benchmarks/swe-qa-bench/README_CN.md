@@ -4,6 +4,102 @@
 
 # SWE-QA benchmark
 
+## 普通检索／固定 Augment／Agent 自主选型对照
+
+新增独立协议 **`sweqa20-zg-agent-choice-v1`**，复用现有 SWE-QA20 原题、参考答案
+和 11 个仓库的固定版本。原有两套协议、入口和结果格式保持原样。
+
+| 组别 | zg 工具 | 查询方式 |
+| --- | --- | --- |
+| `zg-off` | search | 原代理固定注入 `graph.mode=off`。 |
+| `zg-augment` | search | 原代理固定注入 5 个种子、Calls 出向、1～2 跳和原有预算。 |
+| `zg-agent-choice` | search + explore | Agent 根据真实产品指引和参数 Schema，选择普通检索、Augment、Constrain 或 Explore。 |
+
+三组均保留原生读取工具。自主组只使用普通检索或原生读取也是有效行为；代理保留
+Agent 的图参数、范围和预算选择，仅冻结索引生命周期及凭据参数。固定两组沿用原代理
+和指引。每仓库每轮准备一份规范索引，各组复制后校验，查询前后内容保持一致，
+**组别不参与索引副本身份计算**。
+
+共同配置沿用固定 Augment 协议：OpenCode 1.18.4、Qwen3.7-max（关闭 thinking）、
+原有 embedding、独立 GLM-5.2 Judge、每次 1,800 秒、单并发、不自动重试。
+smoke 为 **5×3×1＝15 次会话**，正式为 **20×3×3＝180 次会话**。
+同题三组相邻执行，按题号和重复编号轮换顺序。
+
+### Mac 离线验收
+
+**Mac 已完成实现和离线验收；真实 Agent、模型与 Docker 评测留到 Linux。**
+从本目录执行；Rust 原生依赖按 [`rust/README.md`](../../README.md) 配置：
+
+```sh
+uv sync --frozen
+LITELLM_LOCAL_MODEL_COST_MAP=True HF_HUB_OFFLINE=1 \
+  uv run --frozen --no-sync python -m unittest discover -s tests -v
+node --test tests/augment_proxy.test.mjs tests/choice_proxy.test.mjs
+cargo test --manifest-path ../../Cargo.toml -p zg-transport-mcp \
+  --features knowledge-graph-graphdb \
+  --test swe_qa_tool_catalog --test swe_qa_agent_tool_catalog
+```
+
+离线测试使用模拟轨迹、usage、答案和 Judge，验证评测流程；**这些是测试夹具，
+不是新造的评测题**。覆盖四种查询、参数省略、歧义、空结果、错误、partial、降级、
+分页、取消、调用配对、版本／副本漂移和缺失值。Mac dry-run 测试构造含 Linux ELF
+头的测试包，走真实 Linux x64 包校验流程，既不执行包，也不启动 Docker 或模型。
+
+新增 `tests/fixtures/mcp-agent-tools-graphdb.json` 保存真实初始化指引与完整工具目录；
+Rust 检查快照时效，Python 校验公开示例的 JSON Schema。保留原 search-only 快照。
+有意更新契约时，在 cargo 命令前设置 `ZG_BENCH_UPDATE_MCP_FIXTURES=1`，审阅
+两份快照，再去掉该变量重跑验收。
+
+### Linux 操作
+
+先在 Linux x64 的 `rust/` 目录构建启用 graphdb 的候选包：
+
+```sh
+cargo build --locked --release -p zg --features knowledge-graph-graphdb
+npm run pack:local -- --no-build
+```
+
+回到本评测目录，准备锁定依赖、Docker 和 Node.js，按下节设置
+`DASHSCOPE_API_KEY`、`ZVEC_GREP_API_KEY`、`GLM_API_KEY`。
+smoke 与正式运行须保持候选包、端点配置和评测源码一致。
+
+```sh
+python -m zg_bench.swe_qa.choice run \
+  --package /absolute/path/to/linux-x64-candidate.tgz \
+  --output /absolute/path/to/CHOICE_DRY_RUN --tier full --dry-run
+
+python -m zg_bench.swe_qa.choice run \
+  --package /absolute/path/to/linux-x64-candidate.tgz \
+  --output /absolute/path/to/CHOICE_SMOKE --tier smoke
+python -m zg_bench.swe_qa.choice collect /absolute/path/to/CHOICE_SMOKE
+python -m zg_bench.swe_qa.choice judge /absolute/path/to/CHOICE_SMOKE
+python -m zg_bench.swe_qa.choice report /absolute/path/to/CHOICE_SMOKE
+
+python -m zg_bench.swe_qa.choice run \
+  --package /absolute/path/to/linux-x64-candidate.tgz \
+  --output /absolute/path/to/CHOICE_FULL --tier full \
+  --smoke /absolute/path/to/CHOICE_SMOKE
+python -m zg_bench.swe_qa.choice collect /absolute/path/to/CHOICE_FULL
+python -m zg_bench.swe_qa.choice judge /absolute/path/to/CHOICE_FULL
+python -m zg_bench.swe_qa.choice report /absolute/path/to/CHOICE_FULL
+```
+
+输出目录须不存在，dry-run 和实际运行分开。正式运行要求**新协议自己的 smoke**
+通过完整性、评分和 usage 核对；拒绝旧协议数据和覆盖已有试验。
+`collect / report` 只读保存的证据；`judge` 会调用独立远程模型。
+
+### 采集与报告
+
+完整报告三项预定比较：**自主选型－普通检索（主比较）**、固定 Augment－普通检索、
+自主选型－固定 Augment。沿用原五维盲评、题级均值、配对 bootstrap 和成本口径。
+**无答案计零，未评分保留 N/A，区间包含零保留“不确定”。**
+
+保存轨迹、MCP 原始及转发参数、证据、版本、停止原因、游标和存储审计，代理日志
+移除凭据。Explore 优先读取 structuredContent，按请求 ID 配对，避免重复计数。
+Agent 参数错误计为工具错误，日志、候选包和索引损坏另列完整性问题。
+工具使用分布属于**行为统计，不称为“选型准确率”**。自主组同时改变工具和产品指引，
+整体收益不能单独归因于选型策略；远程模型权重也无法冻结。
+
 ## 普通 zg／知识图谱 Augment 对照
 
 独立协议 `sweqa20-zg-augment-agent-v1` 使用本目录的 Rust 框架，不改变下文
@@ -18,6 +114,28 @@ Qwen3.7 Text Embedding 和独立 GLM-5.2 Judge（temperature=0）。题目、答
 交替执行，不自动重试。现有的 Claude 每次 4 美元限制不适用于这个 OpenCode 协议。
 
 ### 准备与执行
+
+Mac 可先完成离线验收。从仓库根目录进入本目录执行；不需要 Docker、模型或 API Key：
+
+```sh
+cd rust/benchmarks/swe-qa-bench
+uv sync --frozen
+uv run --frozen --no-sync python -m unittest discover -s tests -v
+node --test tests/augment_proxy.test.mjs
+```
+
+两组使用同一份启用 graphdb 的产品包。代理公布相同的 search-only 说明，过滤隐藏参数
+对应的调用示例，保留普通查询约束。离线测试使用真实 Rust MCP `tools/list` 目录快照，
+检查示例有效性、隐藏参数拒绝和普通参数约束；Rust 测试校验快照与当前产品一致：
+
+```sh
+cargo test --manifest-path ../../Cargo.toml -p zg-transport-mcp \
+  --features knowledge-graph-graphdb --test swe_qa_tool_catalog
+```
+
+有意更新工具契约时，在上述 cargo 命令前设置 `ZG_BENCH_UPDATE_MCP_FIXTURES=1`，
+审阅生成的 `tests/fixtures/mcp-search-graphdb.json`，再重跑两类离线测试。
+代理源码变化后重新执行 smoke，沿用候选包、配置和评测源码冻结规则。
 
 运行主机需要 Docker、Node.js 和本目录锁定的 Python 依赖。**候选包必须是 Linux
 x64 Rust 本地包**，不能使用 macOS 包、TypeScript 包或仅含安装器的发布 meta 包。

@@ -6,16 +6,50 @@ import { pathToFileURL } from "node:url";
 import { performance } from "node:perf_hooks";
 
 export const SEARCH = "zvec_grep_search";
+// Freeze the same search-only guidance in both arms, regardless of backend graph support.
+export const SEARCH_DESCRIPTION = "Search the prepared workspace index for semantic content and cross-file evidence. Use query or queries for hybrid retrieval; fts and vector add supplemental retrieval routes. Results include source snippets; preview=full returns all available retrieved-item content without changing ranking. Use native read or lexical tools for focused verification. The workspace index is already prepared.";
 const managed = ["graph", "graphExecution", "autoUpdate", "freshness", "apiKey"];
 
 export function publicTool(tool) {
   const output = structuredClone(tool);
+  output.description = SEARCH_DESCRIPTION;
   for (const key of managed) delete output.inputSchema.properties[key];
   output.inputSchema.required = (output.inputSchema.required ?? []).filter(
     (key) => !managed.includes(key),
   );
   output.inputSchema.additionalProperties = false;
+  if (output.inputSchema.examples) {
+    // Do not turn a constrained example into an unconstrained search by stripping its graph mode.
+    output.inputSchema.examples = output.inputSchema.examples.filter(
+      (example) => !managed.some((key) => Object.hasOwn(example, key)),
+    );
+    if (!output.inputSchema.examples.length) delete output.inputSchema.examples;
+  }
+  pruneDefinitions(output.inputSchema);
   return output;
+}
+
+function pruneDefinitions(schema) {
+  const definitions = schema.$defs;
+  if (!definitions) return;
+  const pending = [];
+  const collect = (value) => {
+    if (!value || typeof value !== "object") return;
+    if (typeof value.$ref === "string" && value.$ref.startsWith("#/$defs/"))
+      pending.push(value.$ref.slice(8).split("/")[0].replaceAll("~1", "/").replaceAll("~0", "~"));
+    for (const [key, child] of Object.entries(value)) if (key !== "$defs") collect(child);
+  };
+  collect(schema);
+  const reachable = new Set();
+  while (pending.length) {
+    const name = pending.pop();
+    if (reachable.has(name)) continue;
+    if (!Object.hasOwn(definitions, name)) throw new Error(`missing schema definition: ${name}`);
+    reachable.add(name);
+    collect(definitions[name]);
+  }
+  for (const name of Object.keys(definitions)) if (!reachable.has(name)) delete definitions[name];
+  if (!Object.keys(definitions).length) delete schema.$defs;
 }
 
 export function forwardArguments(args, config) {

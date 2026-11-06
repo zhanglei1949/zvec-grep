@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import http from "node:http";
 import { createInterface } from "node:readline";
-import { publicTool, forwardArguments, graphObservation } from "../zg_bench/swe_qa/augment_proxy.mjs";
+import { publicTool, forwardArguments, graphObservation, SEARCH_DESCRIPTION } from "../zg_bench/swe_qa/augment_proxy.mjs";
 import { UsageReader, relay } from "../zg_bench/swe_qa/augment_usage.mjs";
 
 const config = { profile: "zg-augment", graph: { mode: "augment", seeds: 5 },
@@ -20,7 +20,8 @@ test("both profiles publish the same schema without managed arguments", () => {
   const exposed = publicTool(tool);
   assert.deepEqual(Object.keys(exposed.inputSchema.properties), ["root"]);
   assert.deepEqual(exposed.inputSchema.required, ["root"]);
-  assert.equal(exposed.description, tool.description);
+  assert.equal(exposed.description, SEARCH_DESCRIPTION);
+  assert.equal(tool.description, "same description");
   assert.ok(tool.inputSchema.properties.graph);
   for (const profile of ["zg-off", "zg-augment"])
     assert.throws(() => forwardArguments({ root: "/app", graph: { mode: "off" } }, { ...config, profile }));
@@ -30,6 +31,60 @@ test("both profiles publish the same schema without managed arguments", () => {
   assert.equal(off.limit, 7);
   assert.equal(off.autoUpdate, false);
   assert.equal(off.freshness, "eventual");
+});
+
+test("hidden examples are dropped rather than silently losing their scope", () => {
+  const tool = { inputSchema: {
+    properties: { root: {}, query: {}, graph: {}, freshness: {} },
+    examples: [
+      { root: "/app", query: "ordinary" },
+      { root: "/app", query: "scoped", graph: { mode: "constrain", scope: {} } },
+      { root: "/app", query: "managed", freshness: "eventual" },
+    ],
+  } };
+  const exposed = publicTool(tool);
+  assert.deepEqual(exposed.inputSchema.examples, [{ root: "/app", query: "ordinary" }]);
+  assert.equal(tool.inputSchema.examples.length, 3);
+  tool.inputSchema.examples.shift();
+  assert.equal(publicTool(tool).inputSchema.examples, undefined);
+});
+
+test("definition pruning preserves shared references and recursive schemas", () => {
+  const tool = { inputSchema: {
+    properties: { query: { $ref: "#/$defs/Route~1Query" }, graph: { $ref: "#/$defs/Graph" } },
+    $defs: {
+      "Route/Query": { anyOf: [{ type: "string" }, { $ref: "#/$defs/Routes" }] },
+      Routes: { type: "array", items: { $ref: "#/$defs/Route~1Query" } },
+      Graph: { type: "object" },
+    },
+  } };
+  assert.deepEqual(Object.keys(publicTool(tool).inputSchema.$defs).sort(), ["Route/Query", "Routes"]);
+  assert.equal(Object.keys(tool.inputSchema.$defs).length, 3);
+  delete tool.inputSchema.properties.query;
+  assert.equal(publicTool(tool).inputSchema.$defs, undefined);
+});
+
+test("real product catalog projects to a consistent search-only tool", async () => {
+  const catalog = JSON.parse(await readFile(new URL("./fixtures/mcp-search-graphdb.json", import.meta.url), "utf8"));
+  assert.equal(catalog.graphdb_enabled, true);
+  assert.equal(catalog.tool_names.includes("zvec_grep_explore"), catalog.graphdb_enabled);
+  const tool = catalog.search_tool;
+  const original = structuredClone(tool);
+  const exposed = publicTool(tool);
+  const fields = exposed.inputSchema.properties;
+  for (const key of ["graph", "graphExecution", "autoUpdate", "freshness", "apiKey"]) {
+    assert.equal(Object.hasOwn(fields, key), false);
+    assert.equal(exposed.inputSchema.required.includes(key), false);
+  }
+  assert.equal(exposed.description, SEARCH_DESCRIPTION);
+  assert.doesNotMatch(exposed.description, /augment|constrain|explore|graph\.mode/i);
+  for (const [key, schema] of Object.entries(fields))
+    assert.deepEqual(schema, original.inputSchema.properties[key], `ordinary input changed: ${key}`);
+  for (const example of exposed.inputSchema.examples ?? [])
+    for (const key of Object.keys(example)) assert.ok(Object.hasOwn(fields, key), `hidden input example: ${key}`);
+  for (const name of Object.keys(exposed.inputSchema.$defs ?? {}))
+    assert.doesNotMatch(name, /GraphQueryMode|TraversalSpec|ExecutionOptions|BudgetLimits|Locator/);
+  assert.deepEqual(tool, original, "projection mutated the product catalog");
 });
 
 test("graph observation preserves product error and partial distinctions", () => {
