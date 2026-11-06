@@ -4,6 +4,15 @@ pub use zg_knowledge::query::{
     ScopeSpec, SourceFilter, TraversalSpec,
 };
 
+/// Code edge types supported by both execution and capability-aware transports.
+pub const CODE_RELATION_KINDS: &[RelationKind] = &[
+    RelationKind::Contains,
+    RelationKind::Calls,
+    RelationKind::Imports,
+    RelationKind::Extends,
+    RelationKind::Implements,
+];
+
 pub(crate) fn ensure_supported(mode: &GraphQueryMode, rg: bool) -> crate::EngineResult<()> {
     mode.validate()?;
     if !mode.is_off() {
@@ -22,16 +31,11 @@ pub(crate) fn ensure_supported(mode: &GraphQueryMode, rg: bool) -> crate::Engine
             GraphQueryMode::Constrain { scope } => &scope.traversal,
             GraphQueryMode::Off {} => return Ok(()),
         };
-        if expansion.relations.iter().any(|r| {
-            !matches!(
-                r,
-                RelationKind::Contains
-                    | RelationKind::Calls
-                    | RelationKind::Imports
-                    | RelationKind::Extends
-                    | RelationKind::Implements
-            )
-        }) {
+        if expansion
+            .relations
+            .iter()
+            .any(|r| !CODE_RELATION_KINDS.contains(r))
+        {
             return Err(crate::EngineError::unsupported(
                 "code graph relation unsupported",
             ));

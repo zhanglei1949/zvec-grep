@@ -2,6 +2,12 @@
 # reason and removal condition.
 
 [[difference]]
+id = "mcp-explicit-graph-routing"
+owner = "MCP/engine/KG"
+reason = "Rust MCP 按编译能力提供 Augment、Constrain 和 Explore 的选型说明、完整调用示例及参数约束；未启用 graphdb 时只展示 off。已知对象的关系可直接 Explore，严格范围失败或为空时保持原限制。Node 工具快照继续作为其原始行为对照；普通检索和返回格式沿用原有契约。验证：graph_contract 参数、能力矩阵、tools/list 协议测试，以及 engine 图查询回归。"
+removal_condition = "Node 采用相同图查询能力及工具说明，或其兼容层退役。"
+
+[[difference]]
 id = "managed-rg-plain-text"
 owner = "CLI/engine/MCP"
 reason = "Rust CLI, API and MCP rg searches return plain source matches without code or Markdown extraction, structural containers or symbol headings. This removes parsing work from exhaustive text search. File grouping, source coordinates, matching/context markers, output bounds and Direct/Server semantics remain shared. Current-file path lookup retains structural entity grouping. Validation: direct_search, lexical_modes and rg_format regression tests."

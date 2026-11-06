@@ -4,6 +4,7 @@
 //! into typed requests executed by the engine or the resident workspace provider.
 
 mod consent;
+mod graph_contract;
 mod request;
 mod rg_format;
 mod search_format;
@@ -78,8 +79,8 @@ macro_rules! workspace_evidence_rules {
 macro_rules! search_routing_rules {
     ($exact:literal, $focused:literal) => { concat!(
         "- Use ", $exact, " first only when exact lookup alone is sufficient, such as locating one definition, literal, filename, configuration key, error message, regex match, or exhaustive occurrence list.\n",
-        "- Use zvec_grep_search first when wording or location is unknown, or when the answer requires architecture, lifecycle, call relationships, dependencies, data or control flow, design rationale, comparison, or synthesis across files or components.\n",
-        "- When user-provided or verified exact symbols are present but the answer spans multiple files, components, stages, implementations, or relationships, treat the task as mixed: call zvec_grep_search with the semantic intent and those anchors, then use ", $focused, " for focused verification.\n",
+        "- Use zvec_grep_search for content discovery when wording or location is unknown, or for architecture, lifecycle, design rationale, comparison, or synthesis across files or components.\n",
+        "- For content synthesis with known symbols, call zvec_grep_search with the semantic intent and those anchors, then use ", $focused, " for focused verification.\n",
         "- For a semantic or mixed workspace task, start discovery with focused zvec_grep_search before broad file discovery.\n",
         "- Preserve the question's concepts, relationships, and constraints from the user request and established context in semantic queries. Treat inferred names as supplemental hypotheses, not replacements for or constraints on the stated intent.\n",
         "- `query` creates one primary hybrid FTS-plus-vector group; `queries` creates one or more primary hybrid groups; `fts` and `vector` add supplemental lexical-only or semantic-only route groups. These are retrieval routes, not hard constraints. Without `fuse`, the response is one deduplicated and reranked list with query-group metadata; set `fuse: true` to collapse every group into one ranked search plan.\n",
@@ -127,9 +128,12 @@ const MAX_SEARCH_LIMIT: usize = 50;
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExploreInput {
+    /// Absolute workspace root visible to the daemon.
     #[schemars(length(min = 1, max = 1024))]
     pub root: String,
+    /// Read known relationships directly, or locate an ambiguous object first. Uses the published graph.
     pub request: zg_engine::api::explore::ExploreRequest,
+    /// Optional positive deadlines and graph budgets, within the advertised service ceilings.
     pub execution: Option<zg_engine::api::explore::ExecutionOptions>,
     pub lock_timeout_ms: Option<u64>,
 }
@@ -335,6 +339,9 @@ impl ZvecGrepMcpServer {
         index_operations: Arc<dyn IndexOperationProvider>,
     ) -> Self {
         let mut router = Self::tool_router();
+        for route in router.map.values_mut() {
+            graph_contract::configure_tool(&mut route.attr, ZvecGrep::supports_explore());
+        }
         if !ZvecGrep::supports_explore() {
             router.disable_route("zvec_grep_explore");
         }
@@ -378,7 +385,7 @@ impl ZvecGrepMcpServer {
 impl ZvecGrepMcpServer {
     #[tool(
         name = "zvec_grep_explore",
-        description = "Read published Rust/Python code relationships, including explicit extends/implements, or semantic objects, facts and provenance using domain=semantic and operation=semantic. Semantic history is explicit business corrections in the current graph. No refresh, indexing or model calls. Use returned view and verified evidence; unavailable evidence is explicit.",
+        description = "Read known objects' relationships directly: callers/callees, bounded expansion, shortest paths or source references; also use after search when relationship evidence is missing. For calls, incoming finds callers and outgoing finds callees. Use locate and a workspace-relative source_id to resolve ambiguous names. Code supports published Rust/Python relationships including extends/implements. Semantic objects, facts, provenance and business correction history require domain=semantic and operation=semantic. No refresh, indexing or model calls. Read returned view, completion and truncation; Complete means the requested operation finished, not that the user's question is fully answered.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<zg_engine::api::explore::ExploreResult>(),
         annotations(
             title = "Explore graph relationships",
@@ -675,13 +682,13 @@ impl ServerHandler for ZvecGrepMcpServer {
                 "zvec-grep",
                 env!("CARGO_PKG_VERSION"),
             ))
-            .with_instructions(
+            .with_instructions(graph_contract::instructions(
                 match self.toolset {
                     McpToolset::Agent => AGENT_INSTRUCTIONS,
                     McpToolset::Full => FULL_INSTRUCTIONS,
-                }
-                .to_owned(),
-            )
+                },
+                ZvecGrep::supports_explore(),
+            ))
     }
 
     async fn call_tool(
@@ -816,9 +823,9 @@ pub enum GlobListInput {
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SearchInput {
-    /// Optional code graph expansion or an exact scope applied before retrieval.
+    /// Agent chooses: omitted/off for content retrieval; augment adds graph evidence; constrain searches only a graph-derived scope. Known relationship questions use `zvec_grep_explore` directly.
     pub graph: Option<zg_engine::api::context::graph::GraphQueryMode>,
-    /// Request deadline and graph-stage limits; requires a graph query mode.
+    /// Request deadline and graph-stage limits; requires graph.mode=augment or constrain.
     pub graph_execution: Option<zg_engine::api::explore::ExecutionOptions>,
     /// Absolute workspace root visible to the daemon.
     #[schemars(length(min = 1, max = 1024))]
@@ -2947,7 +2954,23 @@ mod tests {
     }
 
     #[test]
-    fn toolset_metadata_preserves_node_contract_with_interactive_setup_guidance() {
+    fn toolset_metadata_preserves_node_contract_outside_rust_graph_and_setup_guidance() {
+        // Node remains the oracle for shared lifecycle/exact-search rules. Rust's
+        // explicit graph routing is covered independently by graph_contract tests.
+        fn shared_rules(instructions: &str) -> String {
+            instructions
+                .strip_suffix(super::graph_contract::GRAPH_RULES)
+                .unwrap_or(instructions)
+                .replace("- For ordinary retrieval with no strict graph scope, if semantic retrieval remains irrelevant, fall back to", "- If semantic retrieval remains irrelevant, fall back to")
+                .lines()
+                .filter(|line| ![
+                    "- Use zvec_grep_search first when wording",
+                    "- When user-provided or verified exact symbols",
+                    "- Use zvec_grep_search for content discovery",
+                    "- For content synthesis with known symbols",
+                ].iter().any(|prefix| line.starts_with(prefix)))
+                .collect::<Vec<_>>().join("\n")
+        }
         let expected: serde_json::Value =
             serde_json::from_str(include_str!("../../../compat/mcp/toolsets.json"))
                 .expect("Node.js toolset metadata");
@@ -2967,8 +2990,12 @@ mod tests {
                 .replace("- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n", "")
                 .replace("When an index is missing, search can ask the user to choose an embedding model and approve a background build. Only explicit user confirmation creates an index. Read the returned indexing state and retry search after completion; use native Grep or rg only when literal lookup answers the task.", "When an index is missing and literal or regex search can answer the task, use native Grep or rg. Creating or rebuilding a persistent index requires explicit user authorization.");
             assert_eq!(
-                Some(legacy_instructions.as_str()),
-                expected[profile]["instructions"].as_str()
+                shared_rules(&legacy_instructions),
+                shared_rules(
+                    expected[profile]["instructions"]
+                        .as_str()
+                        .expect("Node instructions")
+                )
             );
             let search = server
                 .listed_tools()
@@ -2978,6 +3005,9 @@ mod tests {
             let description = search.description.expect("search description");
             assert!(description.contains("accepted setup starts a background build"));
             let legacy_description = description
+                .strip_suffix(super::graph_contract::SEARCH_GUIDANCE)
+                .unwrap_or(&description)
+                .replace(super::graph_contract::GRAPH_SEARCH_PURPOSE, super::graph_contract::LEGACY_SEARCH_PURPOSE)
                 .replace("Search a workspace index", "Search an existing workspace index")
                 .replace(" A missing index can request user model selection and authorization; accepted setup starts a background build and returns indexing status. Retry after completion.", "");
             assert_eq!(

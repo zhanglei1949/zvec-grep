@@ -20,7 +20,9 @@ refresh, authentication, and logs.
 
 ## Default agent toolset
 
-The default `agent` toolset intentionally exposes only search:
+The default `agent` toolset exposes search. Rust builds with
+`knowledge-graph-graphdb` also expose `zvec_grep_explore`; Node.js retains the
+search-only toolset.
 
 Agents first decide whether the requested answer should be grounded in the
 current indexed workspace, then choose exact or semantic retrieval. The same
@@ -35,10 +37,11 @@ incidental, or comparative workspace mentions do not establish relevance.
 
 | Tool | Use it when | Index required |
 | --- | --- | --- |
-| `zvec_grep_search` | The answer is workspace-grounded and wording or location is unknown, or semantic, fuzzy, relationship, chronology, causality, comparison, or cross-file synthesis is required | Yes |
+| `zvec_grep_search` | The answer is workspace-grounded and wording or location is unknown, or semantic, fuzzy, chronology, causality, comparison, or cross-file content synthesis is required | Yes |
+| `zvec_grep_explore` (Rust graphdb) | Read known relationships, paths or provenance directly | Published graph |
 
 Agents use native grep or rg when locating an exact word, quotation, name, date,
-key, filename, path, source fragment, or regex is sufficient. For mixed tasks,
+key, filename, path, source fragment, or regex is sufficient. For mixed content tasks,
 start with `zvec_grep_search`, then use native grep or rg for focused follow-up.
 When semantic discovery is selected because no sufficient exact anchor is
 available and the user asks whether conceptually related material exists
@@ -133,6 +136,62 @@ Remote models may cause the tool to request explicit Remote Embedding
 authorization. See
 [Embedding models](./07-embedding.md#remote-embedding-and-authorization).
 
+## Rust graph queries
+
+<span style="color:#df2a3f"><strong>The Agent chooses the tool and graph mode; the server validates and executes explicit arguments.</strong></span>
+
+| Need | Agent choice |
+| --- | --- |
+| Find implementation or other content | `zvec_grep_search`, omit `graph` or use `mode: "off"` |
+| Find content and add a bounded relationship supplement | Search with `mode: "augment"` |
+| Search only within a graph-derived scope | Search with `mode: "constrain"` |
+| Read known callers/callees, paths or provenance | `zvec_grep_explore` directly; also use it to fill evidence gaps after search |
+
+**Preserve explicit user scopes.** Locate or clarify ambiguous objects; keep an
+empty scope empty and report a failed strict scope without widening to `off`.
+For `calls`, `incoming` finds callers and `outgoing` finds callees. `scope.anchor`
+is a traversal seed; anchor alone defaults to outgoing calls, 1–2 hops, excluding
+the anchor. Set the traversal explicitly for caller-only scopes.
+
+- **Bounds:** Augment uses 1–5 seeds and at most 2 hops; general traversal allows
+  1–8 hops, with `min_hops <= max_hops`. Relation lists are nonempty and unique.
+- **Scope:** `include_start` includes the anchor. `boundary` limits all path
+  sources; `result_filter` only limits returned sources. Code source paths are
+  workspace-relative; `root` is absolute. Omitted/null `sources` means unrestricted;
+  `[]` means empty. Semantic queries use source IDs.
+- **Execution:** Search uses `graphExecution` with `augment`/`constrain`; Explore
+  uses `execution`. Nested keys use snake_case. Positive timeout/budget bounds
+  in tool schemas come from the service allowance. Cross-field checks also run
+  at execution time.
+- **Capabilities:** Without graphdb, Search advertises only `off` and Explore is
+  hidden. With graphdb, code relations are `contains`, `calls`, `imports`, `extends`
+  and `implements`; `documents` and `links` are not advertised. Semantic reads use
+  both `domain: "semantic"` and `operation: "semantic"`. Workspace graph readiness
+  is reported by execution, without a status preflight.
+
+**Read completion, truncation, degradation and view metadata.** `Complete` means
+the operation finished, not that the user's question is fully answered. Engine `ContextResult` keeps separate `items` and `graph` fields and graph
+budgets. MCP Search keeps its text response; Explore includes structured content
+and JSON text. Relation-type discovery and cursor pagination remain future work.
+
+<details>
+<summary>Four complete MCP calls</summary>
+
+```json
+[
+  {"name":"zvec_grep_search","arguments":{"root":"/absolute/workspace","query":"凭据刷新逻辑"}},
+  {"name":"zvec_grep_search","arguments":{"root":"/absolute/workspace","query":"凭据刷新实现","graph":{"mode":"augment","seeds":2,"expansion":{"relations":["calls"],"direction":"incoming","min_hops":1,"max_hops":1,"include_start":false}}}},
+  {"name":"zvec_grep_search","arguments":{"root":"/absolute/workspace","query":"401 处理代码","graph":{"mode":"constrain","scope":{"anchor":{"by":"name","name":"refresh_token","source_id":"src/auth.rs"},"traversal":{"relations":["calls"],"direction":"incoming","min_hops":1,"max_hops":1,"include_start":false},"region":"own"}}}},
+  {"name":"zvec_grep_explore","arguments":{"root":"/absolute/workspace","request":{"domain":"code","operation":{"operation":"neighbors","anchor":{"by":"name","name":"refresh_token","source_id":"src/auth.rs"},"relations":["calls"],"direction":"incoming"}}}}
+]
+```
+
+</details>
+
+The same examples are embedded in graph-enabled tool input schemas and checked
+against typed requests. Contract and protocol tests do not measure an LLM's
+actual tool-selection accuracy.
+
 ## `zvec_grep_rg`
 
 This tool is retained in the optional `full` MCP toolset and is not registered
@@ -175,7 +234,8 @@ zg --server off
 zg --server on --mcp-toolset full
 ```
 
-The `full` toolset exposes six tools:
+The `full` toolset exposes these six tools, plus `zvec_grep_explore` in Rust
+graphdb builds:
 
 | Tool | Purpose |
 | --- | --- |

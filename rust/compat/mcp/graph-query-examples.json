@@ -1,0 +1,31 @@
+[
+  {
+    "question": "凭据刷新逻辑在哪里？",
+    "tool": "zvec_grep_search",
+    "arguments": {"root": "/absolute/workspace", "query": "凭据刷新逻辑"}
+  },
+  {
+    "question": "找到刷新实现，并补充它的直接调用者",
+    "tool": "zvec_grep_search",
+    "arguments": {
+      "root": "/absolute/workspace", "query": "凭据刷新实现",
+      "graph": {"mode": "augment", "seeds": 2, "expansion": {"relations": ["calls"], "direction": "incoming", "min_hops": 1, "max_hops": 1, "include_start": false}}
+    }
+  },
+  {
+    "question": "只在调用 refresh_token 的函数中，查找 401 处理代码",
+    "tool": "zvec_grep_search",
+    "arguments": {
+      "root": "/absolute/workspace", "query": "401 处理代码",
+      "graph": {"mode": "constrain", "scope": {"anchor": {"by": "name", "name": "refresh_token", "source_id": "src/auth.rs"}, "traversal": {"relations": ["calls"], "direction": "incoming", "min_hops": 1, "max_hops": 1, "include_start": false}, "region": "own"}}
+    }
+  },
+  {
+    "question": "谁调用 refresh_token？",
+    "tool": "zvec_grep_explore",
+    "arguments": {
+      "root": "/absolute/workspace",
+      "request": {"domain": "code", "operation": {"operation": "neighbors", "anchor": {"by": "name", "name": "refresh_token", "source_id": "src/auth.rs"}, "relations": ["calls"], "direction": "incoming"}}
+    }
+  }
+]

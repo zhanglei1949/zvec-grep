@@ -9,11 +9,23 @@ use tokio_util::sync::CancellationToken;
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct BudgetLimits {
+    /// Maximum visited nodes. Positive; the service may impose a lower ceiling.
+    #[schemars(range(min = 1))]
     pub nodes: u64,
+    /// Maximum visited edges.
+    #[schemars(range(min = 1))]
     pub edges: u64,
+    /// Maximum candidate objects.
+    #[schemars(range(min = 1))]
     pub candidates: u64,
+    /// Maximum text-mapping units.
+    #[schemars(range(min = 1))]
     pub mapping_units: u64,
+    /// Maximum graph output bytes.
+    #[schemars(range(min = 1))]
     pub output_bytes: u64,
+    /// Maximum serialized strict-scope filter bytes.
+    #[schemars(range(min = 1))]
     pub filter_bytes: u64,
 }
 impl Default for BudgetLimits {
@@ -222,8 +234,13 @@ impl RequestContext {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ExecutionOptions {
+    /// Total request deadline in milliseconds, bounded by the service allowance.
+    #[schemars(range(min = 1))]
     pub request_timeout_ms: u64,
+    /// Graph-stage timeout in milliseconds; the total request deadline still applies.
+    #[schemars(range(min = 1))]
     pub graph_timeout_ms: u64,
+    /// Independent graph resource limits, bounded by the service allowance.
     pub budget: BudgetLimits,
 }
 impl Default for ExecutionOptions {

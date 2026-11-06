@@ -29,6 +29,14 @@ cargo test --manifest-path rust/Cargo.toml -p zg-transport-mcp
 
 Configure the native library path as for the other Rust workspace tests.
 
+`graph-query-examples.json` contains four explicit Rust MCP calls: ordinary
+retrieval, Augment, Constrain and direct Explore. Tool input schemas reuse these
+examples; `graph_contract` tests verify typed requests, bounds, capability
+projection and actual MCP `tools/list`. Run the same crate tests with and without
+`--features knowledge-graph-graphdb`. This is contract coverage, not a measurement
+of an LLM's tool-selection accuracy. The Node `toolsets.json` oracle is preserved;
+Rust graph guidance is tracked separately in the compatibility registry.
+
 Optional numeric and boolean tool inputs advertise scalar JSON Schema types,
 matching Node.js, with optionality expressed by omission from `required`.
 The tested Qwen-compatible provider returns string arguments when these types

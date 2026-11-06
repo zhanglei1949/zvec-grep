@@ -21,6 +21,7 @@ pub enum RelationKind {
     Implements,
 }
 
+/// Edge direction: incoming calls finds callers; outgoing calls finds callees; both follows either.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema,
 )]
@@ -71,11 +72,12 @@ impl Locator {
     }
 }
 
-/// Path admission and result selection are intentionally separate.
+/// Source selection: code uses workspace-relative paths; semantic uses source IDs.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SourceFilter {
-    /// None means unrestricted; Some([]) is explicitly empty.
+    /// Omitted/null means unrestricted; [] is explicitly empty, not unrestricted.
+    #[schemars(length(max = 2000))]
     pub sources: Option<Vec<String>>,
 }
 impl SourceFilter {
@@ -95,13 +97,22 @@ impl SourceFilter {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TraversalSpec {
+    /// Edge types to follow; choose at least one, without duplicates.
+    #[schemars(length(min = 1, max = 6), extend("uniqueItems" = true))]
     pub relations: Vec<RelationKind>,
+    /// incoming finds callers; outgoing finds callees for calls edges.
     pub direction: Direction,
+    /// Minimum path length. Must satisfy 1 <= `min_hops` <= `max_hops`.
+    #[schemars(range(min = 1, max = 8))]
     pub min_hops: u32,
+    /// Maximum path length (up to 8; Augment allows at most 2).
+    #[schemars(range(min = 1, max = 8))]
     pub max_hops: u32,
     /// Include the anchor in expansion results. Paths include their endpoints.
     pub include_start: bool,
+    /// Restrict every source admitted along the traversal path.
     pub boundary: SourceFilter,
+    /// Restrict returned sources; traversal may pass through other sources.
     pub result_filter: SourceFilter,
 }
 impl Default for TraversalSpec {
@@ -139,6 +150,7 @@ impl TraversalSpec {
     }
 }
 
+/// Text to search: full includes nested entities; own includes only the selected entity's own text.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema,
 )]
@@ -152,7 +164,9 @@ pub enum BodyRegion {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScopeSpec {
+    /// Traversal seed, not an exact scope by itself. Disambiguate names with `source_id`.
     pub anchor: Locator,
+    /// Select entities whose text may be searched. Default: outgoing calls, 1..2 hops, excludes anchor.
     #[serde(default)]
     pub traversal: TraversalSpec,
     #[serde(default)]
@@ -172,16 +186,34 @@ const fn default_seeds() -> u32 {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum GraphQueryMode {
+    /// Ordinary retrieval (default). No graph expansion or graph-derived scope.
     Off {},
+    /// Retrieve normally, then add bounded graph evidence from the top retrieved entities.
     Augment {
+        /// Number of retrieved entities used as graph seeds (default 5, range 1..5).
         #[serde(default = "default_seeds")]
+        #[schemars(range(min = 1, max = 5))]
         seeds: u32,
+        /// Explicit edge types, direction and hops; at most 2 hops. Ordinary ranking stays unchanged.
         #[serde(default)]
+        #[schemars(schema_with = "augmentation_traversal_schema")]
         expansion: TraversalSpec,
     },
+    /// Resolve a strict graph-derived scope first, then retrieve only within its mapped text.
     Constrain {
+        /// Required anchor and traversal. Empty/failed scope must not widen to ordinary retrieval.
         scope: ScopeSpec,
     },
+}
+
+fn augmentation_traversal_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let mut schema = <TraversalSpec as schemars::JsonSchema>::json_schema(generator);
+    for field in ["min_hops", "max_hops"] {
+        *schema
+            .pointer_mut(&format!("/properties/{field}/maximum"))
+            .expect("traversal hop ceiling") = serde_json::json!(2);
+    }
+    schema
 }
 impl GraphQueryMode {
     #[must_use]
@@ -229,38 +261,42 @@ pub enum ReferenceSelector {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExploreOperation {
-    Semantic {
-        query: super::SemanticQuery,
-    },
-    Locate {
-        target: Locator,
-    },
+    /// Read semantic objects, facts, provenance or correction history (domain=semantic).
+    Semantic { query: super::SemanticQuery },
+    /// Resolve an object by name, source position or a previously returned node reference.
+    Locate { target: Locator },
+    /// Read one-hop relationships for a known object; incoming calls returns its callers.
     Neighbors {
         anchor: Locator,
+        #[schemars(length(min = 1, max = 6), extend("uniqueItems" = true))]
         relations: Vec<RelationKind>,
         direction: Direction,
     },
+    /// Traverse from a known object with explicit direction, edge types and hop bounds.
     Expand {
         anchor: Locator,
         traversal: TraversalSpec,
     },
+    /// Find a bounded shortest path between two known objects.
     ShortestPath {
         start: Locator,
         target: Locator,
         traversal: TraversalSpec,
     },
-    References {
-        selector: ReferenceSelector,
-    },
+    /// Read resolved or unresolved source references and their evidence.
+    References { selector: ReferenceSelector },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExploreRequest {
+    /// Domain selects the available relation and locator types.
     pub domain: QueryDomain,
     pub operation: ExploreOperation,
+    /// Restrict every source along the traversal path.
     #[serde(default)]
     pub boundary: SourceFilter,
+    /// Restrict returned sources only, without restricting intermediate path sources.
     #[serde(default)]
     pub result_filter: SourceFilter,
 }
