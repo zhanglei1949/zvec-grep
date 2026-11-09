@@ -29,13 +29,28 @@ fn invalid_relationship_queries_do_not_start_a_daemon() -> Result<(), Box<dyn Er
 
 #[test]
 fn persisted_calls_match_across_direct_daemon_and_mcp() -> Result<(), Box<dyn Error>> {
+    assert_persisted_calls(Path::new("calls.rs"))
+}
+
+// macOS test filesystems reject non-UTF-8 filenames on creation.
+#[cfg(target_os = "linux")]
+#[test]
+fn non_unicode_relationship_paths_match_across_direct_daemon_and_mcp() -> Result<(), Box<dyn Error>>
+{
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+    assert_persisted_calls(&PathBuf::from(OsString::from_vec(
+        b"calls-\xff.rs".to_vec(),
+    )))
+}
+
+fn assert_persisted_calls(file: &Path) -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
     let home = TempDir::new()?;
     let workspace = TempDir::new()?;
     let embedding = EmbeddingServer::start()?;
     std::fs::write(
-        workspace.path().join("calls.rs"),
+        workspace.path().join(file),
         "fn target() {\n}\n\nfn caller() {\n    target();\n}\n",
     )?;
     std::fs::create_dir(workspace.path().join("src"))?;
@@ -80,7 +95,7 @@ fn persisted_calls_match_across_direct_daemon_and_mcp() -> Result<(), Box<dyn Er
         (3, "callees", "caller", "target"),
     ] {
         let mut replies = Vec::new();
-        for mode in ["direct", "server"] {
+        for mode in ["direct", "server", "auto"] {
             let mut command = Command::new(&binary);
             command
                 .arg(format!("--{tool}"))
@@ -90,30 +105,29 @@ fn persisted_calls_match_across_direct_daemon_and_mcp() -> Result<(), Box<dyn Er
                 .arg(home.path());
             let output = command.output()?;
             assert_command_success(&output);
-            let reply: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-            assert_eq!(reply["matches"].as_array().ok_or("matches array")?.len(), 1);
-            assert_eq!(reply["suggestions"], json!([]));
-            assert_eq!(reply["matches"][0]["name"], symbol);
-            assert_eq!(reply["matches"][0]["truncated"], false);
-            assert_eq!(reply["matches"][0]["edges"][0]["symbol"]["name"], endpoint);
-            assert_eq!(reply["matches"][0]["edges"][0]["line"], 5);
-            assert_eq!(reply["matches"][0]["edges"][0]["filePath"], "calls.rs");
-            replies.push(reply);
+            let text = String::from_utf8(output.stdout)?;
+            assert!(text.contains(symbol));
+            assert!(text.contains(endpoint));
+            assert!(text.contains(&format!("call at {}:5:5", file.display())));
+            replies.push(text);
             let (reader, writer) = std::io::pipe()?;
             drop(reader);
             let output = command.stdout(Stdio::from(writer)).output()?;
             assert_command_success(&output);
             assert!(output.stderr.is_empty(), "{tool} {mode}: {output:?}");
         }
-        assert_eq!(replies[0], replies[1]);
+        assert!(replies.iter().all(|reply| reply == &replies[0]));
         let mcp = bridge.request(&json!({
             "jsonrpc": "2.0", "id": id, "method": "tools/call",
             "params": {"name": format!("zvec_grep_{tool}"), "arguments": {"root": workspace.path(), "symbol": format!(" {symbol} ")}}
         }))?;
-        assert_eq!(mcp["result"]["structuredContent"], replies[0]);
+        assert_eq!(mcp["result"]["content"][0]["text"], replies[0]);
+        assert!(mcp["result"].get("structuredContent").is_none());
     }
-    assert_suggestions(&binary, home.path(), workspace.path(), &mut bridge)?;
-    assert_glob_filters(&binary, home.path(), workspace.path(), &mut bridge)?;
+    assert_suggestions(&binary, home.path(), workspace.path(), &mut bridge, file)?;
+    if file.to_str().is_some() {
+        assert_glob_filters(&binary, home.path(), workspace.path(), &mut bridge)?;
+    }
     bridge.close()?;
     assert_command_success(&guard.stop()?);
     Ok(())
@@ -127,7 +141,11 @@ fn assert_glob_filters(
 ) -> Result<(), Box<dyn Error>> {
     let nested = workspace.join("src");
     std::fs::create_dir_all(&nested)?;
-    for (id, path, expected) in [(50, "calls.rs", 1), (51, "missing.py", 0)] {
+    for (id, path, matched) in [(50, "calls.rs", true), (51, "missing.py", false)] {
+        let mcp = bridge.request(&json!({
+            "jsonrpc": "2.0", "id": id, "method": "tools/call",
+            "params": {"name": "zvec_grep_callers", "arguments": {"root": workspace, "symbol": "target", "globs": path}}
+        }))?;
         for mode in ["direct", "server"] {
             let output = Command::new(binary)
                 .current_dir(workspace)
@@ -137,23 +155,17 @@ fn assert_glob_filters(
                 .arg(home)
                 .output()?;
             assert_command_success(&output);
-            let reply: serde_json::Value = serde_json::from_slice(&output.stdout)?;
             assert_eq!(
-                reply["matches"].as_array().ok_or("matches")?.len(),
-                expected
+                mcp["result"]["content"][0]["text"],
+                String::from_utf8(output.stdout)?
             );
         }
-        let mcp = bridge.request(&json!({
-            "jsonrpc": "2.0", "id": id, "method": "tools/call",
-            "params": {"name": "zvec_grep_callers", "arguments": {"root": workspace, "symbol": "target", "globs": path}}
-        }))?;
-        assert_eq!(
-            mcp["result"]["structuredContent"]["matches"]
-                .as_array()
-                .ok_or("MCP matches")?
-                .len(),
-            expected
-        );
+        let text = mcp["result"]["content"][0]["text"].as_str().ok_or("text")?;
+        if matched {
+            assert!(text.starts_with("target  calls.rs:1\n"), "{text}");
+        } else {
+            assert_eq!(text, "No matches.\n");
+        }
     }
     for (mode, symbol, path, expected_path, suggestions) in [
         ("direct", "nested_entry", "main.py", "src/main.py", false),
@@ -175,18 +187,11 @@ fn assert_glob_filters(
             .arg(home)
             .output()?;
         assert_command_success(&output);
-        let reply: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-        let values = reply[if suggestions {
-            "suggestions"
-        } else {
-            "matches"
-        }]
-        .as_array()
-        .ok_or("filtered results")?;
-        assert_eq!(values.len(), 1);
+        let text = String::from_utf8(output.stdout)?;
+        assert!(text.replace('\\', "/").contains(expected_path), "{text}");
         assert_eq!(
-            Path::new(values[0]["filePath"].as_str().ok_or("file path")?),
-            Path::new(expected_path)
+            text.contains("Suggestions (retry with an exact name):"),
+            suggestions
         );
     }
     Ok(())
@@ -197,27 +202,30 @@ fn assert_suggestions(
     home: &Path,
     workspace: &Path,
     bridge: &mut StdioBridge,
+    file: &Path,
 ) -> Result<(), Box<dyn Error>> {
-    let output = Command::new(binary)
-        .args(["--callers", "WrongScope::TARGET"])
-        .arg(workspace)
-        .args(["--mode", "direct", "--home"])
-        .arg(home)
-        .output()?;
-    assert_command_success(&output);
-    let reply: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(reply["matches"], json!([]));
-    assert_eq!(
-        reply["suggestions"].as_array().ok_or("suggestions")?.len(),
-        1
-    );
-    assert_eq!(reply["suggestions"][0]["name"], "target");
+    let mut replies = Vec::new();
+    for mode in ["direct", "server", "auto"] {
+        let output = Command::new(binary)
+            .args(["--callers", "WrongScope::TARGET"])
+            .arg(workspace)
+            .args(["--mode", mode, "--home"])
+            .arg(home)
+            .output()?;
+        assert_command_success(&output);
+        replies.push(String::from_utf8(output.stdout)?);
+    }
+    assert!(replies.iter().all(|reply| reply == &replies[0]));
     let mcp = bridge.request(&json!({
         "jsonrpc": "2.0", "id": 20, "method": "tools/call",
         "params": {"name": "zvec_grep_callers", "arguments": {"root": workspace, "symbol": "WrongScope::TARGET"}}
     }))?;
-    assert_eq!(mcp["result"]["structuredContent"], reply);
     let text = mcp["result"]["content"][0]["text"].as_str().ok_or("text")?;
-    assert_eq!(serde_json::from_str::<serde_json::Value>(text)?, reply);
+    assert_eq!(text, replies[0]);
+    assert!(text.starts_with("No matches."));
+    assert!(text.contains(&format!(
+        "Suggestions (retry with an exact name):\n  target  {}:1\n",
+        file.display()
+    )));
     Ok(())
 }

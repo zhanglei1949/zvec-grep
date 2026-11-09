@@ -78,7 +78,7 @@ pub use path_lookup::{write_path_lookup_result, write_path_lookup_with_terminals
 pub use render::{
     HelpTopicError, help_text, print_help, write_context_result, write_context_status,
     write_context_status_with_options, write_context_with_options, write_file_paths,
-    write_index_incompatible_error, write_warning,
+    write_index_incompatible_error, write_relationships, write_warning,
 };
 
 #[derive(Debug, Parser)]
@@ -576,13 +576,15 @@ pub struct RelationshipArgs {
     pub glob_rules: Vec<GlobRule>,
     #[arg(long)]
     pub limit: Option<usize>,
+    #[arg(long, value_enum)]
+    pub color: Option<ColorMode>,
     #[arg(long, env = "ZVEC_GREP_MODE", default_value = "auto")]
     pub mode: ClientMode,
     #[arg(long, env = "ZVEC_GREP_HOME")]
     pub home: Option<PathBuf>,
 }
 
-pub use zg_engine::api::relationships::RelationshipDirection;
+pub use zg_engine::api::relationships::Direction;
 
 #[derive(Debug, Args)]
 #[allow(clippy::struct_excessive_bools)]
@@ -706,7 +708,8 @@ pub enum CliPlan {
         null: bool,
     },
     Relationships {
-        direction: RelationshipDirection,
+        direction: Direction,
+        color: ColorMode,
         mode: ClientMode,
         home: Option<PathBuf>,
         request: RelationshipOptions,
@@ -826,6 +829,7 @@ impl Cli {
             Some(CommandLine::Index(args)) => (args.debug, args.color),
             Some(CommandLine::Status(args)) => (args.debug, args.color),
             Some(CommandLine::Auth(args)) => (false, args.color),
+            Some(CommandLine::Callers(args) | CommandLine::Callees(args)) => (false, args.color),
             _ => (false, None),
         };
         OutputOptions {
@@ -933,12 +937,8 @@ impl Cli {
             return Ok(CliPlan::Help(None));
         };
         match command {
-            CommandLine::Callers(args) => {
-                relationship_plan(args, &current_dir, RelationshipDirection::Callers)
-            }
-            CommandLine::Callees(args) => {
-                relationship_plan(args, &current_dir, RelationshipDirection::Callees)
-            }
+            CommandLine::Callers(args) => relationship_plan(args, &current_dir, Direction::In),
+            CommandLine::Callees(args) => relationship_plan(args, &current_dir, Direction::Out),
             CommandLine::Query(args) => query_plan(args, current_dir),
             CommandLine::Index(args) => index_plan(args, &current_dir),
             CommandLine::Status(args) => Ok(CliPlan::Status {
@@ -1445,11 +1445,12 @@ fn validate_query(args: &QueryArgs, mode: ClientMode) -> Result<(), CliError> {
 fn relationship_plan(
     args: RelationshipArgs,
     current_dir: &Path,
-    direction: RelationshipDirection,
+    direction: Direction,
 ) -> Result<CliPlan, CliError> {
     let request = RelationshipOptions {
         root: Some(resolve_from(current_dir, args.root.as_deref())),
         symbol: args.symbol,
+        kinds: Some(vec![zg_engine::api::relationships::GraphEdgeKind::Calls]),
         globs: args.glob_rules,
         limit: args.limit,
         ..RelationshipOptions::default()
@@ -1457,6 +1458,7 @@ fn relationship_plan(
     request.validate()?;
     Ok(CliPlan::Relationships {
         direction,
+        color: args.color.unwrap_or_default(),
         mode: args.mode,
         home: args.home,
         request,
@@ -2089,6 +2091,8 @@ mod tests {
         ] {
             for mut arguments in [
                 vec!["zg", "needle"],
+                vec!["zg", "--callers", "foo"],
+                vec!["zg", "--callees", "foo"],
                 vec!["zg", "--index"],
                 vec!["zg", "--status"],
                 vec!["zg", "--auth", "status"],
@@ -2602,8 +2606,8 @@ mod tests {
     #[test]
     fn relationship_commands_preserve_direction_root_and_edge_limit() {
         for (command, expected) in [
-            ("--callers", super::RelationshipDirection::Callers),
-            ("--callees", super::RelationshipDirection::Callees),
+            ("--callers", super::Direction::In),
+            ("--callees", super::Direction::Out),
         ] {
             let directory = tempfile::tempdir().expect("workspace parent");
             let cwd = directory.path().canonicalize().expect("cwd");
@@ -2620,6 +2624,8 @@ mod tests {
                 "3",
                 "--mode",
                 "server",
+                "--color",
+                "never",
             ])
             .expect("parse relationship command")
             .into_plan(cwd.clone())
@@ -2627,6 +2633,7 @@ mod tests {
             let CliPlan::Relationships {
                 direction,
                 mode,
+                color,
                 request,
                 ..
             } = plan
@@ -2634,9 +2641,14 @@ mod tests {
                 panic!("relationship plan expected");
             };
             assert_eq!(direction, expected);
+            assert_eq!(color, super::ColorMode::Never);
             assert_eq!(mode, super::ClientMode::Server);
             assert_eq!(request.root, Some(cwd.join("nested")));
             assert_eq!(request.symbol, " Class::method ");
+            assert_eq!(
+                request.kinds,
+                Some(vec![zg_engine::api::relationships::GraphEdgeKind::Calls])
+            );
             assert_eq!(request.limit, Some(3));
             assert_eq!(request.globs, vec!["src/main.rs".into()]);
             let CliPlan::Relationships { request, .. } =

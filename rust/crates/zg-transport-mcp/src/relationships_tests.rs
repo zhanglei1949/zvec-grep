@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use rmcp::{ServiceExt, model::CallToolRequestParams};
 use serde_json::json;
-use zg_engine::api::relationships::{CallSite, SymbolDefinition, SymbolRelationships};
+use zg_engine::api::relationships::{RelationshipEdge, SymbolDefinition, SymbolRelationships};
 
 use super::*;
 
@@ -97,8 +97,7 @@ fn relationship_tools_advertise_read_only_schemas_in_both_toolsets() {
                         "more than {MAX_SYMBOL_MATCHES} indexed definitions"
                     ))
             );
-            assert!(value["outputSchema"]["properties"]["matches"].is_object());
-            assert!(value["outputSchema"]["properties"]["suggestions"].is_object());
+            assert!(value.get("outputSchema").is_none());
         }
     }
 }
@@ -124,16 +123,20 @@ impl IndexOperationProvider for RelationshipsOnly {
     async fn relationships(
         &self,
         _: &ZvecGrep,
-        direction: RelationshipDirection,
+        direction: Direction,
         request: RelationshipOptions,
     ) -> Result<RelationshipResult, EngineError> {
-        Ok(self.read(direction == RelationshipDirection::Callers, request))
+        Ok(self.read(direction == Direction::In, request))
     }
 }
 
 impl RelationshipsOnly {
     fn read(&self, incoming: bool, request: RelationshipOptions) -> RelationshipResult {
         assert_eq!(request.globs, vec!["src/subject.rs".into()]);
+        assert_eq!(
+            request.kinds,
+            Some(vec![zg_engine::api::relationships::GraphEdgeKind::Calls])
+        );
         assert!(
             request
                 .signal
@@ -149,7 +152,13 @@ impl RelationshipsOnly {
             },
             truncated: true,
             edges: vec![
-                CallSite {
+                RelationshipEdge {
+                    kind: zg_engine::api::relationships::GraphEdgeKind::Calls,
+                    direction: if incoming {
+                        Direction::In
+                    } else {
+                        Direction::Out
+                    },
                     file_path: if incoming {
                         "src/edge.rs"
                     } else {
@@ -165,7 +174,13 @@ impl RelationshipsOnly {
                     line: Some(12),
                     column: Some(0),
                 },
-                CallSite {
+                RelationshipEdge {
+                    kind: zg_engine::api::relationships::GraphEdgeKind::Calls,
+                    direction: if incoming {
+                        Direction::In
+                    } else {
+                        Direction::Out
+                    },
                     file_path: "src/top_level.rs".into(),
                     symbol: None,
                     line: None,
@@ -185,7 +200,7 @@ impl RelationshipsOnly {
 }
 
 #[tokio::test]
-async fn relationship_wire_calls_route_without_indexing_and_return_matching_json() {
+async fn relationship_wire_calls_route_without_indexing_and_return_only_text() {
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
         let provider = Arc::new(RelationshipsOnly {
             calls: Mutex::new(Vec::new()),
@@ -242,28 +257,14 @@ async fn relationship_wire_calls_route_without_indexing_and_return_matching_json
                 .expect("relationship call");
             let value = serde_json::to_value(response).expect("response JSON");
             assert_ne!(value["isError"], true);
-            assert_eq!(value["structuredContent"]["suggestions"], json!([]));
-            let matches = &value["structuredContent"]["matches"];
-            assert_eq!(matches[0]["name"], " Subject::run ");
-            assert_eq!(matches[0]["filePath"], "src/subject.rs");
-            assert_eq!(matches[0]["truncated"], true);
-            assert_eq!(matches[0]["edges"][0]["symbol"]["name"], endpoint);
-            assert_eq!(matches[0]["edges"][0]["column"], 0);
-            assert!(matches[0]["edges"][1]["symbol"].is_null());
-            assert_eq!(matches[0]["edges"][1]["filePath"], "src/top_level.rs");
-            assert_eq!(
-                matches[0]["edges"][0]["filePath"],
-                if name == "zvec_grep_callers" {
-                    "src/edge.rs"
-                } else {
-                    "src/subject.rs"
-                }
-            );
+            assert!(value.get("structuredContent").is_none());
+            assert_eq!(value["content"].as_array().expect("content").len(), 1);
             let text = value["content"][0]["text"].as_str().expect("text result");
-            assert_eq!(
-                serde_json::from_str::<serde_json::Value>(text).expect("text JSON"),
-                value["structuredContent"]
-            );
+            assert!(text.contains(endpoint), "{text}");
+            assert!(text.contains("(symbol unavailable)"), "{text}");
+            assert!(text.contains("... more call sites omitted"), "{text}");
+            let call_file = if name == "zvec_grep_callers" { "src/edge.rs" } else { "src/subject.rs" };
+            assert!(text.contains(&format!("call at {call_file}:12:1")), "{text}");
         }
         {
             let calls = provider.calls.lock().expect("recorded calls");

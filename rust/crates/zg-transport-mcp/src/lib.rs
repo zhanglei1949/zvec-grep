@@ -57,8 +57,8 @@ use zg_engine::{
             result::{IndexCompatibility, InfoSource, WorkspaceIndexPolicy},
         },
         relationships::{
-            MAX_RELATIONSHIP_EDGES, MAX_RELATIONSHIP_SYMBOL_CHARS, MAX_SYMBOL_MATCHES,
-            RelationshipDirection, RelationshipOptions, RelationshipResult, SymbolDefinition,
+            Direction, MAX_RELATIONSHIP_EDGES, MAX_RELATIONSHIP_SYMBOL_CHARS, MAX_SYMBOL_MATCHES,
+            RelationshipOptions, RelationshipResult,
         },
     },
 };
@@ -238,7 +238,7 @@ pub trait IndexOperationProvider: Send + Sync {
     async fn relationships(
         &self,
         engine: &ZvecGrep,
-        direction: RelationshipDirection,
+        direction: Direction,
         request: RelationshipOptions,
     ) -> Result<RelationshipResult, EngineError> {
         engine.relationships(direction, request).await
@@ -340,7 +340,7 @@ impl ZvecGrepMcpServer {
         for name in ["zvec_grep_callers", "zvec_grep_callees"] {
             let route = router.map.get_mut(name).expect("relationship route");
             route.attr.description = route.attr.description.as_ref().map(|description| {
-                format!("{description} Accepts name, scope::name or scope.name; ::name selects top-level definitions. Queries matching more than {MAX_SYMBOL_MATCHES} indexed definitions fail; narrow the scope or use globs. limit counts call sites per definition (default 20, maximum {MAX_RELATIONSHIP_EDGES}); truncated marks omitted sites. Exact misses may return suggestions without edges. Requires graph indexing enabled with zg --index --graph (add --rebuild for an existing index). Reads persisted resolved calls without refreshing; empty results do not prove absence.").into()
+                format!("{description} Accepts name, scope::name or scope.name; ::name selects top-level definitions. Queries matching more than {MAX_SYMBOL_MATCHES} indexed definitions fail; narrow the scope or use globs. limit counts call sites per definition (default 20, maximum {MAX_RELATIONSHIP_EDGES}); a truncation notice marks omitted sites. Exact misses may return suggestions without call sites. Returns readable text with one-based line and byte-column numbers. Requires graph indexing enabled with zg --index --graph (add --rebuild for an existing index). Reads persisted resolved calls without refreshing; empty results do not prove absence.").into()
             });
         }
         if toolset == McpToolset::Full {
@@ -373,7 +373,7 @@ impl ZvecGrepMcpServer {
         &self,
         input: RelationshipInput,
         context: RequestContext<RoleServer>,
-        direction: RelationshipDirection,
+        direction: Direction,
     ) -> Result<CallToolResult, ErrorData> {
         let mut request = input
             .into_request()
@@ -386,7 +386,7 @@ impl ZvecGrepMcpServer {
         })
         .await;
         Ok(match result {
-            Ok(result) => relationship_result_to_tool_result(&result),
+            Ok(result) => relationship_result_to_tool_result(&result, direction),
             Err(error) => error_result(&error),
         })
     }
@@ -401,8 +401,7 @@ impl ZvecGrepMcpServer {
 impl ZvecGrepMcpServer {
     #[tool(
         name = "zvec_grep_callers",
-        description = "Incoming call sites for a symbol. Each edge describes its caller; filePath, line and column locate the call in the caller file.",
-        output_schema = output_schema::<RelationshipOutput>(),
+        description = "Incoming call sites for a symbol. Shows caller definitions and call-site locations in the caller files.",
         annotations(
             title = "Incoming call sites for a symbol",
             read_only_hint = true,
@@ -416,14 +415,12 @@ impl ZvecGrepMcpServer {
         Parameters(input): Parameters<RelationshipInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
-        self.relationship_query(input, context, RelationshipDirection::Callers)
-            .await
+        self.relationship_query(input, context, Direction::In).await
     }
 
     #[tool(
         name = "zvec_grep_callees",
-        description = "Outgoing call sites for a symbol. Each edge describes its callee; filePath, line and column locate the call in the caller file.",
-        output_schema = output_schema::<RelationshipOutput>(),
+        description = "Outgoing call sites for a symbol. Shows callee definitions and call-site locations in the caller file.",
         annotations(
             title = "Outgoing call sites for a symbol",
             read_only_hint = true,
@@ -437,7 +434,7 @@ impl ZvecGrepMcpServer {
         Parameters(input): Parameters<RelationshipInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
-        self.relationship_query(input, context, RelationshipDirection::Callees)
+        self.relationship_query(input, context, Direction::Out)
             .await
     }
 
@@ -859,53 +856,6 @@ pub struct RelationshipInput {
     /// Maximum call sites per matching symbol; defaults to 20, capped at 50.
     #[schemars(range(min = 1, max = MAX_RELATIONSHIP_EDGES), extend("type" = "integer"))]
     pub limit: Option<usize>,
-}
-
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct RelationshipOutput {
-    matches: Vec<RelationshipMatchOutput>,
-    /// Similarly named definitions to retry; only populated when matches is empty, with no edges.
-    suggestions: Vec<RelationshipSymbolOutput>,
-}
-
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct RelationshipMatchOutput {
-    #[serde(flatten)]
-    symbol: RelationshipSymbolOutput,
-    truncated: bool,
-    edges: Vec<RelationshipEdgeOutput>,
-}
-
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct RelationshipSymbolOutput {
-    name: String,
-    file_path: String,
-    start_line: usize,
-    end_line: usize,
-}
-
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct RelationshipEdgeOutput {
-    /// Workspace-relative caller file containing the call site.
-    file_path: String,
-    symbol: Option<RelationshipSymbolOutput>,
-    line: Option<usize>,
-    column: Option<usize>,
-}
-
-impl From<&SymbolDefinition> for RelationshipSymbolOutput {
-    fn from(symbol: &SymbolDefinition) -> Self {
-        Self {
-            name: symbol.name.clone(),
-            file_path: symbol.file_path.to_string_lossy().into_owned(),
-            start_line: symbol.start_line,
-            end_line: symbol.end_line,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -1696,6 +1646,7 @@ impl RelationshipInput {
         let request = RelationshipOptions {
             root: Some(root),
             symbol: self.symbol,
+            kinds: Some(vec![zg_engine::api::relationships::GraphEdgeKind::Calls]),
             globs: normalize_globs(self.globs, self.insensitive_globs)?.unwrap_or_default(),
             limit: self.limit,
             ..RelationshipOptions::default()
@@ -2237,33 +2188,21 @@ fn output_schema<T: JsonSchema>() -> Arc<rmcp::model::JsonObject> {
     )
 }
 
-fn relationship_result_to_tool_result(result: &RelationshipResult) -> CallToolResult {
-    let output = RelationshipOutput {
-        matches: result
-            .matches
-            .iter()
-            .map(|matched| RelationshipMatchOutput {
-                symbol: (&matched.symbol).into(),
-                truncated: matched.truncated,
-                edges: matched
-                    .edges
-                    .iter()
-                    .map(|edge| RelationshipEdgeOutput {
-                        file_path: edge.file_path.to_string_lossy().into_owned(),
-                        symbol: edge.symbol.as_ref().map(Into::into),
-                        line: edge.line,
-                        column: edge.column,
-                    })
-                    .collect(),
-            })
-            .collect(),
-        suggestions: result.suggestions.iter().map(Into::into).collect(),
-    };
-    let value = serde_json::json!(output);
-    let text = value.to_string();
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(value);
-    result
+fn relationship_result_to_tool_result(
+    result: &RelationshipResult,
+    direction: Direction,
+) -> CallToolResult {
+    let mut bytes = Vec::new();
+    zg_cli::write_relationships(
+        &mut bytes,
+        result,
+        direction,
+        zg_cli::ColorMode::Never,
+        false,
+    )
+    .expect("writing relationships to a byte buffer cannot fail");
+    let text = String::from_utf8(bytes).expect("relationship output is UTF-8");
+    CallToolResult::success(vec![ContentBlock::text(text)])
 }
 
 fn structured_result(value: impl Serialize) -> CallToolResult {

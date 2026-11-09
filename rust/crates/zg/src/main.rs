@@ -16,8 +16,8 @@ use tokio::runtime::Builder;
 use tracing::debug;
 use tracing_subscriber::EnvFilter;
 use zg_cli::{
-    Cli, CliPlan, ClientMode, IndexOperation, InstallOutcome, McpInstallTransport, McpToolset,
-    RelationshipDirection, ServerPlan, ServerStartArgs,
+    Cli, CliPlan, ClientMode, Direction, IndexOperation, InstallOutcome, McpInstallTransport,
+    McpToolset, ServerPlan, ServerStartArgs,
 };
 use zg_daemon::{DaemonStatus, ListenAddress, McpToolset as DaemonMcpToolset, ServerConfig};
 use zg_daemon_protocol::{DaemonCommand, DaemonReply};
@@ -230,10 +230,11 @@ async fn execute_plan(plan: CliPlan) -> Result<ExitCode, Box<dyn Error>> {
         CliPlan::Files { request, null } => return Ok(execute_files(*request, null).await),
         CliPlan::Relationships {
             direction,
+            color,
             mode,
             home,
             request,
-        } => execute_relationships(direction, mode, home.as_deref(), request).await,
+        } => execute_relationships(direction, mode, home.as_deref(), request, color).await,
         CliPlan::Query {
             mode,
             home,
@@ -482,20 +483,27 @@ async fn start_installed_server(outcome: &InstallOutcome) -> Result<DaemonStatus
 }
 
 async fn execute_relationships(
-    direction: RelationshipDirection,
+    direction: Direction,
     mode: ClientMode,
     home: Option<&Path>,
     request: RelationshipOptions,
+    color: zg_cli::ColorMode,
 ) -> Result<(), Box<dyn Error>> {
     let result = if use_server(mode, home).await? {
         let home = zg_daemon::resolve_home(home.map(Path::to_owned))?;
         let command = match direction {
-            RelationshipDirection::Callers => DaemonCommand::Callers(request),
-            RelationshipDirection::Callees => DaemonCommand::Callees(request),
+            Direction::In => DaemonCommand::Callers(request),
+            Direction::Out => DaemonCommand::Callees(request),
+            Direction::Both => {
+                return Err(EngineError::unsupported(
+                    "daemon relationship commands require a single direction",
+                )
+                .into());
+            }
         };
         match (direction, zg_daemon::execute_command(&home, command).await?) {
-            (RelationshipDirection::Callers, DaemonReply::Callers(result))
-            | (RelationshipDirection::Callees, DaemonReply::Callees(result)) => result,
+            (Direction::In, DaemonReply::Callers(result))
+            | (Direction::Out, DaemonReply::Callees(result)) => result,
             _ => return Err(protocol_mismatch("relationships")),
         }
     } else {
@@ -504,7 +512,13 @@ async fn execute_relationships(
         engine.close();
         result?
     };
-    writeln!(zg_cli::stdout(), "{}", serde_json::to_string(&result)?)?;
+    zg_cli::write_relationships(
+        zg_cli::stdout(),
+        &result,
+        direction,
+        color,
+        zg_cli::stdout_supports_ansi(),
+    )?;
     Ok(())
 }
 
