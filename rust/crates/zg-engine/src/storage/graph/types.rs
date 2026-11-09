@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-use crate::domain::{EdgeProvenance, PendingRef};
+use crate::domain::{EdgeProvenance, PendingRef, SymbolType};
 
 /// Extensible evidence attached to edges and unresolved references.
 pub(crate) type Metadata = BTreeMap<String, Value>;
@@ -31,10 +31,24 @@ pub(crate) struct NameIndexEntry {
     pub entity_id: String,
     pub file_id: u32,
     pub qualified_name: String,
+    /// What the entity declares. Read through a qualified name's owner: a
+    /// class scope holds members, while any other scope holds lexical
+    /// bindings that shadow an import of the same name.
+    pub symbol_type: Option<SymbolType>,
     pub is_exported: bool,
     pub arity: Option<u32>,
     /// Pure declaration without a body (C/C++ prototypes).
     pub is_declaration: bool,
+    /// The parameter list the declared signature states, whitespace and
+    /// pointer/reference spacing normalized; `None` when the signature carries
+    /// no parameter list. An equal count can describe a different C++ overload,
+    /// so this is the evidence that pairs a declaration with its definition.
+    pub parameters: Option<String>,
+    /// The Java `package` the declaring file states, empty for the default
+    /// package; `None` for other languages and for indexes written before the
+    /// field existed. A Java name carries no package, so import binding reads
+    /// the package from here rather than from the name.
+    pub package: Option<String>,
 }
 
 /// Name-index record for one entity. Entities without a symbol name are

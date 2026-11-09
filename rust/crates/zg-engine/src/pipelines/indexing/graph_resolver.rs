@@ -6,13 +6,13 @@
 //! relative import specifiers resolve through [`ResolutionSnapshot::file_id_by_path`],
 //! [`ResolutionSnapshot::lookup_candidates`] narrows name candidates, ambiguous
 //! bare names resolve through [`ResolutionSnapshot::imported_file_ids`] when
-//! the file's imports pin them to one module, `self`/`this` receiver calls
-//! bind to the one same-file declaration of the invoked member, qualified
-//! `Class::method` receivers bind to the entity whose `qualified_name`
-//! spells the same path, Java imports bind to the type or static member their
-//! specifier spells, export/arity evidence narrows the remaining
-//! ambiguities, external import specifiers terminate as failed, and
-//! [`IndexStore::apply_resolutions`] writes each batch atomically.
+//! the file's imports pin them to one module, `self`/`this`/`super` receiver
+//! calls bind the nearest declaration along the extends/implements
+//! hierarchy, qualified `Class::method` receivers bind to the entity whose
+//! `qualified_name` spells the same path, Java imports bind to the type or
+//! static member their specifier spells, export/arity evidence narrows the
+//! remaining ambiguities, external import specifiers terminate as failed,
+//! and [`IndexStore::apply_resolutions`] writes each batch atomically.
 
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -24,7 +24,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::pipeline::throw_if_cancelled;
 use crate::domain::{
-    EdgeProvenance, FileFormat, GraphEdgeKind, formats_for_path, reference_compatible_with,
+    EdgeProvenance, FileFormat, GraphEdgeKind, SymbolType, formats_for_path,
+    reference_compatible_with,
 };
 use crate::storage::graph::{NameIndexEntry, Resolution, StoredPendingRef};
 use crate::storage::{IndexStore, ResolutionSnapshot};
@@ -40,7 +41,8 @@ pub(crate) struct ResolutionSweep {
     pub stale: usize,
     /// Ambiguous references resolved through import scoping this sweep.
     pub import_bound: usize,
-    /// Receiver-qualified calls bound to a same-file declaration this sweep.
+    /// Receiver-qualified calls bound through the owner's declarations or its
+    /// class hierarchy this sweep.
     pub file_scoped: usize,
     /// Qualified references bound through `qualified_name` this sweep.
     pub qualified_name_match: usize,
@@ -57,7 +59,8 @@ pub(crate) struct ResolutionSweep {
 /// Resolves pending references each sweep: relative import specifiers onto
 /// file endpoints, workspace-unique names onto their single definition,
 /// ambiguous bare names onto the one module their file imports,
-/// `self`/`this` receiver calls onto the one same-file declaration, and
+/// `self`/`this` receiver calls onto the class owning the call site, the
+/// nearest declaration along its extends/implements chain, and
 /// qualified `Class::method` receivers onto the entity whose `qualified_name`
 /// spells that scope and member. Ambiguities surviving these rules narrow
 /// through export visibility and declared arity when the evidence picks
@@ -66,9 +69,10 @@ pub(crate) struct ResolutionSweep {
 ///
 /// Matching stays conservative. A receiver-qualified same-file hit stays
 /// pending — partition already resolved unambiguous local names, so such a
-/// survivor needs type inference, except where the receiver names the
-/// enclosing instance (`self`/`this`) and the file declares the member exactly
-/// once. A bare name's lone same-file hit, by contrast, binds as `FileScoped`:
+/// survivor needs type inference; a `self`/`this` receiver is answered only
+/// through the owner's class hierarchy, and a member the nearest declaring
+/// scope holds ambiguously stays pending. A bare name's lone same-file hit,
+/// by contrast, binds as `FileScoped`:
 /// the in-file symbol table skips declaration entities, so no earlier rule
 /// could have claimed it. Names that stay ambiguous after every evidence rule
 /// record their candidate set for consumers.
@@ -336,9 +340,10 @@ fn classify_names(
         // A Java import names an entity rather than a module, and only its own
         // specifier can place it: the package segment never reaches the index,
         // so the rule matches the candidate's declared path against the tail
-        // of the specifier. A specifier that identifies no single candidate
-        // stays pending — the bare-name rules below would bind the short name
-        // (`work`) and drop the class that disambiguates it.
+        // of the specifier and the package against the file it lives in. A
+        // specifier that identifies no single candidate stays pending — the
+        // bare-name rules below would bind the short name (`work`) and drop
+        // the class that disambiguates it.
         return Ok(match resolve_java_import(stored, &hits) {
             Some(resolution) => Outcome::Resolved {
                 resolution,
@@ -370,6 +375,24 @@ fn classify_names(
             rule: Rule::QualifiedName,
         });
     }
+    if let Some(resolution) = resolve_receiver_arity(stored, &hits) {
+        // The receiver spells a declaring scope, so that scope's own
+        // overloads stay distinguishable by their parameter counts.
+        return Ok(Outcome::Resolved {
+            resolution,
+            rule: Rule::ArityBound,
+        });
+    }
+    if stored.reference.receiver_name.is_some() {
+        // A receiver this sweep could not pin — not to the owner's class
+        // hierarchy, not to a declared type, not to a scope its spelling
+        // reproduces — says nothing about which member it reaches.
+        // Workspace-wide uniqueness, exports and argument counts answer bare
+        // names only; applying them to a member call writes a guess into the
+        // graph, and a name that is unique today stops being unique as soon
+        // as a second class declares it. Defer to a later sweep instead.
+        return Ok(Outcome::Deferred);
+    }
     if let [hit] = hits.as_slice() {
         if hit.file_id != stored.file_id {
             return Ok(Outcome::Resolved {
@@ -381,22 +404,17 @@ fn classify_names(
                 rule: Rule::Unique,
             });
         }
-        if stored.reference.receiver_name.is_none() {
-            // Bare name, same file, single hit: the in-file symbol table
-            // skips declaration entities, so a pending bare call can only
-            // mean this one indexed location. Receiver-qualified calls
-            // still stay pending — a same-file receiver bind would be a
-            // type-inference guess.
-            return Ok(Outcome::Resolved {
-                resolution: Resolution {
-                    ref_id: stored.id,
-                    target_id: hit.entity_id.clone(),
-                    provenance: EdgeProvenance::FileScoped,
-                },
-                rule: Rule::Unique,
-            });
-        }
-        return Ok(Outcome::Deferred);
+        // Bare name, same file, single hit: the in-file symbol table skips
+        // declaration entities, so a pending bare call can only mean this
+        // one indexed location.
+        return Ok(Outcome::Resolved {
+            resolution: Resolution {
+                ref_id: stored.id,
+                target_id: hit.entity_id.clone(),
+                provenance: EdgeProvenance::FileScoped,
+            },
+            rule: Rule::Unique,
+        });
     }
     if hits.len() > 1 {
         if let Some(resolution) =
@@ -471,23 +489,33 @@ fn filter_compatible_hits(
                 .insert(snapshot.file_path(hit.file_id).map(str::to_owned))
                 .clone(),
         };
-        let keep = match (FileFormat::parse(&stored.language), path.as_deref()) {
-            (Some(reference), Some(path)) => {
-                let formats = formats_for_path(Path::new(path));
-                // An unregistered extension is unknown evidence, so the gate
-                // never discards on missing information.
-                formats.iter().all(|format| *format == FileFormat::Unknown)
-                    || formats
-                        .iter()
-                        .any(|candidate| reference_compatible_with(reference, *candidate))
-            }
-            _ => true,
-        };
-        if keep {
+        if language_compatible(FileFormat::parse(&stored.language), path.as_deref()) {
             filtered.push(hit.clone());
         }
     }
     filtered
+}
+
+/// Whether a reference whose language is `reference` can address a candidate
+/// file at `path`.
+///
+/// Missing evidence keeps the candidate: the gate never discards on
+/// information it does not have. An unregistered extension is unknown
+/// evidence just like a reference the walk could not tag with a language —
+/// `unknown` is not a language of its own, so requiring an `unknown` candidate
+/// to match it would drop every candidate spelling a real one.
+fn language_compatible(reference: Option<FileFormat>, path: Option<&str>) -> bool {
+    let (Some(reference), Some(path)) = (reference, path) else {
+        return true;
+    };
+    if reference == FileFormat::Unknown {
+        return true;
+    }
+    let formats = formats_for_path(Path::new(path));
+    formats.iter().all(|format| *format == FileFormat::Unknown)
+        || formats
+            .iter()
+            .any(|candidate| reference_compatible_with(reference, *candidate))
 }
 
 /// Drops the bodyless declarations a definition of the same symbol supersedes.
@@ -495,15 +523,28 @@ fn filter_compatible_hits(
 /// describe one symbol, so the definition stands for both; only that spelling
 /// pairs them, because a same-named entity under another qualified name — or
 /// in another language — is a different symbol and must never hide the
-/// declaration. Call this after the language gate, never on the whole name
-/// index: shrinking the shared set would let an unrelated language's
-/// definition erase the only candidate a reference can bind.
+/// declaration. A qualified name does not identify a C++ overload either, and
+/// neither does an argument count: `void f(const char*);` and `void f(int) {}`
+/// both take one argument, so hiding the declaration would leave the caller a
+/// single candidate that the workspace-unique rule binds without evidence.
+/// The pair therefore also needs agreement on the parameters themselves, and
+/// when that evidence is missing both candidates stay, leaving the reference
+/// ambiguous instead of pointing at the wrong implementation.
+/// Call this after the language gate, never on the whole name index: shrinking
+/// the shared set would let an unrelated language's definition erase the only
+/// candidate a reference can bind.
 fn prefer_definitions<T: Borrow<NameIndexEntry>>(hits: Vec<T>) -> Vec<T> {
-    let mut defined = HashSet::new();
+    /// One definition's evidence: its counted parameters and the normalized
+    /// parameter list that tells its overload apart.
+    type Evidence = (Option<u32>, Option<String>);
+    let mut defined: HashMap<String, Vec<Evidence>> = HashMap::new();
     for hit in &hits {
         let hit: &NameIndexEntry = hit.borrow();
         if !hit.is_declaration {
-            defined.insert(hit.qualified_name.clone());
+            defined
+                .entry(hit.qualified_name.clone())
+                .or_default()
+                .push((hit.arity, hit.parameters.clone()));
         }
     }
     if defined.is_empty() {
@@ -512,9 +553,142 @@ fn prefer_definitions<T: Borrow<NameIndexEntry>>(hits: Vec<T>) -> Vec<T> {
     hits.into_iter()
         .filter(|hit| {
             let hit: &NameIndexEntry = hit.borrow();
-            !hit.is_declaration || !defined.contains(&hit.qualified_name)
+            !hit.is_declaration
+                || !defined.get(&hit.qualified_name).is_some_and(|definitions| {
+                    definitions.iter().any(|(arity, parameters)| {
+                        same_symbol(
+                            hit.arity,
+                            hit.parameters.as_deref(),
+                            *arity,
+                            parameters.as_deref(),
+                        )
+                    })
+                })
         })
         .collect()
+}
+
+/// Whether one qualified name's declaration and definition describe the same
+/// symbol: compatible arities, and — for symbols that take parameters — the
+/// same parameter list.
+fn same_symbol(
+    declaration_arity: Option<u32>,
+    declaration_parameters: Option<&str>,
+    definition_arity: Option<u32>,
+    definition_parameters: Option<&str>,
+) -> bool {
+    if !compatible_arity(declaration_arity, definition_arity) {
+        return false;
+    }
+    if declaration_arity.is_none() && definition_arity.is_none() {
+        // A symbol that takes no parameters has no overload set to separate:
+        // `class Foo;` and `class Foo {}` name one class.
+        return true;
+    }
+    declaration_parameters
+        .zip(definition_parameters)
+        .is_some_and(|(declared, defined)| same_parameters(declared, defined))
+}
+
+/// Whether two parameter lists describe one overload. A definition names its
+/// parameters while a declaration often does not, so a parameter matches when
+/// its tokens are equal or one side carries a single extra trailing identifier
+/// (`int` against `int value`, `const char*` against `const char* path`).
+/// Everything else stays unproven: `unsigned long` against `unsigned` and
+/// `const char*` against `int` are different parameters, and a comparison that
+/// cannot tell them apart would merge unrelated overloads.
+fn same_parameters(declared: &str, defined: &str) -> bool {
+    let declared = split_parameters(declared);
+    let defined = split_parameters(defined);
+    declared.len() == defined.len()
+        && declared
+            .iter()
+            .zip(defined.iter())
+            .all(|(left, right)| same_parameter(left, right))
+}
+
+/// Splits a normalized parameter list at the commas that separate parameters,
+/// leaving the ones nested in template arguments or function pointers.
+fn split_parameters(list: &str) -> Vec<&str> {
+    let mut parameters = Vec::new();
+    let mut depth = 0usize;
+    let mut begin = 0usize;
+    for (offset, character) in list.char_indices() {
+        match character {
+            '(' | '[' | '{' | '<' => depth += 1,
+            ')' | ']' | '}' | '>' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parameters.push(list[begin..offset].trim());
+                begin = offset + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parameters.push(list[begin..].trim());
+    parameters
+}
+
+fn same_parameter(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left: Vec<&str> = left.split_whitespace().collect();
+    let right: Vec<&str> = right.split_whitespace().collect();
+    let (longer, shorter) = if left.len() > right.len() {
+        (left, right)
+    } else {
+        (right, left)
+    };
+    longer.len() == shorter.len() + 1
+        && longer[..shorter.len()] == shorter[..]
+        && is_parameter_name(longer[shorter.len()])
+}
+
+/// Whether the token a parameter adds to its type can be that parameter's name.
+/// `int` against `int value` and `const char*` against `const char* path` differ
+/// by one, but `unsigned` against `unsigned long` differ by one too, and reading
+/// `long` as a name would merge two different parameters.
+fn is_parameter_name(token: &str) -> bool {
+    let mut characters = token.chars();
+    characters
+        .next()
+        .is_some_and(|first| first.is_alphabetic() || first == '_')
+        && characters.all(|character| character.is_alphanumeric() || character == '_')
+        && !matches!(
+            token,
+            "auto"
+                | "bool"
+                | "char"
+                | "char8_t"
+                | "char16_t"
+                | "char32_t"
+                | "class"
+                | "const"
+                | "double"
+                | "enum"
+                | "float"
+                | "int"
+                | "long"
+                | "register"
+                | "restrict"
+                | "short"
+                | "signed"
+                | "size_t"
+                | "struct"
+                | "typename"
+                | "union"
+                | "unsigned"
+                | "void"
+                | "volatile"
+                | "wchar_t"
+        )
+}
+
+/// Whether two arities can describe one symbol. A side without a counted
+/// parameter list carries no evidence, so it neither confirms nor refutes the
+/// pair; two counted lists must agree.
+fn compatible_arity(left: Option<u32>, right: Option<u32>) -> bool {
+    left.is_none() || right.is_none() || left == right
 }
 
 /// Resolves an import specifier onto the target file's endpoint
@@ -532,13 +706,6 @@ fn resolve_import(
     if reference.ref_kind != GraphEdgeKind::Imports {
         return None;
     }
-    let module = match stored.language.as_str() {
-        "python" if !reference.ref_name.starts_with('.') => reference.ref_name.replace('.', "/"),
-        _ if reference.ref_name.starts_with("./") || reference.ref_name.starts_with("../") => {
-            reference.ref_name.clone()
-        }
-        _ => return None,
-    };
     let path = match importing_paths.entry(stored.file_id) {
         Entry::Occupied(entry) => entry.get().clone(),
         Entry::Vacant(entry) => entry
@@ -549,12 +716,20 @@ fn resolve_import(
         // A file without a persisted path cannot anchor a relative specifier.
         return None;
     };
-    let base = match stored.language.as_str() {
-        "python" => join_specifier("", &module),
-        _ => join_specifier(importing_dir(&path), &module),
+    let base = match (stored.language.as_str(), reference.ref_name.as_str()) {
+        // A dotted Python specifier addresses the workspace root
+        // (`from declare import x` reaches `declare.py`), except for the
+        // leading-dot form, which climbs from the importing module's package.
+        ("python", specifier) if specifier.starts_with('.') => {
+            python_relative_base(importing_dir(&path), specifier)?
+        }
+        ("python", specifier) => join_specifier("", &specifier.replace('.', "/"))?,
+        (_, specifier) if specifier.starts_with("./") || specifier.starts_with("../") => {
+            join_specifier(importing_dir(&path), specifier)?
+        }
+        _ => return None,
     };
-    let base = base?;
-    let file_id = path_variants(&base, extensions_for(&stored.language))
+    let file_id = path_variants(&base, &stored.language)
         .into_iter()
         .find_map(|candidate| snapshot.file_id_by_path(&candidate))?;
     Some(Resolution {
@@ -567,8 +742,13 @@ fn resolve_import(
 /// Resolves an ambiguous bare-name reference through the file's imports:
 /// when the imports pin the name to exactly one module and that module
 /// declares it exactly once, the reference targets that definition.
-/// Receiver-typed calls wait for receiver inference, and a local definition
-/// shadows any import binding, so both stay with the general ambiguity path.
+/// Receiver-typed calls wait for receiver inference, and a same-file lexical
+/// binding of the bare name shadows any import binding, so both stay with
+/// the general ambiguity path.
+///
+/// A lexical binding is a top-level definition or one declared inside a
+/// function or module scope; a class member is not, because a bare call never
+/// spells the receiver that reaches it.
 fn resolve_import_bound(
     snapshot: &ResolutionSnapshot,
     stored: &StoredPendingRef,
@@ -581,7 +761,9 @@ fn resolve_import_bound(
             reference.ref_kind,
             GraphEdgeKind::Calls | GraphEdgeKind::Extends | GraphEdgeKind::Implements
         )
-        || hits.iter().any(|hit| hit.file_id == stored.file_id)
+        || hits
+            .iter()
+            .any(|hit| hit.file_id == stored.file_id && shadows_import(snapshot, hit))
     {
         return None;
     }
@@ -603,6 +785,47 @@ fn resolve_import_bound(
         });
     }
     None
+}
+
+/// Whether a same-file candidate is a lexical binding of the referenced
+/// name, the namespace an import binding loses to.
+///
+/// A top-level definition lives in the module's own namespace, and one
+/// declared inside a function or another module scope — Python's `outer::work`
+/// is a local of `outer` — is a binding a bare call reads. A class member is
+/// not: a method is reached through a receiver that a bare call never spells,
+/// so it cannot shadow the import. The owner of the qualified name tells the
+/// two apart, and any owner not proven to declare a type keeps the
+/// conservative answer, because an unconfirmed member claim must not decide a
+/// bind.
+fn shadows_import(snapshot: &ResolutionSnapshot, hit: &NameIndexEntry) -> bool {
+    let Some((owner, _)) = hit.qualified_name.rsplit_once("::") else {
+        return true;
+    };
+    let tail = owner.rsplit("::").next().unwrap_or(owner);
+    // Hidden candidates answer nothing: an owner in an unfinished file may be
+    // another kind of scope, so the member claim stays unconfirmed.
+    let Some(candidates) = snapshot.lookup_candidates(tail) else {
+        return true;
+    };
+    let owners: Vec<&NameIndexEntry> = candidates
+        .iter()
+        .filter(|candidate| candidate.file_id == hit.file_id && candidate.qualified_name == owner)
+        .collect();
+    let member_scope = !owners.is_empty()
+        && owners
+            .iter()
+            .all(|candidate| candidate.symbol_type.is_some_and(is_type_scope));
+    !member_scope
+}
+
+/// Whether a scope of this symbol type declares members a receiver reaches,
+/// rather than lexical bindings a bare name reads.
+fn is_type_scope(symbol_type: SymbolType) -> bool {
+    matches!(
+        symbol_type,
+        SymbolType::Class | SymbolType::Interface | SymbolType::Enum
+    )
 }
 
 /// One `as` alias binding parsed from an import statement's raw text.
@@ -754,6 +977,26 @@ fn bind_in_module(
 /// `None` marks a module-level or namespace binding.
 type AliasPairs = fn(&str) -> Vec<(String, Option<String>)>;
 
+/// Statement text with trailing line comments removed.
+///
+/// Tree-sitter's import nodes already exclude comments, so this only guards raw
+/// text that still carries one: a comment spelling ` as ` or ` from ` would
+/// otherwise leak into a binding's local name or cut the clause in the wrong
+/// place.
+fn without_line_comments<'a>(statement: &'a str, marker: &str) -> std::borrow::Cow<'a, str> {
+    use std::borrow::Cow;
+    if !statement.contains(marker) {
+        return Cow::Borrowed(statement);
+    }
+    Cow::Owned(
+        statement
+            .lines()
+            .map(|line| line.split_once(marker).map_or(line, |(code, _)| code))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
 /// Loads the file's import edges and parses their statement text into `as`
 /// alias bindings. Only statements spelling an explicit `as` produce
 /// bindings: unaliased imports keep flowing through the bare-name and
@@ -793,6 +1036,8 @@ fn load_alias_bindings(
 /// binds the module itself (`imported` stays `None`). Default imports and
 /// unaliased names never spell a binding.
 fn ts_alias_pairs(statement: &str) -> Vec<(String, Option<String>)> {
+    let statement = without_line_comments(statement, "//");
+    let statement = statement.as_ref();
     let Some(clause_end) = statement.rfind(" from ") else {
         return Vec::new();
     };
@@ -843,6 +1088,8 @@ fn ts_alias_pairs(statement: &str) -> Vec<(String, Option<String>)> {
 /// namespace bindings whose imported half stays `None`. Unaliased forms
 /// never spell an `as`, so they stay unparsed.
 fn python_alias_pairs(statement: &str) -> Vec<(String, Option<String>)> {
+    let statement = without_line_comments(statement, "#");
+    let statement = statement.as_ref();
     let trimmed = statement.trim_start();
     // `from m import ...` spells statement-level names; a leading `import`
     // binds the module itself as a namespace.
@@ -899,6 +1146,8 @@ fn python_namespace_pairs(names: &str) -> Vec<(String, Option<String>)> {
 /// per-item module paths the statement text alone cannot pin, so they
 /// stay unparsed.
 fn rust_alias_pairs(statement: &str) -> Vec<(String, Option<String>)> {
+    let statement = without_line_comments(statement, "//");
+    let statement = statement.as_ref();
     if statement.contains('{') {
         return Vec::new();
     }
@@ -1000,7 +1249,7 @@ fn alias_target_base(
 /// Probes one normalized module base for the indexed file behind it: the
 /// literal path, then per-language extensions and index files.
 fn alias_target_at(snapshot: &ResolutionSnapshot, language: &str, base: &str) -> Option<u32> {
-    let mut variants = path_variants(base, extensions_for(language));
+    let mut variants = path_variants(base, language);
     if language == "rust" {
         // Rust modules live in `<base>.rs` or `<base>/mod.rs`; the index
         // variant path_variants emits covers neither.
@@ -1022,6 +1271,28 @@ fn is_self_receiver(language: &str, receiver: &str) -> bool {
     }
 }
 
+/// The candidates declaring a member inside `scope`, recognized by the
+/// qualified name extraction builds from the declaring breadcrumb.
+fn declarations_in<'a>(hits: &'a [NameIndexEntry], scope: &str) -> Vec<&'a NameIndexEntry> {
+    hits.iter()
+        .filter(|hit| {
+            hit.qualified_name
+                .rsplit_once("::")
+                .is_some_and(|(candidate, _)| candidate == scope)
+        })
+        .collect()
+}
+
+/// The resolution a member rule writes: the declaring scope came from the
+/// hierarchy, so the edge makes no workspace-wide claim.
+fn member_resolution(stored: &StoredPendingRef, hit: &NameIndexEntry) -> Resolution {
+    Resolution {
+        ref_id: stored.id,
+        target_id: hit.entity_id.clone(),
+        provenance: EdgeProvenance::FileScoped,
+    }
+}
+
 /// Binds a member call to the nearest declaration among `scopes`, which the
 /// caller orders by precedence: the receiver's own class first, then its
 /// bases by distance. The closest scope declaring the member decides, since
@@ -1035,27 +1306,75 @@ fn bind_nearest_member(
     scopes: &[String],
 ) -> Option<Resolution> {
     for scope in scopes {
-        let matched: Vec<&NameIndexEntry> = hits
-            .iter()
-            .filter(|hit| {
-                hit.qualified_name
-                    .rsplit_once("::")
-                    .is_some_and(|(candidate, _)| candidate == scope.as_str())
-            })
-            .collect();
-        match matched.as_slice() {
+        match declarations_in(hits, scope).as_slice() {
             [] => {}
-            [hit] => {
-                return Some(Resolution {
-                    ref_id: stored.id,
-                    target_id: hit.entity_id.clone(),
-                    provenance: EdgeProvenance::FileScoped,
-                });
-            }
+            [hit] => return Some(member_resolution(stored, hit)),
             _ => return None,
         }
     }
     None
+}
+
+/// Binds a member call across the hierarchy `caller` heads, reading `scopes`
+/// in the order the walk produced.
+///
+/// That order is distance from the caller, which reproduces the lookup order
+/// of single inheritance: the caller, then its base, then the base's base. A
+/// class with several bases leaves the order to the language — Python
+/// linearizes them (C3), so `Child(A, B)` with `A(Grand)` searches
+/// `Child, A, Grand, B` while this walk offers `Child, A, B, Grand` and would
+/// bind `B.save` over `Grand.save`. Where the walk cannot reproduce that
+/// order it declines to choose between the bases.
+fn bind_hierarchy_member(
+    stored: &StoredPendingRef,
+    hits: &[NameIndexEntry],
+    caller: Option<&str>,
+    scopes: &[String],
+    branched: bool,
+) -> Option<Resolution> {
+    if branched && stored.language == "python" {
+        return bind_sole_declaration(stored, hits, caller, scopes);
+    }
+    bind_nearest_member(stored, hits, scopes)
+}
+
+/// Binds a member call whose language searches the hierarchy in an order this
+/// walk cannot reproduce.
+///
+/// The caller heads every order a language can choose, and a member exactly
+/// one base declares is reached by every order too, so both still bind. Only
+/// several bases declaring it make the answer a function of the order, which
+/// stays pending rather than binding the base the walk happens to reach first.
+fn bind_sole_declaration(
+    stored: &StoredPendingRef,
+    hits: &[NameIndexEntry],
+    caller: Option<&str>,
+    scopes: &[String],
+) -> Option<Resolution> {
+    if let Some(caller) = caller {
+        match declarations_in(hits, caller).as_slice() {
+            [] => {}
+            [hit] => return Some(member_resolution(stored, hit)),
+            _ => return None,
+        }
+    }
+    let mut declaration: Option<&NameIndexEntry> = None;
+    for scope in scopes {
+        if Some(scope.as_str()) == caller {
+            continue;
+        }
+        match declarations_in(hits, scope).as_slice() {
+            [] => {}
+            [hit] => {
+                if declaration.is_some() {
+                    return None;
+                }
+                declaration = Some(hit);
+            }
+            _ => return None,
+        }
+    }
+    declaration.map(|hit| member_resolution(stored, hit))
 }
 
 /// Resolves a receiver call that names the enclosing instance (`self`,
@@ -1063,10 +1382,13 @@ fn bind_nearest_member(
 /// is the class owning the call site, so the invoked member's declaring
 /// scope must be that class or — through the class's extends/implements
 /// edges — one of its bases. `super` skips the enclosing class and
-/// addresses the direct bases only. The hierarchy is searched nearest
-/// first, so an override wins over the base method it replaces;
-/// declarations the nearest declaring scope holds ambiguously and receivers
-/// of classes without a persisted owner record stay pending.
+/// addresses the direct bases only. A single-inheritance hierarchy is
+/// searched nearest first, so an override wins over the base method it
+/// replaces; one that declares several bases leaves the order to the
+/// language, and only the conclusions every order shares still bind (see
+/// `bind_hierarchy_member`). Declarations the deciding scope holds
+/// ambiguously and receivers of classes without a persisted owner record
+/// stay pending.
 ///
 /// # Errors
 /// Propagates graph storage failures; an unresolvable reference is `None`.
@@ -1100,28 +1422,24 @@ fn resolve_receiver_class(
     }) else {
         return Ok(None);
     };
+    let caller = (!superclass).then_some(enclosing.as_str());
     let mut scopes = Vec::new();
-    if superclass {
-        collect_base_scopes(
-            store,
-            snapshot,
-            &enclosing,
-            &mut scopes,
-            &mut HashSet::new(),
-            1,
-        )?;
-    } else {
+    if !superclass {
         scopes.push(enclosing.clone());
-        collect_base_scopes(
-            store,
-            snapshot,
-            &enclosing,
-            &mut scopes,
-            &mut HashSet::new(),
-            8,
-        )?;
     }
-    Ok(bind_nearest_member(stored, hits, &scopes))
+    let branched = collect_base_scopes(
+        store,
+        snapshot,
+        &enclosing,
+        &mut scopes,
+        &mut HashSet::new(),
+        // `super` addresses the direct bases only; a self receiver walks the
+        // whole chain a fixed number of hops out.
+        if superclass { 1 } else { 8 },
+    )?;
+    Ok(bind_hierarchy_member(
+        stored, hits, caller, &scopes, branched,
+    ))
 }
 
 /// Binds a receiver call through the owner's declared bindings: a local
@@ -1187,7 +1505,7 @@ fn resolve_receiver_typed(
     // The member's declaring scope is the bound type's own, then its
     // ancestors nearest first, mirroring the self-receiver hierarchy.
     let mut scopes = vec![type_scope.clone()];
-    collect_base_scopes(
+    let branched = collect_base_scopes(
         store,
         snapshot,
         &type_scope,
@@ -1195,7 +1513,13 @@ fn resolve_receiver_typed(
         &mut HashSet::new(),
         8,
     )?;
-    Ok(bind_nearest_member(stored, hits, &scopes))
+    Ok(bind_hierarchy_member(
+        stored,
+        hits,
+        Some(type_scope.as_str()),
+        &scopes,
+        branched,
+    ))
 }
 
 /// Appends the qualified names of every base class reachable from
@@ -1208,6 +1532,10 @@ fn resolve_receiver_typed(
 /// inheritance cycles; a class whose entities spell its scope ambiguously
 /// ends that branch conservatively.
 ///
+/// Returns whether one class on the way declares several bases, the condition
+/// under which distance is no longer the language's own lookup order and the
+/// caller must not read `scopes` as a precedence order.
+///
 /// # Errors
 /// Propagates graph storage failures.
 fn collect_base_scopes(
@@ -1217,9 +1545,10 @@ fn collect_base_scopes(
     scopes: &mut Vec<String>,
     visited: &mut HashSet<String>,
     remaining: usize,
-) -> crate::EngineResult<()> {
+) -> crate::EngineResult<bool> {
     visited.insert(class_scope.to_owned());
     let mut frontier = vec![class_scope.to_owned()];
+    let mut branched = false;
     for _ in 0..remaining {
         let mut bases = Vec::new();
         for scope in &frontier {
@@ -1227,7 +1556,10 @@ fn collect_base_scopes(
                 continue;
             };
             let (resolved, pending) = store.inheritance_bases(&class_id)?;
-            bases.extend(resolved);
+            // Clauses, not resolved bases: a base the index cannot place still
+            // occupies a position in the order the language searches.
+            branched |= resolved.len() + pending.len() > 1;
+            let mut declared = resolved;
             for name in pending {
                 // Hidden candidates must not turn an ambiguous base name into
                 // a seemingly unique ancestor.
@@ -1239,9 +1571,10 @@ fn collect_base_scopes(
                         .collect::<Vec<_>>(),
                 );
                 if let [hit] = candidates.as_slice() {
-                    bases.push(hit.entity_id.clone());
+                    declared.push(hit.entity_id.clone());
                 }
             }
+            bases.extend(declared);
         }
         let mut next = Vec::new();
         for base_id in bases {
@@ -1259,7 +1592,7 @@ fn collect_base_scopes(
         }
         frontier = next;
     }
-    Ok(())
+    Ok(branched)
 }
 
 /// The entity whose qualified name spells `class_scope`, addressed through
@@ -1328,20 +1661,23 @@ fn resolve_qualified_name(
 ///
 /// Java imports address entities, not modules: `import p.Widget;` names the
 /// type `Widget`, while `import static p.Util.work;` names the member `work`
-/// of class `Util`. The specifier carries the package, but a class's indexed
-/// `qualified_name` starts at the class itself, so the match is a dotted
-/// suffix on a segment boundary: `p.Util.work` names `Util::work` and
-/// `p.Outer.Inner` names `Outer::Inner`, never `Other::work`. On-demand forms
-/// (`p.*`, `p.Util.*`) name no single target and stay pending.
+/// of class `Util`. A class's indexed `qualified_name` starts at the class
+/// itself, so the name part of the specifier matches as a dotted suffix on a
+/// segment boundary: `p.Util.work` names `Util::work` and `p.Outer.Inner`
+/// names `Outer::Inner`, never `Other::work`. On-demand forms (`p.*`,
+/// `p.Util.*`) name no single target and stay pending.
 ///
-/// The package itself is no evidence: two same-named classes in different
-/// packages share one indexed name, so a specifier that reaches both stays
-/// ambiguous. The bound edge contributes its target's file to this file's
-/// import scope on the next sweep, like every entity-targeted import.
+/// The package the specifier states must also agree with the package the
+/// declaring file records: a specifier for an external package would otherwise
+/// accept the workspace's only class of that name, since a Java name carries
+/// no package. Without that agreement — including when the declaring file's
+/// package is unknown — the reference stays pending instead of binding an
+/// unrelated file into this file's import scope.
 fn resolve_java_import(stored: &StoredPendingRef, hits: &[NameIndexEntry]) -> Option<Resolution> {
+    let specifier = stored.reference.ref_name.as_str();
     let mut matched = hits
         .iter()
-        .filter(|hit| import_names(&stored.reference.ref_name, &hit.qualified_name));
+        .filter(|hit| java_import_match(hit.package.as_deref(), specifier, &hit.qualified_name));
     let hit = matched.next()?;
     if matched.next().is_some() {
         return None;
@@ -1353,14 +1689,31 @@ fn resolve_java_import(stored: &StoredPendingRef, hits: &[NameIndexEntry]) -> Op
     })
 }
 
-/// Whether a Java import specifier can spell `qualified_name`: the name
-/// itself, or a dotted suffix that starts after a package segment.
-fn import_names(specifier: &str, qualified_name: &str) -> bool {
-    let path = qualified_name.replace("::", ".");
-    match specifier.strip_suffix(&path) {
-        Some(prefix) => prefix.is_empty() || prefix.ends_with('.'),
-        None => false,
+/// Whether a Java import specifier names `qualified_name`, declared in
+/// `package`: the name as a dotted suffix past a package segment, and the
+/// package the specifier states equal to the one the file declares. A Java
+/// name carries no package, so the declared package is the only evidence that
+/// `java.util.List` is not the workspace's `my.List`; uniqueness inside the
+/// workspace cannot stand in for it, and a file whose package is unknown keeps
+/// the import pending.
+fn java_import_match(package: Option<&str>, specifier: &str, qualified_name: &str) -> bool {
+    let Some(stated) = specifier_package(specifier, qualified_name) else {
+        return false;
+    };
+    package == Some(stated)
+}
+
+/// The package a specifier states before the name it spells: `p.Util.work`
+/// states `p` for `Util::work`, and a specifier spelling only the name states
+/// the default package. `None` when the specifier does not end with the dotted
+/// name on a segment boundary.
+fn specifier_package<'a>(specifier: &'a str, qualified_name: &str) -> Option<&'a str> {
+    let name = qualified_name.replace("::", ".");
+    let prefix = specifier.strip_suffix(&name)?;
+    if prefix.is_empty() {
+        return Some("");
     }
+    prefix.strip_suffix('.')
 }
 
 /// Reports import references whose specifier can never address a workspace
@@ -1445,15 +1798,59 @@ fn resolve_export_bound(stored: &StoredPendingRef, hits: &[NameIndexEntry]) -> O
     None
 }
 
-/// Narrows an ambiguous reference to the one candidate whose declared
+/// Resolves a receiver call through the declaring scope its receiver spells
+/// together with the call's argument count: `A::run(1)` names the scope, so
+/// that scope's own overloads are the only candidates and their counts
+/// separate them.
+///
+/// An argument count says nothing across scopes — two classes may declare a
+/// `match` taking one argument — so a receiver that reproduces no candidate's
+/// scope narrows nothing and leaves the reference to the caller's guard.
+fn resolve_receiver_arity(
+    stored: &StoredPendingRef,
+    hits: &[NameIndexEntry],
+) -> Option<Resolution> {
+    let receiver = stored.reference.receiver_name.as_deref()?;
+    let expected = stored.reference.arity?;
+    let scope = receiver.rsplit("::").next().unwrap_or(receiver);
+    let hit = unique_arity_match(
+        hits.iter().filter(|hit| {
+            hit.qualified_name
+                .rsplit_once("::")
+                .is_some_and(|(owner, _)| owner == scope)
+        }),
+        expected,
+    )?;
+    Some(Resolution {
+        ref_id: stored.id,
+        target_id: hit.entity_id.clone(),
+        provenance: EdgeProvenance::ArityBound,
+    })
+}
+
+/// Narrows an ambiguous bare name to the one candidate whose declared
 /// parameter count equals the call's argument count: among candidates that
 /// all declare their arity, a single match is the invoked overload.
 /// Candidates with unknown arity cannot rule themselves out, so their
 /// presence keeps the reference pending.
 fn resolve_arity_bound(stored: &StoredPendingRef, hits: &[NameIndexEntry]) -> Option<Resolution> {
     let expected = stored.reference.arity?;
+    let hit = unique_arity_match(hits.iter(), expected)?;
+    Some(Resolution {
+        ref_id: stored.id,
+        target_id: hit.entity_id.clone(),
+        provenance: EdgeProvenance::ArityBound,
+    })
+}
+
+/// The one candidate declaring exactly `expected` parameters, or `None` when
+/// several counts agree or any candidate's count is unknown.
+fn unique_arity_match<'entry>(
+    candidates: impl Iterator<Item = &'entry NameIndexEntry>,
+    expected: usize,
+) -> Option<&'entry NameIndexEntry> {
     let mut matched = None;
-    for hit in hits {
+    for hit in candidates {
         match hit.arity {
             Some(arity) if arity as usize == expected => {
                 if matched.is_some() {
@@ -1465,12 +1862,7 @@ fn resolve_arity_bound(stored: &StoredPendingRef, hits: &[NameIndexEntry]) -> Op
             None => return None,
         }
     }
-    let hit = matched?;
-    Some(Resolution {
-        ref_id: stored.id,
-        target_id: hit.entity_id.clone(),
-        provenance: EdgeProvenance::ArityBound,
-    })
+    matched
 }
 
 /// Directory prefix of a forward-slash workspace path; the workspace root
@@ -1509,21 +1901,75 @@ fn join_specifier(dir: &str, specifier: &str) -> Option<String> {
     Some(segments.join("/")).filter(|joined| !joined.is_empty())
 }
 
+/// Resolves a Python relative specifier against the importing module's
+/// package: one leading dot is that package itself, and every further dot
+/// climbs one parent directory. The dotted tail then joins the climbed
+/// directory like an absolute module path, so `..json` imported from
+/// `pkg/json/tag.py` addresses `pkg/json` and lands on its `__init__.py`
+/// variant, while `...util` from `pkg/a/b.py` addresses the workspace-root
+/// `util` module.
+fn python_relative_base(dir: &str, specifier: &str) -> Option<String> {
+    let dots = specifier
+        .chars()
+        .take_while(|character| *character == '.')
+        .count();
+    let mut segments: Vec<&str> = dir
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    // The first dot names the importing package; each extra dot ascends one.
+    for _ in 1..dots {
+        segments.pop()?;
+    }
+    let tail = specifier[dots..].replace('.', "/");
+    let tail = tail.trim_matches('/');
+    let base = match (segments.is_empty(), tail.is_empty()) {
+        (true, true) => return None,
+        (true, false) => tail.to_owned(),
+        (false, true) => segments.join("/"),
+        (false, false) => format!("{}/{}", segments.join("/"), tail),
+    };
+    Some(base)
+}
+
 /// Path candidates for one specifier: the literal base first (explicit
-/// extensions win), then per-language extensions, then directory index files.
-fn path_variants(base: &str, extensions: &[&str]) -> Vec<String> {
+/// extensions win), then the module file per-language extensions, then the
+/// directory entry the language resolves a directory to — the TypeScript
+/// family's `index.<ext>`, a Python package's `__init__.py`.
+///
+/// Python orders the last two the other way round: its importer checks a
+/// directory package's `__init__` before a same-named module file, so
+/// `pkg/__init__.py` has to precede `pkg.py` for `from pkg import work` to
+/// reach the package both files spell.
+fn path_variants(base: &str, language: &str) -> Vec<String> {
+    let extensions = extensions_for(language);
+    let module_files = || {
+        extensions
+            .iter()
+            .map(move |extension| format!("{base}{extension}"))
+    };
     let mut variants = vec![base.to_owned()];
-    variants.extend(
-        extensions
-            .iter()
-            .map(|extension| format!("{base}{extension}")),
-    );
-    variants.extend(
-        extensions
-            .iter()
-            .map(|extension| format!("{base}/index{extension}")),
-    );
+    if let Some(entry) = index_entry_for(language) {
+        variants.push(format!("{base}/{entry}"));
+        variants.extend(module_files());
+    } else {
+        variants.extend(module_files());
+        variants.extend(
+            extensions
+                .iter()
+                .map(|extension| format!("{base}/index{extension}")),
+        );
+    }
     variants
+}
+
+/// The file a directory stands for, for languages whose package entry is not
+/// spelled `index.<ext>`.
+fn index_entry_for(language: &str) -> Option<&'static str> {
+    match language {
+        "python" => Some("__init__.py"),
+        _ => None,
+    }
 }
 
 /// Extension preference per reference language, mirroring the TypeScript
@@ -1539,5 +1985,207 @@ fn extensions_for(language: &str) -> &'static [&'static str] {
         "c" => &[".c", ".h"],
         "cpp" => &[".cpp", ".cc", ".cxx", ".hpp", ".h"],
         _ => &[],
+    }
+}
+
+#[cfg(test)]
+mod alias_pair_tests {
+    use super::{python_alias_pairs, rust_alias_pairs, ts_alias_pairs};
+
+    fn pairs(items: &[(&str, Option<&str>)]) -> Vec<(String, Option<String>)> {
+        items
+            .iter()
+            .map(|(local, imported)| ((*local).to_owned(), imported.map(str::to_owned)))
+            .collect()
+    }
+
+    #[test]
+    fn ts_reads_multiline_named_type_and_namespace_imports() {
+        assert_eq!(
+            ts_alias_pairs("import {\n  work as leftWork,\n  other as second,\n} from './left'"),
+            pairs(&[("leftWork", Some("work")), ("second", Some("other"))])
+        );
+        assert_eq!(
+            ts_alias_pairs("import type { Work as W } from './types'"),
+            pairs(&[("W", Some("Work"))])
+        );
+        assert_eq!(
+            ts_alias_pairs("import * as leftApi from './left'"),
+            pairs(&[("leftApi", None)])
+        );
+        // A default import spells no named binding, and neither does an
+        // aliased default export, which no named lookup can reach.
+        assert!(ts_alias_pairs("import work from './left'").is_empty());
+        assert!(ts_alias_pairs("import { default as thing } from './m'").is_empty());
+    }
+
+    #[test]
+    fn python_reads_parenthesized_comma_and_plain_imports() {
+        assert_eq!(
+            python_alias_pairs(
+                "from pkg import (\n    work as leftWork,\n    other,\n    second as s,\n)"
+            ),
+            pairs(&[("leftWork", Some("work")), ("s", Some("second"))])
+        );
+        assert_eq!(
+            python_alias_pairs("from pkg.sub import a, b as c"),
+            pairs(&[("c", Some("b"))])
+        );
+        // A leading `import` binds modules, so every alias names a namespace.
+        assert_eq!(
+            python_alias_pairs("import left.module as lm, other.mod as om"),
+            pairs(&[("lm", None), ("om", None)])
+        );
+    }
+
+    #[test]
+    fn rust_reads_path_aliases_and_skips_brace_groups() {
+        assert_eq!(
+            rust_alias_pairs("use crate::util::work as left_work;"),
+            pairs(&[("left_work", Some("work"))])
+        );
+        // A brace group needs per-item module paths the text alone cannot pin.
+        assert!(rust_alias_pairs("use crate::util::{work as left_work};").is_empty());
+        assert!(rust_alias_pairs("use crate::util::work;").is_empty());
+    }
+
+    #[test]
+    fn trailing_comments_never_spell_a_binding() {
+        // The comment names ` from ` and ` as `; neither may cut the clause or
+        // extend a local name.
+        assert_eq!(
+            ts_alias_pairs("import { work as w } from './left' // moved from './right'"),
+            pairs(&[("w", Some("work"))])
+        );
+        assert_eq!(
+            python_alias_pairs(
+                "from pkg import (\n    work as w,  # re-export\n    other as o,\n)"
+            ),
+            pairs(&[("w", Some("work")), ("o", Some("other"))])
+        );
+        assert_eq!(
+            python_alias_pairs("from pkg import work as w  # re-export"),
+            pairs(&[("w", Some("work"))])
+        );
+        assert_eq!(
+            rust_alias_pairs("use crate::util::work as w; // alias"),
+            pairs(&[("w", Some("work"))])
+        );
+    }
+}
+
+#[cfg(test)]
+mod java_import_tests {
+    use super::java_import_match;
+
+    #[test]
+    fn a_specifier_states_the_package_before_the_name() {
+        assert!(java_import_match(
+            Some("com.acme"),
+            "com.acme.Util.work",
+            "Util::work"
+        ));
+        assert!(java_import_match(
+            Some("com.acme"),
+            "com.acme.Outer.Inner",
+            "Outer::Inner"
+        ));
+        assert!(java_import_match(Some(""), "Util", "Util"));
+        // A name that does not start on a segment boundary spells another name.
+        assert!(!java_import_match(
+            Some("com.acme"),
+            "com.acme.MyUtil",
+            "Util"
+        ));
+    }
+
+    #[test]
+    fn only_the_declared_package_confirms_the_specifier() {
+        // The workspace's only `List` belongs to `my`, not to `java.util`.
+        assert!(!java_import_match(Some("my"), "java.util.List", "List"));
+        // A directory that happens to end in the package name is no evidence:
+        // a file under `.../example/java/util` may declare `example.java.util`.
+        assert!(!java_import_match(
+            Some("example.java.util"),
+            "java.util.List",
+            "List"
+        ));
+        // A class in a named package is not in the default package.
+        assert!(!java_import_match(Some("com.acme"), "Util", "Util"));
+        // A file whose package is unknown carries no evidence.
+        assert!(!java_import_match(None, "com.acme.Util", "Util"));
+    }
+}
+
+#[cfg(test)]
+mod overload_evidence_tests {
+    use super::same_parameters;
+
+    #[test]
+    fn a_parameter_name_does_not_separate_one_overload() {
+        assert!(same_parameters("int", "int value"));
+        assert!(same_parameters("const char*", "const char* path"));
+        assert!(same_parameters(
+            "const std::string&, int",
+            "const std::string& name, int"
+        ));
+    }
+
+    #[test]
+    fn a_type_word_is_no_parameter_name() {
+        // `unsigned` and `unsigned long` are different parameters, so reading
+        // `long` as a name would merge them.
+        assert!(!same_parameters("unsigned", "unsigned long"));
+        assert!(!same_parameters("unsigned long", "unsigned"));
+    }
+
+    #[test]
+    fn different_types_and_counts_never_pair() {
+        assert!(!same_parameters("const char*", "int"));
+        assert!(!same_parameters("int, int", "int"));
+    }
+}
+
+#[cfg(test)]
+mod language_gate_tests {
+    use super::language_compatible;
+    use crate::domain::FileFormat;
+
+    #[test]
+    fn unknown_reference_language_keeps_every_candidate() {
+        // `unknown` marks a reference the walk could not tag with a language,
+        // not a language whose candidates must spell `unknown` too.
+        assert!(language_compatible(
+            Some(FileFormat::Unknown),
+            Some("src/lib.rs")
+        ));
+        assert!(language_compatible(Some(FileFormat::Unknown), None));
+    }
+
+    #[test]
+    fn missing_evidence_on_either_side_keeps_the_candidate() {
+        assert!(language_compatible(None, Some("src/lib.py")));
+        assert!(language_compatible(Some(FileFormat::Rust), None));
+        // An unregistered extension is unknown evidence, not a mismatch.
+        assert!(language_compatible(
+            Some(FileFormat::Rust),
+            Some("src/data.zzz")
+        ));
+    }
+
+    #[test]
+    fn known_languages_gate_on_the_shared_namespace() {
+        assert!(!language_compatible(
+            Some(FileFormat::Rust),
+            Some("src/lib.py")
+        ));
+        assert!(language_compatible(
+            Some(FileFormat::C),
+            Some("src/api.cpp")
+        ));
+        assert!(language_compatible(
+            Some(FileFormat::TypeScript),
+            Some("src/main.js")
+        ));
     }
 }

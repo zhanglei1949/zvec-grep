@@ -25,7 +25,7 @@ pub enum Direction {
 /// Resolved edges and buffered name references share this vocabulary because
 /// they become rows of the same table: the pending queue stores the kind the
 /// resolved edge will carry. Resolution state is therefore structural, not a
-/// kind — a [`PendingRef`] has no target, a [`FileEdge`] requires one — and the
+/// kind — a `PendingRef` has no target, a `FileEdge` requires one — and the
 /// store keeps the same split in its `status` column.
 ///
 /// `Contains` comes only from containment, which is collected as a resolved
@@ -50,9 +50,10 @@ pub(crate) enum EdgeProvenance {
     /// The winning candidate was the only exported one.
     ExportBound,
     FileLocal,
-    /// A call bound to a same-file declaration: by receiver inference, by the
-    /// enclosing instance, or as the file's lone indexed location of a bare
-    /// name.
+    /// A call bound to a declaration the file's own evidence selects: by
+    /// receiver inference, through the enclosing instance's class hierarchy,
+    /// or as the file's lone indexed location of a bare name. The declaration
+    /// may live in another file when the hierarchy leads there.
     FileScoped,
     /// A bare name bound through the file's resolved import scope.
     ImportBound,
