@@ -1,0 +1,445 @@
+{
+  "protocol": "caller-callee-e2e-v1",
+  "candidate": "f6b7c00269645bbb02f74ba07460957a773abb68",
+  "harness": "c308c2ae182a9b25ca5ffb5a180258453275a490",
+  "full_runs": {
+    "relationships": 43232140196,
+    "search": 43232146223,
+    "agent": 43232152271
+  },
+  "verified_trials": 300,
+  "missing": [],
+  "complete": true,
+  "package_sha256": "780e1e9fa8a328311d0604b229a577453a33caffe09ada4f97323ddbd128f9f7",
+  "opencode_config_sha256": "f52a7b94de67caf69613a5f2b09ee87ac2cb95f8282fdec6b9ab938cb70f4bab",
+  "index_ignore_sha256": "1c590c6f45e68bb88a78e0cc1aa2235360bc6070536eb1e0dcba2f686cc96cc9",
+  "tool_surface_sha256": {
+    "agent": "2e46faba186de9c137ee4e100ccbe247ab42c450c5b1476079e1a852419ac865",
+    "search": "00f4244c62fb6d44936b6e407d65a7601053ece91b333c8b14c6dd6285c5ec22",
+    "relationships": "24821aa43f0fc9173f112c40abe4aeaeb10546257879c75fbfaf5108bd5b2a81"
+  },
+  "aggregate_report_sha256": "117cbd6eec0a985859515bee4f9977671f806f5019d27a6215276c39a8c66dbc",
+  "trial_inventory_sha256": "3e25fdc33d52eebfcc153c89e0198ede832e4b435f43aa94e4cf648af3cadf55",
+  "task_reports": [
+    {
+      "group": "agent",
+      "task": "astropy-38",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "01a5bd6e6269da237a0ebcedb600571cc30aef3c14f11eb9db18e36a0b8b9472"
+    },
+    {
+      "group": "agent",
+      "task": "conan-1",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "375691522e9d5c8e4c64ddfed630609d1618306ba422c8734d4a530723d94884"
+    },
+    {
+      "group": "agent",
+      "task": "conan-19",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "6a03cfa984b88138dc766a29c0d9303fa6afaaa22972651007b4d4ecc6e30542"
+    },
+    {
+      "group": "agent",
+      "task": "conan-27",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "0e9c6ec09b5c26af1c10baf0e41ea35cf1d5c5b3c9cfa3df402eac2c7a15a196"
+    },
+    {
+      "group": "agent",
+      "task": "conan-39",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "73264ca2825de15c4df83547ab800aee7fec0a96c8cd1e5de08e49ee76a878b5"
+    },
+    {
+      "group": "agent",
+      "task": "django-21",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "a941bfe013f1db7b2d7e3b99c335b1e50ca6d976577d4d864650982e600fc2a3"
+    },
+    {
+      "group": "agent",
+      "task": "django-32",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "4a18b407b97b5adb2fbc86179926c9c5420982bb17bed44879f3f95cbef4339b"
+    },
+    {
+      "group": "agent",
+      "task": "matplotlib-37",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "bb5451ed5419bdd95f986ef2043b719b8db96020288b5ba45ff2c2975a2115b8"
+    },
+    {
+      "group": "agent",
+      "task": "pylint-10",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "5829aba8dec88b2f63d4e7cc40c44d4e4d2212bd50e7d1f1dd133e7d18f77346"
+    },
+    {
+      "group": "agent",
+      "task": "pylint-14",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "16436c91f05b57f76a927278ad0b86efc1fb35ba1f35b914166e7b42c9830ccd"
+    },
+    {
+      "group": "agent",
+      "task": "pylint-9",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "0520855e30ac2261cc09d86875621f9d4dedb8233c3d4ae9fd1555afb5125e4d"
+    },
+    {
+      "group": "agent",
+      "task": "reflex-6",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "2b646fe53413d737d820fbaa2a300f21f4e51967c2df350de0bfca6d2dfcb0dc"
+    },
+    {
+      "group": "agent",
+      "task": "requests-16",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "9411836335ef4f0880354ab61825b933f6234734f941f97909438e3ad9e58d14"
+    },
+    {
+      "group": "agent",
+      "task": "sqlfluff-2",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "d09f08797d649bdf3b5be4b1f68d5d7b5d8812b94b3c6da8fbc1410af1413ebc"
+    },
+    {
+      "group": "agent",
+      "task": "streamlink-14",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "377413670187710cc296dd8381e37c2dd07bb4d299d6c7a2c265ac10d0185707"
+    },
+    {
+      "group": "agent",
+      "task": "streamlink-43",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "e5879d5659f5599bbf1f04e1c7896ff883a815b29446c28fd9a95a3ce224f709"
+    },
+    {
+      "group": "agent",
+      "task": "sympy-26",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "88a887fc7a539239b0cd9dc46f171848e0f41fa8341c97a612ff944a638bec26"
+    },
+    {
+      "group": "agent",
+      "task": "sympy-38",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "2d9da0e5b41d6fcd1d5ced59b22b2e117ceb51952377d3f207136d0f1173d2a4"
+    },
+    {
+      "group": "agent",
+      "task": "xarray-32",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "33a99fd3d998bc7a649fd3ae4a1098c08e86983dc4c519415ef400a9b8528afd"
+    },
+    {
+      "group": "agent",
+      "task": "xarray-46",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271/attempts/1",
+      "sha256": "d201f97d208da3d77ab7e3d0015b2b4fd70c9896fc319b51ca2dfd38d3a46082"
+    },
+    {
+      "group": "relationships",
+      "task": "astropy-38",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "2e7c8bb6d7c157f1a32fc390cbd0289546faa744dbe299da7982055c222c11b0"
+    },
+    {
+      "group": "relationships",
+      "task": "conan-1",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "ffe91111e5cc5331dc7a5a3ca556c855ac5be21aae9e28b21130264fbfe29476"
+    },
+    {
+      "group": "relationships",
+      "task": "conan-19",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "4479b45e90c1ae8c7898eda6ab189fe852c8a26a55a69cfe9909467e707dc8e6"
+    },
+    {
+      "group": "relationships",
+      "task": "conan-27",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "764e38d5caa2817fd4212abe7b9c6afcf8466aa4bfb8c00e5dfec93432996faa"
+    },
+    {
+      "group": "relationships",
+      "task": "conan-39",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "744c89543a82f1bfe0b8f81cab20232b756497024067c7dde65ce88145c41686"
+    },
+    {
+      "group": "relationships",
+      "task": "django-21",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "3babbbb9d30058ee9f83bc1f83bc5501509a8d91bba14e9b0c7feddadeaf2313"
+    },
+    {
+      "group": "relationships",
+      "task": "django-32",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "3cecb7ecb0d79fc42fe6c94a11aada9d6d22138da8cea82bad7fbd682800eec6"
+    },
+    {
+      "group": "relationships",
+      "task": "matplotlib-37",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "64131484d4a196cad9bc755b8ec997bef94349f9a6cb86ffe59fe7ec84841989"
+    },
+    {
+      "group": "relationships",
+      "task": "pylint-10",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "d1eddd50a2cc035136fe8553d9f9cfb74ebbe7e56b583adc264117aa0f47d484"
+    },
+    {
+      "group": "relationships",
+      "task": "pylint-14",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "7fc18a4e42f398d7767e16766787aed66580e48001f63495a057143c89d409b0"
+    },
+    {
+      "group": "relationships",
+      "task": "pylint-9",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "9da27c9674ca47746d0b85b7da96111af168d0201344de380859e8eaa992c0de"
+    },
+    {
+      "group": "relationships",
+      "task": "reflex-6",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "2ca23ab3009f1449a6c45fbd4c9c1a0dc836696e43881fd01d5bc32f3a80b722"
+    },
+    {
+      "group": "relationships",
+      "task": "requests-16",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "fb6b3c1ad97d9e4e84acc147ea25d331e74e4ab177ad32b0a9df5a7019c26f1a"
+    },
+    {
+      "group": "relationships",
+      "task": "sqlfluff-2",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "b6980aa343eec24f7e19a5d3a78ce9175ae848b8efdb2fda4f509fd98f361e30"
+    },
+    {
+      "group": "relationships",
+      "task": "streamlink-14",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "5af15c2c015216bd05a15c2710a2271eb741154ee9e8714120ac577707ce6b2e"
+    },
+    {
+      "group": "relationships",
+      "task": "streamlink-43",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "d1f125ea3dee5b2603f9385babae658273f25b01eeda809a25829498f6c6f015"
+    },
+    {
+      "group": "relationships",
+      "task": "sympy-26",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "fcd1184cc3594a846a78168dfda242fd35ecfed972a126e3cf804f589fb6d6b2"
+    },
+    {
+      "group": "relationships",
+      "task": "sympy-38",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "f6d3b08a23e228a48c845ad9fb8f4fd8844f959465ad17e616e8a83b6e75b4ec"
+    },
+    {
+      "group": "relationships",
+      "task": "xarray-32",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "6db0b0116474e0f10f7d9fe7800ee4bc686f4b937571a6597c72125cb114559e"
+    },
+    {
+      "group": "relationships",
+      "task": "xarray-46",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196/attempts/1",
+      "sha256": "06ddac2c8739638652f96aa9842495a54884839e43cebfbfdaee20fe9736e063"
+    },
+    {
+      "group": "search",
+      "task": "astropy-38",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "ce147702c52d54fc34f382ed6752725918b7291d2e3c983751ce976eb36aed02"
+    },
+    {
+      "group": "search",
+      "task": "conan-1",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "33832072cade85fd2046106474f5cfd93bd37fb605ffbcd1eedae5bb2295b661"
+    },
+    {
+      "group": "search",
+      "task": "conan-19",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "b5c73c0a17cdf75c5774dc00a25a399114a41333ea37c46a0d37c6a2a80f8152"
+    },
+    {
+      "group": "search",
+      "task": "conan-27",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "d545367c769d5d780dc1535c7a4afa14ed48142a4b1a81a6d0450f98ea4cbae0"
+    },
+    {
+      "group": "search",
+      "task": "conan-39",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "dd7db43d59f15f4e45f9c8e5d312d43eb3f488bbef1d0570bf0bf796a34f5686"
+    },
+    {
+      "group": "search",
+      "task": "django-21",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "c5605266bace45ced4bdb892006aca132ce55b9c2b789b70469e9442d677fb7c"
+    },
+    {
+      "group": "search",
+      "task": "django-32",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "26222604284d91bbd15bbec96acd3867066846e72b5af0b9431df652e4ab7993"
+    },
+    {
+      "group": "search",
+      "task": "matplotlib-37",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "83467b97b68194f45c8b8eb80ee6fc8e550de0410cd486a5086afd490c8036c8"
+    },
+    {
+      "group": "search",
+      "task": "pylint-10",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "9dd38adb59f0fa0f5197e0f03f2f4f315a4b1175d6d8bd5006ade525d104f123"
+    },
+    {
+      "group": "search",
+      "task": "pylint-14",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "389806e87ab2a59ffc48a0be9a16d51ade0469ce026d227711b834603ad0acc8"
+    },
+    {
+      "group": "search",
+      "task": "pylint-9",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "08ad17bdd129c2630bd961c5211156f84a16d9e990ff574177e0d19260cec2e9"
+    },
+    {
+      "group": "search",
+      "task": "reflex-6",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "4e3195661f732b9abf1f20067417bf315c3eda45642611c72121756b8bc23dba"
+    },
+    {
+      "group": "search",
+      "task": "requests-16",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "0b3c8c80c4f187a611c8b5c9dcae0af1d4eae21244200b961900b50981845158"
+    },
+    {
+      "group": "search",
+      "task": "sqlfluff-2",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "8ada59f18efa032caf175d844cd73dec398cc50b1fbd42cc41bd9438c11b59d9"
+    },
+    {
+      "group": "search",
+      "task": "streamlink-14",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "f50554dcbf6f3f4150531ffa249c073342b70187f07eddc7010534ec20265417"
+    },
+    {
+      "group": "search",
+      "task": "streamlink-43",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "bb1b335a23917190508a923c712cb37f2a06c45930bebeaabc166b97e7f1e1b2"
+    },
+    {
+      "group": "search",
+      "task": "sympy-26",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "a7483891518aab0bcd0290b71eb205e2aba53cc3310fd744dc97cbc512cd848d"
+    },
+    {
+      "group": "search",
+      "task": "sympy-38",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "2d39401b814d0b8b33986a5cbbd85d4413ce731bf9621e6cd7c20bdb19ba888d"
+    },
+    {
+      "group": "search",
+      "task": "xarray-32",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "3331067195e29027fce9ef7e42a6b92aa342842f1dcd455cbe7f5115c7ce86e7"
+    },
+    {
+      "group": "search",
+      "task": "xarray-46",
+      "trials": 5,
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223/attempts/1",
+      "sha256": "2cf33f62ef5c2a2fc33d5dc9631259608794f99f53db1dce8822be71a7ca0d62"
+    }
+  ]
+}

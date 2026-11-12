@@ -6,6 +6,9 @@
 
 ## Caller/Callee 三组 E2E 实验（v1）
 
+[2026-11-12 全量结果与实际调用](docs/caller-callee-e2e-results-20261112.md)：
+300/300 trial 完成并通过证据审计；三组原始产物及复现参数见报告。
+
 手动启动 `swe-qa-bench.yml` 时，`experiment_group` 可选 `relationships`、
 `search`、`agent`，分别只暴露两个关系工具、只暴露 search、同时暴露三个工具。
 默认 `legacy` 保留原有 baseline / zvec-grep 配对流程。实验仅支持

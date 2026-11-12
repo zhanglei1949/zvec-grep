@@ -2,6 +2,12 @@
 
 Date: 2026-11-12 (Asia/Shanghai). Protocol: caller-callee-e2e-v1.
 
+Completed outcome: the corrected c308c2a cohort finished all three workflows
+successfully, with 300 audited trials, no missing trials and no formal retries.
+See the [full results](caller-callee-e2e-results-20261112.md) and
+[evidence checksums](caller-callee-e2e-evidence-20261112.json). Earlier sections
+below preserve the superseded run history; their partial results are excluded.
+
 ## Frozen design
 
 Three separately dispatched arms: relationships, search, agent (combined).
@@ -280,3 +286,43 @@ ten mandatory eight-test contract repetitions with no failures. The separate
 real Docker shutdown check also passed. Evidence:
 `/private/tmp/zg-frozen-guidance-linux.log`. This validates guidance and tool
 descriptions at the model-request boundary without using the formal endpoint.
+
+## Final completion and evidence audit
+
+Corrected full runs 43232140196, 43232146223 and 43232152271 all finished
+successfully with the same candidate f6b7c00269645bbb02f74ba07460957a773abb68
+and harness c308c2ae182a9b25ca5ffb5a180258453275a490. The full offline aggregate
+is complete: 60 unique group/task reports and 300 unique logical trials.
+
+The independent audit rehashed every report and tool surface, compared all
+calls against raw exports, checked recursive session IDs and token/tool totals,
+verified per-trial completion with no exceptions, and matched the index
+identity to the locked repository commits. All groups share the same candidate
+package and OpenCode configuration; every actual guidance surface matches its
+frozen smoke surface and committed fixture. Every task has exactly five trials.
+No formal Harbor retries, missing trials or recognizable shell zg calls occurred.
+
+All relationship calls came from combined main sessions: callers 11 calls in
+eight trials (one empty), callees one call in one different trial (empty).
+The relationships-only arm made no relationship calls; availability and
+instructions were independently verified rather than inferred from usage.
+Native child sessions contributed 13 tool calls in relationships and eight
+in Search; these are included in totals, not silently omitted.
+
+Combined minus Search: self-judge +0.82 points, total input +6.19%, uncached
+input -14.81%, tool calls +7.63%, agent wall time +1.35%. The supplementary
+paired-task bootstrap interval is [-0.95, +2.77]; this cohort does not establish
+a stable gain attributable to caller/callee. Provider fees remain unknown.
+
+Host-local audit and rendering commands, kept as one-run artifacts:
+
+```sh
+uv run --project benchmarks/swe-qa-bench python benchmarks/swe-qa-bench/runs/caller-callee-20261112/audit_corrected.py full
+uv run --project benchmarks/swe-qa-bench python benchmarks/swe-qa-bench/runs/caller-callee-20261112/build_results.py
+```
+
+Their inputs and outputs are under `runs/caller-callee-20261112/cohort-fits-c308c2a`.
+The committed result includes portable artifact download/aggregation commands
+and a compact checksum manifest; original large artifacts remain ignored and
+in the three Actions runs. The final report retains all tasks and uses the
+legacy score/token filter only in its labelled sensitivity appendix.

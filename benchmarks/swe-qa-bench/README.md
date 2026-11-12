@@ -6,6 +6,9 @@
 
 ## Caller/callee tool experiment
 
+The [2026-11-12 full results and actual tool use](docs/caller-callee-e2e-results-20261112.md)
+cover all 300 audited trials, with Actions artifacts and reproduction parameters.
+
 The manual workflow also accepts `experiment_group=relationships|search|agent`
 and `experiment_phase=smoke|full`. Each run executes one arm; dispatch all three
 against the same frozen candidate and harness commits for a concurrent comparison.
