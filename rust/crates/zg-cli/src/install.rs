@@ -1228,7 +1228,7 @@ fn install_opencode(options: &AgentOptions) -> Result<AgentInstallResult, Instal
             .join("AGENTS.md"),
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("zvec_grep_", false, ""),
+        &opencode_guidance(options.toolset.unwrap_or_default()),
         true,
         None,
         None,
@@ -1681,6 +1681,8 @@ fn stdio_args(toolset: Option<McpToolset>) -> Vec<&'static str> {
             match toolset {
                 McpToolset::Agent => "agent",
                 McpToolset::Full => "full",
+                McpToolset::Search => "search",
+                McpToolset::Relationships => "relationships",
             },
         ]);
     }
@@ -1794,6 +1796,14 @@ fn has_grok_permission_table(existing: &str) -> bool {
 
 fn grok_host_notes() -> &'static str {
     "\n### Grok Build host notes\n- MCP tools are reached through `use_tool` with the catalog names `zvec_grep__zvec_grep_search`, `zvec_grep__zvec_grep_rg`, `zvec_grep__zvec_grep_callers`, and `zvec_grep__zvec_grep_callees`.\n- When `zvec_grep__zvec_grep_search` needs `remote_embedding_authorization`, respond to the elicitation card this host renders natively instead of looking for another approval mechanism.\n- In non-interactive sessions (`grok -p`, pipelines) the card cannot appear: stop and ask the user to run `zg --auth grant \"<absolute-root>\" --capability embedding --scope workspace` with the same absolute root used by the failed search, then retry the original search once. Never grant silently and never request credentials for this.\n"
+}
+
+fn opencode_guidance(toolset: McpToolset) -> String {
+    if toolset == McpToolset::Full {
+        return guidance_block("zvec_grep_", false, "");
+    }
+    let guidance = crate::retrieval_guidance(toolset).replace("zvec_grep_", "zvec_grep_zvec_grep_");
+    format!("{GUIDANCE_START}\n## zvec-grep\n{guidance}\n{GUIDANCE_END}")
 }
 
 fn guidance_block(prefix: &str, qoder_recovery: bool, host_notes: &str) -> String {

@@ -45,6 +45,8 @@ class ZvecGrepMixin:
         embedding_endpoint: str | None = ZVEC_GREP_EMBEDDING_ENDPOINT,
         index_ignore_file: str | None = None,
         mcp_target: str | None = None,
+        mcp_toolset: str | None = None,
+        graph_index: bool = False,
         zvec_grep_package_sha256: str | None = None,
         extra_env: dict[str, str] | None = None,
         **kwargs: Any,
@@ -106,6 +108,12 @@ class ZvecGrepMixin:
         )
         self._index_ignore_file = resolved_index_ignore_file
         self._mcp_target = mcp_target
+        if mcp_toolset not in (None, "agent", "search", "relationships"):
+            raise ValueError("unsupported benchmark MCP toolset")
+        self._mcp_toolset = mcp_toolset
+        if not isinstance(graph_index, bool):
+            raise ValueError("graph_index must be a boolean")
+        self._graph_index = graph_index
         self._zvec_grep_package_sha256 = zvec_grep_package_sha256
         self._api_key_source = api_key_source
         self._embedding_api_key = api_key
@@ -237,6 +245,7 @@ class ZvecGrepMixin:
                     environment,
                     command=self._index_command(
                         self._embedding_model,
+                        graph=self._graph_index,
                         ignore_file=(
                             _INDEX_IGNORE_TARGET
                             if self._index_ignore_file is not None
@@ -358,6 +367,7 @@ class ZvecGrepMixin:
             "zvec_grep_package": package_identity,
             "binding_package": self._zvec_binding_package,
             "embedding_model": self._embedding_model,
+            "graph_index": self._graph_index,
             "index_ignore_sha256": self._index_ignore_sha256(),
             "platform": "linux/amd64",
             "workdir": workdir,
@@ -530,6 +540,7 @@ class ZvecGrepMixin:
             environment,
             command=(
                 "zg --install --target " f"{shlex.quote(self._mcp_target)} --yes"
+                + (f" --mcp-toolset {self._mcp_toolset}" if self._mcp_toolset else "")
             ),
             **install_kwargs,
         )
@@ -558,6 +569,16 @@ class ZvecGrepMixin:
             raise RuntimeError(
                 "zvec-grep MCP setup completed but the server did not report ready"
             )
+
+        if self._mcp_toolset is not None:
+            probe_source = Path(__file__).resolve().parents[1].joinpath("mcp_probe.py").read_text()
+            await self.exec_as_agent(
+                environment,
+                command=f"python3 -c {shlex.quote(probe_source)} http://127.0.0.1:7999/mcp {self._mcp_toolset} > /logs/agent/tool-surface.json",
+                cwd=workdir,
+            )
+            metadata["mcp_toolset"] = self._mcp_toolset
+            metadata["graph_index"] = self._graph_index
 
     def _mcp_install_environment(self) -> dict[str, str] | None:
         """Return target-specific environment for `zg --install`."""
@@ -750,9 +771,11 @@ class ZvecGrepMixin:
 
     @staticmethod
     def _index_command(
-        embedding_model: str, *, ignore_file: str | None = None
+        embedding_model: str, *, ignore_file: str | None = None, graph: bool = False
     ) -> str:
         command = f"zg --index --embedding {shlex.quote(embedding_model)}"
+        if graph:
+            command += " --graph"
         if ignore_file is not None:
             command += f" --ignore-file {shlex.quote(ignore_file)}"
         return command

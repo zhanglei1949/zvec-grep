@@ -100,17 +100,7 @@ macro_rules! search_routing_rules {
     ) };
 }
 
-pub const AGENT_INSTRUCTIONS: &str = concat!(
-    "Use zvec-grep with these workspace retrieval rules:\n",
-    workspace_evidence_rules!(),
-    search_routing_rules!("native Grep or rg", "Read, Grep, or rg"),
-    "- For workspaces indexed with graph support, use zvec_grep_callers or zvec_grep_callees for known symbols. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
-    "- Every workspace operation requires an absolute root path visible to the daemon.\n",
-    "- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n",
-    "- Use returned search evidence without a status preflight.\n",
-    "- Use sufficient returned evidence immediately; do not perform extra diagnostics merely because the index may refresh in the background.\n",
-    "- When an index is missing, search can ask the user to choose an embedding model and approve a background build. Only explicit user confirmation creates an index. Read the returned indexing state and retry search after completion; use native Grep or rg only when literal lookup answers the task.",
-);
+pub const AGENT_INSTRUCTIONS: &str = zg_cli::retrieval_guidance(zg_cli::McpToolset::Agent);
 
 pub const FULL_INSTRUCTIONS: &str = concat!(
     "Use zvec-grep with these workspace retrieval and lifecycle rules:\n",
@@ -141,6 +131,8 @@ pub enum McpToolset {
     #[default]
     Agent,
     Full,
+    Search,
+    Relationships,
 }
 
 impl fmt::Display for McpToolset {
@@ -148,6 +140,8 @@ impl fmt::Display for McpToolset {
         formatter.write_str(match self {
             Self::Agent => "agent",
             Self::Full => "full",
+            Self::Search => "search",
+            Self::Relationships => "relationships",
         })
     }
 }
@@ -330,7 +324,12 @@ impl ZvecGrepMcpServer {
         Self::build_with_index_operations(engine, toolset, status, index_operations)
     }
 
-    fn build_with_index_operations(
+    /// Build a selected public tool surface using the daemon's index operations.
+    ///
+    /// # Panics
+    /// Panics if the statically declared relationship routes are missing.
+    #[must_use]
+    pub fn build_with_index_operations(
         engine: Arc<ZvecGrep>,
         toolset: McpToolset,
         status: Option<Arc<dyn ServerStatusProvider>>,
@@ -351,9 +350,16 @@ impl ZvecGrepMcpServer {
                     .into()
             });
         }
-        if toolset == McpToolset::Agent {
+        if toolset != McpToolset::Full {
             for name in FULL_TOOL_NAMES {
-                if !AGENT_TOOL_NAMES.contains(&name) {
+                let enabled = match toolset {
+                    McpToolset::Search => name == AGENT_TOOL_NAME,
+                    McpToolset::Relationships => {
+                        matches!(name, "zvec_grep_callers" | "zvec_grep_callees")
+                    }
+                    _ => AGENT_TOOL_NAMES.contains(&name),
+                };
+                if !enabled {
                     router.disable_route(name);
                 }
             }
@@ -440,7 +446,7 @@ impl ZvecGrepMcpServer {
 
     #[tool(
         name = "zvec_grep_search",
-        description = "Search a workspace index for semantic, relational, cross-file, or multi-hop evidence such as architecture, call chains, dependencies, lifecycle, data or control flow, design rationale, and comparisons. Use it when exact lookup alone cannot answer a workspace-grounded question. Results start with freshness and any global index diagnostics, followed by CLI-formatted bounded source snippets; set preview: \"full\" to return each complete stored entity without changing retrieval or ranking. Treat sufficient returned content as already-read evidence without a status preflight. Use native Grep or rg instead when exact lookup alone is sufficient. A missing index can request user model selection and authorization; accepted setup starts a background build and returns indexing status. Retry after completion.",
+        description = "Search a workspace index for conceptual and cross-file evidence such as architecture, source paths related to calls, dependencies, lifecycle, data or control flow, design rationale, and comparisons. This retrieves source evidence, not an exact call graph. Use it when exact lookup alone cannot answer a workspace-grounded question. Results start with freshness and any global index diagnostics, followed by CLI-formatted bounded source snippets; set preview: \"full\" to return each complete stored entity without changing retrieval or ranking. Treat sufficient returned content as already-read evidence without a status preflight. Use native Grep or rg instead when exact lookup alone is sufficient. A missing index can request user model selection and authorization; accepted setup starts a background build and returns indexing status. Retry after completion.",
         annotations(
             title = "Search with zvec-grep",
             read_only_hint = false,
@@ -707,6 +713,10 @@ impl ServerHandler for ZvecGrepMcpServer {
                 match self.toolset {
                     McpToolset::Agent => AGENT_INSTRUCTIONS,
                     McpToolset::Full => FULL_INSTRUCTIONS,
+                    McpToolset::Search => zg_cli::retrieval_guidance(zg_cli::McpToolset::Search),
+                    McpToolset::Relationships => {
+                        zg_cli::retrieval_guidance(zg_cli::McpToolset::Relationships)
+                    }
                 }
                 .to_owned(),
             )

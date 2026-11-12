@@ -4,6 +4,56 @@
 
 # SWE-QA benchmark
 
+## Caller/Callee 三组 E2E 实验（v1）
+
+手动启动 `swe-qa-bench.yml` 时，`experiment_group` 可选 `relationships`、
+`search`、`agent`，分别只暴露两个关系工具、只暴露 search、同时暴露三个工具。
+默认 `legacy` 保留原有 baseline / zvec-grep 配对流程。实验仅支持
+OpenCode 1.18.4、custom-openai/glm-5.2 和 local/potion-code-16m-v2。
+三组使用同一候选 SHA、harness SHA、固定任务版本和启用 `--graph` 的索引，
+保留原生本地工具及子代理，禁用网页工具。索引准备不计入 Agent 执行时间。
+
+安装指导、MCP instructions 和工具描述随组别变化。已知符号可直接查关系，
+无需先 search；工具由 Agent 自主选择，不要求调用，不因未调用或低分重跑。
+提示词在独立的 `fixtures/caller-callee-dev` 上校准，问题与预期答案放在
+索引目录外的同名 `.questions.json`，正式题集与参考答案保持不变。
+校准只修复歧义及误用，最多两轮；不以正式题评分或调用率优化。
+每个 trial 的 `agent/tool-surface.json` 保存实时工具列表、参数 schema、
+服务 instructions、安装指导和 SHA-256，供复核实际加载的指导。
+
+`experiment_phase=smoke` 固定 requests:16、每组一次；`full` 固定全部
+20 题、每组五次。三组分别 dispatch，可同时排队/执行；每个 run 最多两个
+任务 job，每个任务的 trial 串行。三组最大六个并发 Agent trial，judge 串行
+且与本任务 Agent 不重叠。异常最多额外重试两次；沿用原有失败归档策略。
+所有 run 必须绑定同一冻结版本，冒烟与正式产物不混用。
+
+完整会话树用量沿用 opencode-session-tree-v1。实验额外导出
+`agent/tool-calls.json`：主会话及递归子代理调用的标识、时间、参数、输出和
+错误。普通非实验运行继续不导出这些内容。审计按工具记录尝试、成功、失败、
+未知与空结果；仅在已知关系输出格式下判定空结果，其他格式标为未知。
+可识别的 shell zg 调用单列；MCP 工具限制不代表 shell 隔离。
+
+独立报告不应用原有评分差或 token 涨幅排除条件。Judge 是每题 trial 均值的
+等权任务平均；效率指标为各题 trial 均值之和，变化率由汇总值计算。
+比较仅使用两组共同完成的任务，同时保留各组全量已完成结果及缺失清单。
+零分母的变化率和未知费用均为 null；失败和未调用不伪装成零分或成功。
+主要比较 agent − search，另报告 relationships − search、agent − relationships。
+结论是工具集合与相应指导的整体效果；调用行为分层不作因果解释。
+
+每次运行保留 `caller-callee-evidence-*`、`caller-callee-task-*` 和
+`caller-callee-summary-*` Actions artifacts。下载三个 run 的 task artifacts
+到同一忽略目录后，可离线合并，无需再次调用模型：
+
+```sh
+uv run --project benchmarks/swe-qa-bench python -m zg_bench.tool_experiment aggregate \
+  --reports /absolute/path/to/downloaded-task-artifacts \
+  --group all --phase full --output /absolute/path/to/report
+```
+
+不同候选、harness、阶段、trial 数量、模型 endpoint 或同组工具指导不得混合；
+同一组/任务多个 attempt 的报告须明确选择完整的一份，不能拼接 trial。
+模型与轨迹原始证据不提交 Git；记录 run URL、版本和下载位置。
+
 此 benchmark 用于衡量 `zvec-grep` 对 Agent 回答代码仓库级软件工程问题的能力有何影响。发布结果中，两个 profile 使用相同的 Claude Code Agent、Claude Opus 5 模型、任务 prompt、代码仓库 commit、环境和限制：
 
 - **Baseline：** Claude Code 使用其标准工具。

@@ -153,14 +153,17 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
         )
         suite = runner.load_suite("swe-qa-bench", tier="smoke")
         cases = (
-            ("custom-openai/glm-5.2", True),
-            ("custom-openai/qwen3.8-max", True),
-            ("aliyun-glm-5.2", True),
+            ("custom-openai/glm-5.2", True, None),
+            ("custom-openai/qwen3.8-max", True, None),
+            ("aliyun-glm-5.2", True, None),
             # Prove that neither provider defaults nor the fixture itself hide
             # web tools: removing the benchmark denies must expose both tools.
-            ("custom-openai/glm-5.2", False),
+            ("custom-openai/glm-5.2", False, None),
+            ("custom-openai/glm-5.2", True, "relationships"),
+            ("custom-openai/glm-5.2", True, "search"),
+            ("custom-openai/glm-5.2", True, "agent"),
         )
-        for model, disable_web_tools in cases:
+        for model, disable_web_tools, tool_group in cases:
             with (
                 self.subTest(model=model, disable_web_tools=disable_web_tools),
                 tempfile.TemporaryDirectory() as temp_dir,
@@ -303,6 +306,36 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 server.daemon_threads = True
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
+                zg_tools = {"relationships": ("callers", "callees"), "search": ("search",), "agent": ("search", "callers", "callees")}.get(tool_group, ())
+
+                class FakeMcp(BaseHTTPRequestHandler):
+                    def log_message(self, *args):
+                        pass
+
+                    def do_POST(self):
+                        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                        if "id" not in body:
+                            self.send_response(202)
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                        if body["method"] == "initialize":
+                            result = {"protocolVersion": "2025-03-26", "capabilities": {"tools": {}}, "serverInfo": {"name": "fixture", "version": "1"}}
+                        elif body["method"] == "tools/list":
+                            result = {"tools": [{"name": "zvec_grep_" + name, "description": "Fixture workspace tool", "inputSchema": {"type": "object", "properties": {"root": {"type": "string"}}, "required": ["root"]}} for name in zg_tools]}
+                        else:
+                            result = {}
+                        payload = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": result}).encode()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(payload)))
+                        self.end_headers()
+                        self.wfile.write(payload)
+
+                mcp = ThreadingHTTPServer(("127.0.0.1", 0), FakeMcp)
+                mcp.daemon_threads = True
+                mcp_thread = threading.Thread(target=mcp.serve_forever, daemon=True)
+                mcp_thread.start()
                 try:
                     command = runner.build_harbor_command(
                         suite,
@@ -323,6 +356,11 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                         f"http://127.0.0.1:{server.server_port}/v1"
                     )
                     config.update(autoupdate=False, share="disabled", lsp=False)
+                    if tool_group is not None:
+                        arm_config = runner.build_opencode_config(runner.resolve_opencode_model(model).configuration, profile="zvec-grep", tool_experiment=True)
+                        config["permission"] = arm_config["permission"]
+                        config["agent"] = arm_config["agent"]
+                        config["mcp"] = {"zvec_grep": {"type": "remote", "url": f"http://127.0.0.1:{mcp.server_port}/mcp", "oauth": False, "enabled": True}}
                     if not disable_web_tools:
                         for permissions in (
                             config["permission"],
@@ -380,6 +418,8 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                         "XDG_CACHE_HOME": str(root / "cache"),
                         **agent.extra_env,
                     }
+                    if tool_group is not None:
+                        env.pop("OPENCODE_DISABLE_PROJECT_CONFIG")
                     result = subprocess.run(
                         [
                             binary,
@@ -466,6 +506,7 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                             tool["function"]["name"] for tool in request["tools"]
                         }
                         self.assertTrue({"read", "grep", "glob"} <= tool_names)
+                        self.assertEqual({name for name in tool_names if name.startswith("zvec_grep_")}, {"zvec_grep_zvec_grep_" + name for name in zg_tools}, f"all tools: {sorted(tool_names)}")
                         for tool in ("webfetch", "websearch"):
                             self.assertEqual(
                                 tool in tool_names,
@@ -473,6 +514,9 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                                 f"Unexpected {tool} availability: {sorted(tool_names)}",
                             )
                 finally:
+                    mcp.shutdown()
+                    mcp.server_close()
+                    mcp_thread.join(timeout=5)
                     server.shutdown()
                     server.server_close()
                     thread.join(timeout=5)

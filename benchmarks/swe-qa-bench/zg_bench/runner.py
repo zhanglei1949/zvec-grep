@@ -597,6 +597,7 @@ def build_harbor_command(
     zvec_grep_package_sha256: str | None = None,
     embedding_model: str = ZVEC_GREP_EMBEDDING,
     embedding_endpoint: str | None = ZVEC_GREP_EMBEDDING_ENDPOINT,
+    mcp_toolset: str | None = None,
 ) -> list[str]:
     if profile not in PROFILES:
         raise ValueError(f"unsupported profile: {profile}")
@@ -635,7 +636,7 @@ def build_harbor_command(
         if support.opencode is not None:
             provider = resolve_opencode_model(model).configuration
             harbor_model = provider.harbor_model
-            opencode_config = build_opencode_config(provider, profile=profile)
+            opencode_config = build_opencode_config(provider, profile=profile, tool_experiment=mcp_toolset is not None)
             agent_kwargs.append(
                 "opencode_config=" + json.dumps(opencode_config, separators=(",", ":"))
             )
@@ -647,6 +648,8 @@ def build_harbor_command(
                 "the zvec-grep profile currently supports --agent " f"{supported}"
             )
         harbor_agent = _ZVEC_AGENT_IMPORT_PATHS[agent]
+        if mcp_toolset is not None:
+            agent_kwargs.extend([f"mcp_toolset={mcp_toolset}", "graph_index=true", "collect_tool_calls=true"])
         agent_kwargs.extend(
             [
                 f"zvec_grep_package={zvec_grep_package}",

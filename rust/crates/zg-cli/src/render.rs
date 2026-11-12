@@ -703,11 +703,11 @@ Environment used by auth grant:
   ZVEC_GREP_ENDPOINT                Remote Embedding endpoint fallback";
 
 const SERVER_HELP: &str = r"Usage:
-  zg --server --stdio [--token-file <path>] [--mcp-toolset <agent|full>]
-  zg --server on [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full>]
+  zg --server --stdio [--token-file <path>] [--mcp-toolset <agent|full|search|relationships>]
+  zg --server on [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full|search|relationships>]
   zg --server off [--token-file <path>]
   zg --server status [--check-ready]
-  zg --server run [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full>]
+  zg --server run [--listen 127.0.0.1:7999] [--token-file <path>] [--mcp-toolset <agent|full|search|relationships>]
 
 --stdio is the MCP client bootstrap transport. It safely starts or reuses the
 shared daemon, proxies MCP over stdin/stdout, and leaves the daemon running
@@ -726,18 +726,18 @@ Environment:
   ZVEC_GREP_SERVER_URL         MCP server URL used by CLI clients
   ZVEC_GREP_SERVER_TOKEN       Server/client Bearer token
   ZVEC_GREP_SERVER_TOKEN_FILE  File containing the Server/client Bearer token
-  ZVEC_GREP_MCP_TOOLSET        Server MCP surface: agent or full
+  ZVEC_GREP_MCP_TOOLSET        Server MCP surface: agent, full, search or relationships
 
 See zg --help environment for daemon startup scope.";
 
 const INSTALL_HELP: &str = r"Usage:
-  zg --install [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|grok|pi|all|auto] [--mcp-transport stdio|http] [--mcp-toolset agent|full] [--yes] [--force]
+  zg --install [--target codex|claude|qwen|qoder|opencode|cursor|copilot|vscode|grok|pi|all|auto] [--mcp-transport stdio|http] [--mcp-toolset agent|full|search|relationships] [--yes] [--force]
   zg --install --upgrade-installed [--dry-run]
 
 Options:
   --target <agent>                  codex, claude, qwen, qoder, opencode, cursor, copilot, vscode, grok, pi, auto, or all; repeatable
   --mcp-transport <stdio|http>      MCP connection mode (default: stdio)
-  --mcp-toolset <agent|full>        Daemon MCP toolset (default: agent)
+  --mcp-toolset <agent|full|search|relationships>        Daemon MCP toolset (default: agent)
   --mcp-tool-timeout <seconds>      MCP tool timeout where supported (default: 600)
   --mcp-token-env <name>            HTTP mode Bearer token environment variable
   --yes                             Install detected agents without prompting
@@ -927,7 +927,7 @@ Client and Server:
   ZVEC_GREP_SERVER_URL         MCP server URL used by CLI clients
   ZVEC_GREP_SERVER_TOKEN       Server/client Bearer token
   ZVEC_GREP_SERVER_TOKEN_FILE  File containing the Server/client Bearer token
-  ZVEC_GREP_MCP_TOOLSET        Server MCP surface: agent or full
+  ZVEC_GREP_MCP_TOOLSET        Server MCP surface: agent, full, search or relationships
 
 Embedding:
   ZVEC_GREP_EMBEDDING    Default model for new indexes and auth grant

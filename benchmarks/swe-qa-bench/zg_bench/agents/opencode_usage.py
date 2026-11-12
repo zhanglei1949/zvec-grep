@@ -58,6 +58,31 @@ _COUNTS = (
     "tool_calls", "llm_calls",
 )
 
+# Only the explicit tool experiment exports content; normal usage accounting
+# continues to exclude arguments and source text.
+CALL_AUDIT_SQL = USAGE_SQL.replace(
+    "'child_session_id', json_extract(data, '$.state.metadata.sessionId')",
+    """'child_session_id', json_extract(data, '$.state.metadata.sessionId'),
+           'input', json_extract(data, '$.state.input'),
+           'output', json_extract(data, '$.state.output'),
+           'error', json_extract(data, '$.state.error'),
+           'started_at', json_extract(data, '$.state.time.start'),
+           'finished_at', json_extract(data, '$.state.time.end')""",
+)
+
+
+def session_tool_calls(snapshot: list[dict[str, Any]], session_ids: set[str]) -> list[dict[str, Any]]:
+    calls = {}
+    for row in snapshot:
+        if row["kind"] != "tool":
+            continue
+        data = row["data"]
+        if isinstance(data, str):
+            data = json.loads(data)
+        if data["session_id"] in session_ids:
+            calls[data["id"]] = data
+    return sorted(calls.values(), key=lambda call: (call.get("started_at") or 0, call["id"]))
+
 
 def _empty_metrics() -> dict[str, Any]:
     return {**dict.fromkeys(_COUNTS, 0), "cost_usd": 0}

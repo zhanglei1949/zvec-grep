@@ -12,7 +12,7 @@ from harbor.agents.installed.opencode import OpenCode
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
-from zg_bench.agents.opencode_usage import USAGE_SQL, summarize_session_usage
+from zg_bench.agents.opencode_usage import CALL_AUDIT_SQL, USAGE_SQL, session_tool_calls, summarize_session_usage
 from zg_bench.agents.ripgrep import (
     RIPGREP_ARCHIVE_SHA256, RIPGREP_ARCHIVE_URL, RIPGREP_PREFLIGHT_FILENAME,
     parse_ripgrep_preflight, ripgrep_install_command, ripgrep_preflight_command,
@@ -57,7 +57,10 @@ def resilient_nvm_node_install_snippet(
 class ResilientOpenCode(OpenCode):
     """OpenCode with bounded installation retries and recursive usage capture."""
 
-    def __init__(self, *args, collect_session_usage: bool = False, **kwargs):
+    def __init__(self, *args, collect_session_usage: bool = False, collect_tool_calls: bool = False, **kwargs):
+        self._collect_tool_calls = collect_tool_calls
+        if not isinstance(collect_tool_calls, bool):
+            raise ValueError("collect_tool_calls must be a boolean")
         if not isinstance(collect_session_usage, bool):
             raise ValueError("collect_session_usage must be a boolean")
         super().__init__(*args, **kwargs)
@@ -114,9 +117,10 @@ class ResilientOpenCode(OpenCode):
             # Never fill context here; Harbor skips post-run parsing otherwise.
             started = time.monotonic()
             destination = f"/logs/agent/{_USAGE_SNAPSHOT_FILENAME}"
+            query = CALL_AUDIT_SQL if self._collect_tool_calls else USAGE_SQL
             command = (
                 "set -e; . ~/.nvm/nvm.sh; "
-                f"opencode db {shlex.quote(USAGE_SQL)} --format json "
+                f"opencode db {shlex.quote(query)} --format json "
                 f"> {shlex.quote(destination + '.tmp')}; "
                 f"mv {shlex.quote(destination + '.tmp')} {shlex.quote(destination)}"
             )
@@ -169,6 +173,11 @@ class ResilientOpenCode(OpenCode):
             json.dumps(usage, indent=2, sort_keys=True) + "\n"
         )
         total = usage["total"]
+        if self._collect_tool_calls:
+            calls = session_tool_calls(snapshot, {session["session_id"] for session in usage["sessions"]})
+            (self.logs_dir / "tool-calls.json").write_text(
+                json.dumps({"complete": usage["complete"], "calls": calls}, indent=2) + "\n"
+            )
         context.n_input_tokens = total["input_tokens"]
         context.n_output_tokens = total["output_tokens"]
         context.n_cache_tokens = total["cache_read_tokens"] + total["cache_write_tokens"]

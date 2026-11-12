@@ -192,6 +192,14 @@ fn build_mcp_server(
             status,
             index_operations,
         ),
+        McpToolset::Search | McpToolset::Relationships => {
+            ZvecGrepMcpServer::build_with_index_operations(
+                Arc::clone(engine),
+                toolset,
+                None,
+                index_operations,
+            )
+        }
     }
 }
 

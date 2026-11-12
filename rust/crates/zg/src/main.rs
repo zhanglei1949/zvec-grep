@@ -467,13 +467,17 @@ async fn start_installed_server(outcome: &InstallOutcome) -> Result<DaemonStatus
     config.mcp_toolset = match outcome.mcp_toolset {
         Some(McpToolset::Agent) => Some(DaemonMcpToolset::Agent),
         Some(McpToolset::Full) => Some(DaemonMcpToolset::Full),
+        Some(McpToolset::Search) => Some(DaemonMcpToolset::Search),
+        Some(McpToolset::Relationships) => Some(DaemonMcpToolset::Relationships),
         None => std::env::var_os("ZVEC_GREP_MCP_TOOLSET")
             .map(|environment| match environment.to_string_lossy().as_ref() {
                 "agent" => Ok(DaemonMcpToolset::Agent),
                 "full" => Ok(DaemonMcpToolset::Full),
+                "search" => Ok(DaemonMcpToolset::Search),
+                "relationships" => Ok(DaemonMcpToolset::Relationships),
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "ZVEC_GREP_MCP_TOOLSET must be agent or full",
+                    "ZVEC_GREP_MCP_TOOLSET must be agent, full, search or relationships",
                 )),
             })
             .transpose()?,
@@ -1312,6 +1316,8 @@ fn server_config(args: ServerStartArgs) -> Result<ServerConfig, Box<dyn Error>> 
     config.mcp_toolset = args.mcp_toolset.map(|toolset| match toolset {
         McpToolset::Agent => DaemonMcpToolset::Agent,
         McpToolset::Full => DaemonMcpToolset::Full,
+        McpToolset::Search => DaemonMcpToolset::Search,
+        McpToolset::Relationships => DaemonMcpToolset::Relationships,
     });
     Ok(config)
 }

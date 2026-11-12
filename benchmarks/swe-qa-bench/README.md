@@ -4,6 +4,18 @@
 
 # SWE-QA benchmark
 
+## Caller/callee tool experiment
+
+The manual workflow also accepts `experiment_group=relationships|search|agent`
+and `experiment_phase=smoke|full`. Each run executes one arm; dispatch all three
+against the same frozen candidate and harness commits for a concurrent comparison.
+Smoke runs requests:16 once per arm; full runs all 20 tasks five times per arm.
+Native tools remain available, tool use is voluntary, and reports retain every
+completed task without the legacy outlier filter. Recursive call evidence and
+the actual installed guidance are exported per trial. See the
+[versioned Chinese protocol](README_CN.md#callercallee-三组-e2e-实验v1)
+for preparation, audit semantics, artifacts and offline cross-run aggregation.
+
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
 the same Claude Code agent, Claude Opus 5 model, task prompt, repository commit,

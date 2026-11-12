@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }} / ${{ inputs.embedding || 'local' }} embedding / ${{ inputs.scope || 'repro-3' }}
+run-name: SWE-QA Bench / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -31,6 +31,16 @@ on:
         required: true
         default: main
         type: string
+      experiment_group:
+        description: Caller/callee experiment arm (legacy keeps the paired benchmark)
+        default: legacy
+        type: choice
+        options: [legacy, relationships, search, agent]
+      experiment_phase:
+        description: Experiment smoke (requests-16 once) or full (20 tasks five times)
+        default: smoke
+        type: choice
+        options: [smoke, full]
       scope:
         description: Run the low/medium/high variability trio, all 20 tasks, or smoke
         required: true
@@ -139,7 +149,12 @@ jobs:
         id: task-matrix
         env:
           SCOPE: ${{ inputs.scope }}
+          EXPERIMENT_GROUP: ${{ inputs.experiment_group || 'legacy' }}
+          EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
         run: |
+          if [[ "$EXPERIMENT_GROUP" != legacy ]]; then
+            if [[ "$EXPERIMENT_PHASE" == smoke ]]; then SCOPE=requests-1; else SCOPE=all-full; fi
+          fi
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa matrix \
             --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json \
             --scope "$SCOPE" >> "$GITHUB_OUTPUT"
@@ -177,6 +192,7 @@ jobs:
             --directory "$RUNNER_TEMP/package" \
             --commit "${{ needs.package-candidate.outputs.candidate-commit }}"
       - name: Verify the Harbor command without credentials
+        if: ${{ !inputs.experiment_group || inputs.experiment_group == 'legacy' }}
         env:
           EMBEDDING_MODEL: ${{ steps.embedding.outputs.model }}
           EMBEDDING_RUNTIME: ${{ inputs.embedding }}
@@ -200,6 +216,19 @@ jobs:
             --zvec-grep-package "$RUNNER_TEMP/package/candidate.tgz" \
             --job-name preflight \
             --dry-run
+      - name: Verify installed candidate with real MCP calls before model trials
+        if: ${{ inputs.experiment_group && inputs.experiment_group != 'legacy' }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/installed-candidate" "$RUNNER_TEMP/package/candidate.tgz"
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.local_tool_preflight \
+            --binary "$RUNNER_TEMP/installed-candidate/node_modules/.bin/zg" \
+            --output "$RUNNER_TEMP/tool-preflight"
+      - name: Preserve tool preflight evidence
+        if: always() && steps.authorize.outcome == 'success' && inputs.experiment_group && inputs.experiment_group != 'legacy'
+        uses: actions/upload-artifact@v7
+        with:
+          name: caller-callee-preflight-${{ inputs.experiment_group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/tool-preflight/
 
   package-candidate:
     name: Build selected Rust candidate
@@ -233,6 +262,7 @@ jobs:
           retention-days: 7
 
   run-pair:
+    if: ${{ !inputs.experiment_group || inputs.experiment_group == 'legacy' }}
     name: Pair + judge / ${{ matrix.task }}
     needs: [validate, package-candidate]
     runs-on: ubuntu-24.04
@@ -482,5 +512,137 @@ jobs:
         with:
           name: swe-qa-aggregate-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/swe-qa-aggregate-report/
+          if-no-files-found: warn
+          retention-days: 90
+
+  experiment-task:
+    name: Experiment / ${{ inputs.experiment_group }} / ${{ matrix.task }}
+    if: ${{ inputs.experiment_group && inputs.experiment_group != 'legacy' }}
+    needs: [validate, package-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        task: ${{ fromJSON(needs.validate.outputs.task-matrix) }}
+    steps:
+      - *authorize-benchmark
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v8
+        with:
+          name: swe-qa-rust-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/package
+      - name: Verify candidate and install locked harness
+        run: |
+          node benchmarks/shared/rust-package-cache.mjs verify --directory "$RUNNER_TEMP/package" --commit "${{ needs.package-candidate.outputs.candidate-commit }}"
+          python -m pip install --disable-pip-version-check uv==0.9.17
+          uv sync --project benchmarks/swe-qa-bench --frozen
+      - name: Restore graph-enabled index seed
+        id: experiment-seed
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/experiment-index-seed
+          key: caller-callee-graph-v1-${{ matrix.task }}-${{ needs.package-candidate.outputs.candidate-commit }}-${{ hashFiles('benchmarks/swe-qa-bench/zg_bench/**/*.py', 'benchmarks/swe-qa-bench/zg_bench/swe_qa/data/*', 'benchmarks/swe-qa-bench/uv.lock') }}
+      - name: Run one experiment arm and judge its trials
+        env:
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          TASK_NAME: ${{ matrix.task }}
+          EXPERIMENT_GROUP: ${{ inputs.experiment_group }}
+          EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
+          CANDIDATE_COMMIT: ${{ needs.package-candidate.outputs.candidate-commit }}
+          ZG_BENCH_INDEX_SEED_DIR: ${{ runner.temp }}/experiment-index-seed
+        run: |
+          set -euo pipefail
+          test -n "$GLM_API_KEY"
+          test "$SWE_QA_MODEL" = glm-5.2
+          test '${{ inputs.embedding }}' = local
+          if [[ "$EXPERIMENT_PHASE" == smoke ]]; then trials=1; else trials=5; fi
+          runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"
+          uv run --project benchmarks/swe-qa-bench zg-bench run swe-qa-bench \
+            --tier full --task "$TASK_NAME" --agent opencode --model custom-openai/glm-5.2 \
+            --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" \
+            --n-attempts "$trials" --max-retries 2 \
+            --embedding-model local/potion-code-16m-v2 \
+            --zvec-grep-package "$RUNNER_TEMP/package/candidate.tgz" \
+            --jobs-dir "$runs_dir" --job-name "experiment-${EXPERIMENT_GROUP}-zvec-grep"
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.tool_experiment collect \
+            --runs-dir "$runs_dir" --task "$TASK_NAME" --trials "$trials" \
+            --group "$EXPERIMENT_GROUP" --phase "$EXPERIMENT_PHASE" \
+            --candidate "$CANDIDATE_COMMIT" --harness "$GITHUB_SHA" \
+            --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --output "$RUNNER_TEMP/experiment-report/$TASK_NAME"
+      - name: Reject credential leakage in evidence
+        id: experiment-secret-scan
+        if: always() && steps.authorize.outcome == 'success'
+        env:
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        run: |
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan \
+            --secret-env GLM_API_KEY --root "$RUNNER_TEMP/experiment-runs" --root "$RUNNER_TEMP/experiment-report" \
+            --root "$RUNNER_TEMP/experiment-index-seed"
+      - name: Upload original experiment evidence
+        if: always() && steps.authorize.outcome == 'success' && steps.experiment-secret-scan.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: caller-callee-evidence-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment-runs/
+          include-hidden-files: true
+      - name: Upload independent experiment report
+        if: always() && steps.authorize.outcome == 'success' && steps.experiment-secret-scan.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: caller-callee-task-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment-report/
+
+  experiment-summary:
+    needs: [validate, experiment-task]
+    if: ${{ always() && needs.validate.result == 'success' && needs.experiment-task.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - *authorize-benchmark
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --disable-pip-version-check uv==0.9.17
+          uv sync --project benchmarks/swe-qa-bench --frozen
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: caller-callee-task-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment-tasks
+      - name: Aggregate without outlier exclusions
+        env:
+          EXPERIMENT_GROUP: ${{ inputs.experiment_group }}
+          EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
+        run: |
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.tool_experiment aggregate \
+            --reports "$RUNNER_TEMP/experiment-tasks" --group "$EXPERIMENT_GROUP" \
+            --phase "$EXPERIMENT_PHASE" --output "$RUNNER_TEMP/experiment-summary"
+      - if: always() && steps.authorize.outcome == 'success'
+        run: |
+          if [[ -f "$RUNNER_TEMP/experiment-summary/report.md" ]]; then
+            cat "$RUNNER_TEMP/experiment-summary/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: always() && steps.authorize.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: caller-callee-summary-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/experiment-summary/
           if-no-files-found: warn
           retention-days: 90

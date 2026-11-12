@@ -252,6 +252,24 @@ pub enum McpToolset {
     #[default]
     Agent,
     Full,
+    Search,
+    Relationships,
+}
+
+/// Retrieval guidance shared by MCP discovery and `OpenCode` installation.
+#[must_use]
+pub const fn retrieval_guidance(toolset: McpToolset) -> &'static str {
+    match toolset {
+        McpToolset::Relationships => {
+            "Use the current workspace as evidence. Available zg tools: zvec_grep_callers and zvec_grep_callees. Use native Grep or rg to locate exact symbols. For a known symbol, callers finds incoming call sites and callees finds outgoing call sites. Choose the direction relevant to the question. Pass an absolute root visible to the daemon. Relationship queries require graph indexing and read persisted resolved calls without refreshing; empty results do not prove absence. Creating or rebuilding an index requires user authorization. Respect declined or cancelled index setup. Verify material gaps with focused source reads. Stop when evidence is sufficient. Choose tools according to the task; no tool call is mandatory."
+        }
+        McpToolset::Search => {
+            "Use the current workspace as evidence. Available zg tool: zvec_grep_search. Use search for conceptual discovery, unknown locations and synthesis of evidence across files; use native Grep or rg when exact lookup alone is sufficient. Pass an absolute root visible to the daemon. Creating or rebuilding an index requires user authorization. Respect declined or cancelled index setup. Treat sufficient returned snippets as already-read evidence; read source only to resolve material gaps. Use returned evidence without a status preflight. Stop when evidence is sufficient. Choose tools according to the task; no tool call is mandatory."
+        }
+        McpToolset::Agent | McpToolset::Full => {
+            "Use the current workspace as evidence. Available zg tools: zvec_grep_search, zvec_grep_callers and zvec_grep_callees. Use search for conceptual discovery, unknown locations and synthesis of evidence across files. For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites; search is not a substitute for an exact call-graph query. A known symbol does not require a preceding search. Use native Grep or rg when exact lookup alone is sufficient. Pass an absolute root visible to the daemon. Relationship queries require graph indexing and read persisted resolved calls without refreshing; empty results do not prove absence. Creating or rebuilding an index requires user authorization. Respect declined or cancelled index setup. Treat sufficient returned snippets as already-read evidence, without a status preflight; read source only to resolve material gaps. Stop when evidence is sufficient. Choose tools according to the task; no tool call is mandatory."
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
@@ -808,7 +826,7 @@ pub enum CliError {
     MissingServerAction,
     #[error("--stdio cannot be combined with a server action")]
     StdioWithServerAction,
-    #[error("ZVEC_GREP_MCP_TOOLSET must be agent or full")]
+    #[error("ZVEC_GREP_MCP_TOOLSET must be agent, full, search or relationships")]
     InvalidToolsetEnvironment,
     #[error("ZVEC_GREP_MODE must be direct, server, or auto")]
     InvalidModeEnvironment,

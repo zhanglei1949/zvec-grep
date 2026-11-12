@@ -42,6 +42,10 @@ class BenchmarkArgumentParser(argparse.ArgumentParser):
         namespace: argparse.Namespace | None = None,
     ) -> argparse.Namespace:
         parsed = super().parse_args(args, namespace)
+        if getattr(parsed, "mcp_toolset", None) is not None and (
+            parsed.agent != "opencode" or parsed.profile != "zvec-grep"
+        ):
+            self.error("--mcp-toolset requires --agent opencode --profile zvec-grep")
         if parsed.command not in {"doctor", "run"}:
             return parsed
 
@@ -118,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     run = subparsers.add_parser("run", help="run a benchmark suite tier")
+    run.add_argument("--mcp-toolset", choices=("agent", "search", "relationships"))
     run.add_argument(
         "suite",
         help="built-in suite name or YAML path; use 'zg-bench list suites'",
@@ -287,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     embedding_model=args.embedding_model,
                     embedding_endpoint=args.embedding_endpoint,
+                    mcp_toolset=args.mcp_toolset,
                 ),
             )
             for profile, job_name in run_specs
@@ -365,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 embedding_model=args.embedding_model,
                 embedding_endpoint=args.embedding_endpoint,
+                mcp_toolset=args.mcp_toolset,
             )
             profile_return_code = execute(
                 command,

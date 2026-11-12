@@ -1,0 +1,10 @@
+{
+  "purpose": "Development-only guidance calibration; kept outside the indexed fixture and excluded from the 20 evaluation tasks",
+  "questions": [
+    "Where is a value normalized before storage?",
+    "Which function directly calls normalize?",
+    "Which function does import_record call directly?"
+  ],
+  "expected": ["normalize in lib.rs", "save", "save"],
+  "revision_policy": "At most two guidance revisions for ambiguity or misuse; no evaluation-score or call-rate optimization"
+}
