@@ -257,3 +257,18 @@ same corrected harness. Outcomes are pending. Evidence, run manifest and
 incremental audit are isolated in ignored
 `runs/caller-callee-20261112/cohort-fits-c308c2a`; smoke audit is
 `smoke-audit/audit.json`. Prior full runs were cancelled and retained separately.
+
+## Additional request-level guidance verification
+
+The existing fake-provider contract covered tool exposure and sampling but did
+not assert the installed guidance in model requests. It now archives the
+unchanged real smoke surfaces in `fixtures/caller-callee-guidance.json`, writes
+each arm's exact global `AGENTS.md`, and serves its real tool schemas and
+descriptions from the fake MCP server. Captured main, general and explore
+requests must contain that guidance and the exact tool descriptions.
+
+Pinned OpenCode 1.18.4 passed all eight local adapter/contract tests with these
+checks (52.012 seconds). Evidence: `/private/tmp/caller-callee-guidance-wire-full.log`.
+These are validation-only changes: production prompts, candidate and the
+running cohort's frozen c308c2a harness are unchanged. Linux verification is
+tracked separately; no formal trials are repeated for this additional check.

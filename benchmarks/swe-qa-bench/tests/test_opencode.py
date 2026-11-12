@@ -307,6 +307,12 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
                 zg_tools = {"relationships": ("callers", "callees"), "search": ("search",), "agent": ("search", "callers", "callees")}.get(tool_group, ())
+                frozen_guidance = None
+                if tool_group is not None:
+                    frozen_guidance = json.loads((Path(__file__).resolve().parents[1] / "fixtures/caller-callee-guidance.json").read_text())["groups"][tool_group]
+                    guidance_path = root / "config/opencode/AGENTS.md"
+                    guidance_path.parent.mkdir(parents=True)
+                    guidance_path.write_text(frozen_guidance["guidance"])
                 mcp_requests = []
 
                 class FakeMcp(BaseHTTPRequestHandler):
@@ -336,8 +342,10 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                             return
                         if body["method"] == "initialize":
                             result = {"protocolVersion": "2025-03-26", "capabilities": {"tools": {}}, "serverInfo": {"name": "fixture", "version": "1"}}
+                            if frozen_guidance is not None:
+                                result["instructions"] = frozen_guidance["instructions"]
                         elif body["method"] == "tools/list":
-                            result = {"tools": [{"name": "zvec_grep_" + name, "description": "Fixture workspace tool", "inputSchema": {"type": "object", "properties": {"root": {"type": "string"}}, "required": ["root"]}} for name in zg_tools]}
+                            result = {"tools": frozen_guidance["tools"] if frozen_guidance is not None else []}
                         else:
                             result = {}
                         payload = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": result}).encode()
@@ -518,6 +526,18 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                         for message in replayed_assistants:
                             self.assertEqual(message.get("reasoning_content"), "fixture-reasoning")
                     for request in task_requests:
+                        if frozen_guidance is not None:
+                            messages = []
+                            for message in request["messages"]:
+                                content = message.get("content")
+                                if isinstance(content, str):
+                                    messages.append(content)
+                                elif isinstance(content, list):
+                                    messages.extend(part["text"] for part in content if part.get("type") == "text")
+                            self.assertIn(frozen_guidance["guidance"].strip(), "\n".join(messages))
+                            descriptions = {tool["function"]["name"]: tool["function"]["description"] for tool in request["tools"]}
+                            for tool in frozen_guidance["tools"]:
+                                self.assertEqual(descriptions["zvec_grep_" + tool["name"]], tool["description"])
                         tool_names = {
                             tool["function"]["name"] for tool in request["tools"]
                         }
