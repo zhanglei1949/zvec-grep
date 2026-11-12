@@ -272,3 +272,11 @@ checks (52.012 seconds). Evidence: `/private/tmp/caller-callee-guidance-wire-ful
 These are validation-only changes: production prompts, candidate and the
 running cohort's frozen c308c2a harness are unchanged. Linux verification is
 tracked separately; no formal trials are repeated for this additional check.
+
+Linux validation [43239789237](https://github.com/zhanglei1949/zvec-grep/actions/runs/43239789237)
+completed successfully at test commit `eb389d0`. Its downloaded log contains
+197 suite tests (one opt-in Docker test skipped in that pass), followed by all
+ten mandatory eight-test contract repetitions with no failures. The separate
+real Docker shutdown check also passed. Evidence:
+`/private/tmp/zg-frozen-guidance-linux.log`. This validates guidance and tool
+descriptions at the model-request boundary without using the formal endpoint.
