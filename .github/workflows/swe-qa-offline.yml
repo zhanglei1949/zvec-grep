@@ -74,7 +74,7 @@ jobs:
         env:
           OPENCODE_BENCHMARK_TEST_BINARY: opencode
         run: |
-          for check in 1 2 3; do
+          for check in 1 2 3 4 5 6 7 8 9 10; do
             uv run --project benchmarks/swe-qa-bench python -m unittest discover \
               -s benchmarks/swe-qa-bench/tests -p test_opencode.py -v
           done

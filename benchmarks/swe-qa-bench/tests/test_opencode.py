@@ -310,6 +310,10 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 mcp_requests = []
 
                 class FakeMcp(BaseHTTPRequestHandler):
+                    # Match the real MCP endpoint's persistent HTTP transport.
+                    # HTTP/1.0 closes each socket immediately after responding.
+                    protocol_version = "HTTP/1.1"
+
                     def log_message(self, *args):
                         pass
 
@@ -518,7 +522,8 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                             tool["function"]["name"] for tool in request["tools"]
                         }
                         self.assertTrue({"read", "grep", "glob"} <= tool_names)
-                        self.assertEqual({name for name in tool_names if name.startswith("zvec_grep_")}, {"zvec_grep_zvec_grep_" + name for name in zg_tools}, f"all tools: {sorted(tool_names)}; MCP requests: {mcp_requests}; OpenCode logs: {result.stderr}")
+                        runtime_logs = "\n".join(path.read_text() for path in (root / "data/opencode/log").glob("*.log"))
+                        self.assertEqual({name for name in tool_names if name.startswith("zvec_grep_")}, {"zvec_grep_zvec_grep_" + name for name in zg_tools}, f"all tools: {sorted(tool_names)}; MCP requests: {mcp_requests}; OpenCode logs: {result.stderr}; runtime logs: {runtime_logs}")
                         for tool in ("webfetch", "websearch"):
                             self.assertEqual(
                                 tool in tool_names,
