@@ -165,7 +165,7 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
         )
         for model, disable_web_tools, tool_group in cases:
             with (
-                self.subTest(model=model, disable_web_tools=disable_web_tools),
+                self.subTest(model=model, disable_web_tools=disable_web_tools, tool_group=tool_group),
                 tempfile.TemporaryDirectory() as temp_dir,
             ):
                 # macOS /var is a symlink to /private/var. Match the runtime's
@@ -307,13 +307,24 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
                 zg_tools = {"relationships": ("callers", "callees"), "search": ("search",), "agent": ("search", "callers", "callees")}.get(tool_group, ())
+                mcp_requests = []
 
                 class FakeMcp(BaseHTTPRequestHandler):
                     def log_message(self, *args):
                         pass
 
+                    def do_GET(self):
+                        mcp_requests.append("GET")
+                        # Streamable HTTP clients probe the optional SSE stream.
+                        # 405 is the protocol response for a stateless server.
+                        self.send_response(405)
+                        self.send_header("Allow", "POST")
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+
                     def do_POST(self):
                         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                        mcp_requests.append(body["method"])
                         if "id" not in body:
                             self.send_response(202)
                             self.send_header("Content-Length", "0")
@@ -423,6 +434,7 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                     result = subprocess.run(
                         [
                             binary,
+                            "--print-logs",
                             "--model",
                             command[command.index("--model") + 1],
                             "run", "--format", "json",
@@ -506,7 +518,7 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                             tool["function"]["name"] for tool in request["tools"]
                         }
                         self.assertTrue({"read", "grep", "glob"} <= tool_names)
-                        self.assertEqual({name for name in tool_names if name.startswith("zvec_grep_")}, {"zvec_grep_zvec_grep_" + name for name in zg_tools}, f"all tools: {sorted(tool_names)}")
+                        self.assertEqual({name for name in tool_names if name.startswith("zvec_grep_")}, {"zvec_grep_zvec_grep_" + name for name in zg_tools}, f"all tools: {sorted(tool_names)}; MCP requests: {mcp_requests}; OpenCode logs: {result.stderr}")
                         for tool in ("webfetch", "websearch"):
                             self.assertEqual(
                                 tool in tool_names,

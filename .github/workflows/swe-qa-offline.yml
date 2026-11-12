@@ -62,10 +62,22 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check uv==0.9.17
           uv sync --project benchmarks/swe-qa-bench --frozen
+      - name: Install pinned OpenCode for request contract tests
+        run: npm install --global opencode-ai@1.18.4
       - name: Run offline benchmark tests
+        env:
+          OPENCODE_BENCHMARK_TEST_BINARY: opencode
         run: >-
           uv run --project benchmarks/swe-qa-bench python -m unittest discover
           -s benchmarks/swe-qa-bench/tests -v
+      - name: Repeat main and subagent MCP contracts without model calls
+        env:
+          OPENCODE_BENCHMARK_TEST_BINARY: opencode
+        run: |
+          for check in 1 2 3; do
+            uv run --project benchmarks/swe-qa-bench python -m unittest discover \
+              -s benchmarks/swe-qa-bench/tests -p test_opencode.py -v
+          done
       - name: Verify Harbor container shutdown without model calls
         env:
           ZG_BENCH_RUN_DOCKER_TESTS: "1"
