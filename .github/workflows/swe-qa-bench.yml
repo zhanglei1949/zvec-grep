@@ -624,7 +624,10 @@ jobs:
           uv sync --project benchmarks/swe-qa-bench --frozen
       - uses: actions/download-artifact@v8
         with:
-          pattern: caller-callee-task-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-*-${{ github.run_id }}-${{ github.run_attempt }}
+          # A failed-job rerun only uploads the recovered tasks. Reuse complete
+          # reports from this run's earlier attempts; aggregation checks identity
+          # and rejects duplicates instead of splicing or silently picking trials.
+          pattern: caller-callee-task-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-*-${{ github.run_id }}-*
           path: ${{ runner.temp }}/experiment-tasks
       - name: Aggregate without outlier exclusions
         env:

@@ -188,3 +188,24 @@ Each current full workflow passed validation and entered its two concurrent
 task jobs. Outcomes remain pending. Candidate stays at
 `f6b7c00269645bbb02f74ba07460957a773abb68`. Cohort artifacts and the live
 manifest are isolated in ignored `runs/caller-callee-20261112/cohort-http11-8065d62`.
+
+## Observed infrastructure failure and recovery policy
+
+Combined job 131204012639 (`matplotlib-37`, run 43224255136) failed before
+Harbor created its job directory: the hosted runner's Docker daemon was not
+running. No model trial was produced. Its log is retained as
+`/private/tmp/zg-matplotlib-combined-failure.log`; this is missing evidence, not
+a zero score. A direct single-job rerun request was refused with HTTP 403
+because the overall workflow was still running. Other tasks continue.
+
+The one-run recovery watcher waits for that workflow's terminal state, verifies
+the original harness and attempt, then requests only this failed job once.
+It does not repeat successful trials or select by score. Recovered evidence must
+still contain five complete trials with the same candidate/harness identity.
+
+Future experiment summaries now download this run's complete reports from all
+attempts. A regression covers nineteen complete task reports from attempt 1
+plus the one recovered task from attempt 2; taking only attempt 2 is correctly
+rejected as incomplete. The currently frozen workflow retains its earlier
+summary code, so this cohort's final offline aggregation will explicitly use
+the valid complete reports across attempts and retain the selection manifest.

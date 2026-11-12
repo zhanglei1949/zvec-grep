@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sqlite3
 import unittest
 import subprocess
@@ -8,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from zg_bench.agents.opencode_usage import CALL_AUDIT_SQL, session_tool_calls
 from zg_bench.agents.zvec_opencode import ZvecOpenCode
-from zg_bench.tool_experiment import audit_calls, comparisons, render
+from zg_bench.tool_experiment import DATA, aggregate, audit_calls, comparisons, render, write_json
 
 
 class ProbeRuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -25,6 +26,32 @@ class ProbeRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ToolExperimentTests(unittest.TestCase):
+    def test_recovered_task_reuses_other_complete_reports_without_rerunning_trials(self):
+        tasks = [task["task_slug"] for task in json.loads((DATA / "selection.json").read_text())["tasks"]]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for task in tasks:
+                attempt = "attempt-2" if task == "matplotlib-37" else "attempt-1"
+                path = root / "artifacts" / attempt / task / "task-report.json"
+                trial = {"trial_name": "fixture", "judge": {"total": 50}, "input_tokens": 100,
+                         "output_tokens": 20, "tool_calls": 0, "agent_wall_seconds": 1,
+                         "cost_usd": None, "audit": audit_calls([])}
+                write_json(path, {"protocol": "caller-callee-e2e-v1", "candidate": "candidate",
+                    "harness": "harness", "phase": "full", "expected_trials": 5,
+                    "model": "custom-openai/glm-5.2", "endpoint_sha256": "endpoint",
+                    "group": "agent", "task": task, "graph_index": True,
+                    "surface_sha256": "surface", "trials": [trial] * 5})
+                path.with_suffix(".sha256").write_text(hashlib.sha256(path.read_bytes()).hexdigest())
+            args = SimpleNamespace(reports=root / "artifacts", group="agent", phase="full", output=root / "complete")
+            aggregate(args)
+            report = json.loads((args.output / "report.json").read_text())
+            self.assertTrue(report["complete"])
+            self.assertEqual(sum(len(r["trials"]) for r in report["reports"]), 100)
+            args.reports = root / "artifacts/attempt-2"
+            args.output = root / "current-attempt-only"
+            with self.assertRaisesRegex(ValueError, "19 missing"):
+                aggregate(args)
+
     def test_large_quality_gains_are_retained_and_missing_cost_is_unknown(self):
         def report(group, score, tokens):
             return {"group": group, "task": "fixture", "trials": [{
