@@ -167,3 +167,24 @@ fixture is therefore validated by these repeated checks; this finite test does
 not establish that every possible OpenCode connection race is absent. The next
 cohort must still pass its own three end-to-end smoke workflows before full
 dispatch. Raw Linux verification log: `/private/tmp/zg-mcp-http11-linux-ten.log`.
+
+## HTTP/1.1 cohort: current full evaluation
+
+All three smoke runs passed under frozen harness
+`8065d623210aa322997d4076bbe0e5df6511ff4e`: relationships 43223495006,
+search 43223501519, combined 43223501130. The downloaded aggregate report is
+complete with no missing tasks, and evidence checksums/identities passed.
+For this one-trial smoke, callers/callees were unused in all arms; search was
+called once in search and combined. No prompts were changed based on these
+observations.
+
+| Arm | Current full run | Trials planned |
+|---|---|---:|
+| relationships | [43224241293](https://github.com/zhanglei1949/zvec-grep/actions/runs/43224241293) | 100 |
+| search | [43224248511](https://github.com/zhanglei1949/zvec-grep/actions/runs/43224248511) | 100 |
+| combined | [43224255136](https://github.com/zhanglei1949/zvec-grep/actions/runs/43224255136) | 100 |
+
+Each current full workflow passed validation and entered its two concurrent
+task jobs. Outcomes remain pending. Candidate stays at
+`f6b7c00269645bbb02f74ba07460957a773abb68`. Cohort artifacts and the live
+manifest are isolated in ignored `runs/caller-callee-20261112/cohort-http11-8065d62`.
