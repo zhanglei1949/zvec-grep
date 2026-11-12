@@ -571,10 +571,11 @@ class ZvecGrepMixin:
             )
 
         if self._mcp_toolset is not None:
-            probe_source = Path(__file__).resolve().parents[1].joinpath("mcp_probe.py").read_text()
+            probe_source = Path(__file__).resolve().parents[1].joinpath("mcp_probe.mjs")
+            await environment.upload_file(probe_source, "/tmp/zg-bench-mcp-probe.mjs")
             await self.exec_as_agent(
                 environment,
-                command=f"python3 -c {shlex.quote(probe_source)} http://127.0.0.1:7999/mcp {self._mcp_toolset} > /logs/agent/tool-surface.json",
+                command=f"{_NVM_INIT} node /tmp/zg-bench-mcp-probe.mjs http://127.0.0.1:7999/mcp {self._mcp_toolset} > /logs/agent/tool-surface.json",
                 cwd=workdir,
             )
             metadata["mcp_toolset"] = self._mcp_toolset

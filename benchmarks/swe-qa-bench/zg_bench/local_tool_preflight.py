@@ -21,7 +21,7 @@ def main() -> None:
     fixture.mkdir(exist_ok=True)
     shutil.copyfile(source / "lib.rs", fixture / "lib.rs")
     subprocess.run([str(binary), "--index", "--graph", "--embedding", "local/potion-code-16m-v2", str(fixture)], check=True)
-    probe = Path(__file__).with_name("mcp_probe.py")
+    probe = Path(__file__).with_name("mcp_probe.mjs")
     for port, group in enumerate(("relationships", "search", "agent"), 18991):
         root = output / group
         root.mkdir(exist_ok=True)
@@ -30,7 +30,7 @@ def main() -> None:
         server = [str(binary), "--server"]
         subprocess.run([*server, "on", "--home", str(root / "daemon"), "--listen", f"127.0.0.1:{port}", "--mcp-toolset", group], env=env, check=True)
         try:
-            evidence = subprocess.run(["python3", str(probe), env["ZVEC_GREP_SERVER_URL"], group, str(fixture)], env=env, capture_output=True, text=True)
+            evidence = subprocess.run(["node", str(probe), env["ZVEC_GREP_SERVER_URL"], group, str(fixture)], env=env, capture_output=True, text=True)
             (root / "probe-stderr.log").write_text(evidence.stderr)
             (root / "surface.json").write_text(evidence.stdout)
             evidence.check_returncode()

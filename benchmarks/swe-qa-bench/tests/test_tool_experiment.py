@@ -1,8 +1,27 @@
 import json
 import sqlite3
 import unittest
+import subprocess
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from zg_bench.agents.opencode_usage import CALL_AUDIT_SQL, session_tool_calls
+from zg_bench.agents.zvec_opencode import ZvecOpenCode
 from zg_bench.tool_experiment import audit_calls, comparisons, render
+
+
+class ProbeRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_task_probe_uses_existing_node_without_requiring_python(self):
+        with tempfile.TemporaryDirectory() as temp:
+            agent = ZvecOpenCode(logs_dir=Path(temp), embedding_model="local/potion-code-16m-v2", mcp_target="opencode", mcp_toolset="search", graph_index=True)
+            environment = SimpleNamespace(upload_file=AsyncMock())
+            with patch.object(agent, "exec_as_agent", new=AsyncMock(return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""))) as execute:
+                await agent._setup_mcp(environment, "/workspace", {}, supports_ready_check=True)
+            environment.upload_file.assert_awaited_once()
+            command = execute.call_args.kwargs["command"]
+            self.assertIn("node /tmp/zg-bench-mcp-probe.mjs", command)
+            self.assertNotIn("python", command)
 
 
 class ToolExperimentTests(unittest.TestCase):

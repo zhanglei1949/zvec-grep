@@ -36,5 +36,22 @@ These temporary paths are host-local, not durable artifact storage.
 
 ## Remote execution
 
-Run IDs, immutable commits, artifact locations and results will be appended
-after dispatch and completion. No formal performance result is available yet.
+Frozen candidate and harness: `f6b7c00269645bbb02f74ba07460957a773abb68`.
+
+The three smoke runs were submitted together:
+
+| Arm | Run | Phase |
+|---|---|---|
+| relationships | [43216597212](https://github.com/zhanglei1949/zvec-grep/actions/runs/43216597212) | smoke |
+| search | [43216599265](https://github.com/zhanglei1949/zvec-grep/actions/runs/43216599265) | smoke |
+| combined (`agent`) | [43216591261](https://github.com/zhanglei1949/zvec-grep/actions/runs/43216591261) | smoke |
+
+All three initial smoke runs failed during setup because the task image has no
+`python3`, required by the first surface probe. They did not produce model
+answers. The probe now uses the Node runtime already installed for OpenCode;
+native live MCP validation passes with that implementation. A regression test
+checks the task setup command does not require Python. The Rust candidate stays
+at the SHA above; corrected smoke runs use a new harness commit.
+
+Corrected run IDs and full-run results will be appended after validation.
+No formal performance result is available yet.
