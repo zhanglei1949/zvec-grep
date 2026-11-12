@@ -235,3 +235,25 @@ stopped. A new cohort must freeze the corrected harness, pass all three smoke
 runs, and then dispatch three full runs against that same harness. Candidate,
 prompts, questions, sampling and judging remain unchanged. No performance or
 tool-use outcome was used to select this correction.
+
+## Corrected cohort: frozen harness c308c2a
+
+Harness `c308c2ae182a9b25ca5ffb5a180258453275a490` passed all three smoke
+workflows: relationships 43231380126, search 43231386551, combined 43231393034.
+Independent local audit verified all three raw call exports, recursive usage
+totals, tool surfaces and their recomputed checksums. Relationship tools were
+unused; search was called once in Search and once in combined. These smoke
+observations did not change guidance and are excluded from formal results.
+
+| Arm | Corrected full run | Planned trials |
+|---|---|---:|
+| relationships | [43232140196](https://github.com/zhanglei1949/zvec-grep/actions/runs/43232140196) | 100 |
+| search | [43232146223](https://github.com/zhanglei1949/zvec-grep/actions/runs/43232146223) | 100 |
+| combined | [43232152271](https://github.com/zhanglei1949/zvec-grep/actions/runs/43232152271) | 100 |
+
+These runs were dispatched consecutively without waiting for another arm.
+Candidate remains `f6b7c00269645bbb02f74ba07460957a773abb68`; all use the
+same corrected harness. Outcomes are pending. Evidence, run manifest and
+incremental audit are isolated in ignored
+`runs/caller-callee-20261112/cohort-fits-c308c2a`; smoke audit is
+`smoke-audit/audit.json`. Prior full runs were cancelled and retained separately.
