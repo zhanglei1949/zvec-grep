@@ -53,5 +53,91 @@ native live MCP validation passes with that implementation. A regression test
 checks the task setup command does not require Python. The Rust candidate stays
 at the SHA above; corrected smoke runs use a new harness commit.
 
-Corrected run IDs and full-run results will be appended after validation.
-No formal performance result is available yet.
+## Successful smoke and formal dispatch
+
+Candidate: `f6b7c00269645bbb02f74ba07460957a773abb68`.
+Answering harness: `fc35997b0f73706a03011f2eb54e3f60002b41e2`.
+
+| Arm | Successful smoke | Formal run |
+|---|---|---|
+| relationships | [43218303325](https://github.com/zhanglei1949/zvec-grep/actions/runs/43218303325) | [43219034725](https://github.com/zhanglei1949/zvec-grep/actions/runs/43219034725) |
+| search | [43218302615](https://github.com/zhanglei1949/zvec-grep/actions/runs/43218302615) | [43219041723](https://github.com/zhanglei1949/zvec-grep/actions/runs/43219041723) |
+| combined | [43218296749](https://github.com/zhanglei1949/zvec-grep/actions/runs/43218296749) | [43219049082](https://github.com/zhanglei1949/zvec-grep/actions/runs/43219049082) |
+
+All three smoke reports and their checksums validated before formal dispatch.
+The one-task smoke is a pipeline check, not performance evidence:
+
+| Arm | Judge | Input tokens | Agent seconds | Search / callers / callees calls |
+|---|---:|---:|---:|---|
+| relationships | 73 | 27098 | 16.92 | 0 / 0 / 0 |
+| search | 95 | 32229 | 23.33 | 1 / 0 / 0 |
+| combined | 100 | 86108 | 33.51 | 1 / 0 / 0 |
+
+The formal Search and combined runs initially failed an offline fake-MCP
+exposure check before any model trials. Only their failed prerequisite jobs
+were resumed, preserving the frozen harness and all failure logs. The fake
+server's optional SSE GET returned 501; a concurrent change (`5eb4367`) adds
+405 handling and connection diagnostics. Real OpenCode was observed issuing
+three such GET probes in the local seven-case contract test.
+
+Another operation cancelled the relationships formal run. Its original
+artifacts contain five completed trials for reflex:6 and five for sqlfluff:2,
+all with tool-call audits. These ten completed answering trials must be
+preserved rather than rerun. They have not produced a complete independent
+task report, and are not included in an aggregate score.
+
+Current coordination is pending because the cancellation and concurrent commit
+were not issued by this execution flow. Search and combined formal runs remain
+active. No complete 300-trial performance result is available yet.
+
+Host-local evidence and status manifests are under the ignored directory
+`benchmarks/swe-qa-bench/runs/caller-callee-20261112/`: `smoke-report/`,
+`smoke-evidence/`, `failed-smoke-v1/`, `full-cancelled-evidence/`,
+`run-manifest.json`, and the per-phase status snapshots. The cancelled trial
+inventory is `full-cancelled-evidence/relationships-trial-inventory.json`.
+
+## MCP fixture correction after the first full dispatch
+
+Full runs 43219041723 (search) and 43219049082 (combined) failed the offline
+tool-exposure contract before starting model trials. Relationship run
+43219034725 passed validation and began trials, then was cancelled to avoid
+mixing cohorts. Those runs are not a completed three-arm evaluation.
+
+The stateless mock MCP server now explicitly returns HTTP 405 for its optional
+GET stream instead of BaseHTTPRequestHandler's default 501. Missing-tool
+assertions retain the original strength and now include the arm, MCP request
+history and OpenCode connection logs. No production prompts were changed.
+
+Harness `5eb4367a962befe6e40c2f445b5b92ee620155a2` passed Linux run
+[43220157190](https://github.com/zhanglei1949/zvec-grep/actions/runs/43220157190):
+196 tests (one Docker opt-in skip), three additional eight-test OpenCode
+contract passes, and a separate Docker shutdown check. This checks the observed
+transport defect; finite repetition does not prove the absence of all races.
+
+New smoke runs: relationships 43220714175, search 43220704577, combined
+43220709656. Their records and any ensuing full runs are isolated under the
+ignored `runs/caller-callee-20261112/cohort-5eb4367` directory. The Rust candidate
+remains `f6b7c00269645bbb02f74ba07460957a773abb68`.
+
+## Corrected cohort: smoke passed, full evaluation dispatched
+
+All three corrected smoke workflows completed successfully. Downloaded reports
+passed checksum, candidate/harness identity, expected-trial and tool-surface
+checks; the combined smoke report has `complete: true` and no missing tasks.
+Each arm ran one requests:16 trial. Relationships made no zg calls; search and
+combined each called search once, with no callers/callees calls. These are
+natural-use smoke observations, not estimates of full-benchmark effectiveness.
+
+The following full runs were submitted together, each for 20 tasks × 5 trials:
+
+| Arm | Full run |
+|---|---|
+| relationships | [43221552875](https://github.com/zhanglei1949/zvec-grep/actions/runs/43221552875) |
+| search | [43221559801](https://github.com/zhanglei1949/zvec-grep/actions/runs/43221559801) |
+| combined (`agent`) | [43221566623](https://github.com/zhanglei1949/zvec-grep/actions/runs/43221566623) |
+
+All use candidate `f6b7c00269645bbb02f74ba07460957a773abb68` and harness
+`5eb4367a962befe6e40c2f445b5b92ee620155a2`. Full outcomes remain pending.
+The ignored cohort directory contains `run-manifest.json`, `smoke-report/`,
+downloaded smoke call evidence, and live `full-status.json`; full evidence and
+the combined report will be written there after completion.
