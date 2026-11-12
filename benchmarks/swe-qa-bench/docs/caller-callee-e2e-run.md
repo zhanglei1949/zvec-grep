@@ -209,3 +209,29 @@ plus the one recovered task from attempt 2; taking only attempt 2 is correctly
 rejected as incomplete. The currently frozen workflow retains its earlier
 summary code, so this cohort's final offline aggregation will explicitly use
 the valid complete reports across attempts and retain the selection manifest.
+
+## Astropy index-input correction: supersedes the HTTP/1.1 full cohort
+
+The Search Astropy job 131204030559 exhausted its two retries per trial:
+all five logical trials failed during index setup, before agent execution.
+The retained Harbor summary records ten retries. The index reported 36 failed
+files, including binary FITS fixtures whose ASCII headers were recognized as
+text. Combined Astropy job 131204012646 also failed; these are setup failures,
+not zero-quality answers. Original logs and Search artifacts are retained in
+`cohort-http11-8065d62/failed-astropy-search` and the original Actions runs.
+
+The shared index ignore file now excludes `astropy/**/*.fits`. This removes
+all 51 FITS fixtures from the index, including the binary files that failed;
+the repository files remain available to native agent tools. Against the
+locked Astropy commit `0a041d38fbd0014298d4cf340d9f891c4522093f`, the unchanged
+native candidate completed graph-enabled local Potion indexing: 1,686 files,
+26,414 entities, zero failures, in 16.036 seconds. Evidence is retained at
+`/private/tmp/zg-astropy-index-check/index.log`. The 13 existing adapter tests
+also pass, including ignore-file upload and index-cache identity checks.
+
+Because index input changed, the three full runs above are superseded rather
+than combined with corrected trials. The Docker-only recovery watcher is
+stopped. A new cohort must freeze the corrected harness, pass all three smoke
+runs, and then dispatch three full runs against that same harness. Candidate,
+prompts, questions, sampling and judging remain unchanged. No performance or
+tool-use outcome was used to select this correction.
