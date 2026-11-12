@@ -141,3 +141,29 @@ All use candidate `f6b7c00269645bbb02f74ba07460957a773abb68` and harness
 The ignored cohort directory contains `run-manifest.json`, `smoke-report/`,
 downloaded smoke call evidence, and live `full-status.json`; full evidence and
 the combined report will be written there after completion.
+
+## Further contract failure: full cohort stopped
+
+Full run 43221566623 failed its offline contract in the relationships subcase.
+The retained diagnostic showed `initialize`, `notifications/initialized` and
+GET, but no `tools/list`; the first model request had no MCP tools. Thus the
+405-only correction and three passing repetitions were insufficient evidence
+that the intermittent connection problem was fixed. Runs 43221552875 and
+43221559801 were cancelled; this cohort cannot support a complete comparison.
+
+The mock now uses HTTP/1.1, matching the real endpoint's persistent transport,
+instead of BaseHTTPRequestHandler's HTTP/1.0 connection-close default.
+Commit `71c9fb1` also preserves runtime-file logs on assertion failure. Local
+eight-test contracts passed. Linux run
+[43222269382](https://github.com/zhanglei1949/zvec-grep/actions/runs/43222269382)
+adds ten mandatory contract repetitions after the complete suite. Its outcome
+must be checked before treating this further correction as validated or
+starting another model cohort. Prompts and the Rust candidate are unchanged.
+
+Linux run 43222269382 subsequently completed successfully. Its downloaded log
+contains all ten mandatory eight-test contract completions, with no failed
+tests, as well as the complete suite and Docker checks. The persistent HTTP
+fixture is therefore validated by these repeated checks; this finite test does
+not establish that every possible OpenCode connection race is absent. The next
+cohort must still pass its own three end-to-end smoke workflows before full
+dispatch. Raw Linux verification log: `/private/tmp/zg-mcp-http11-linux-ten.log`.
