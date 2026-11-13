@@ -709,17 +709,21 @@ impl ServerHandler for ZvecGrepMcpServer {
                 "zvec-grep",
                 env!("CARGO_PKG_VERSION"),
             ))
-            .with_instructions(
+            .with_instructions({
+                let flow = zg_cli::guidance_flow_from_env();
                 match self.toolset {
-                    McpToolset::Agent => AGENT_INSTRUCTIONS,
-                    McpToolset::Full => FULL_INSTRUCTIONS,
-                    McpToolset::Search => zg_cli::retrieval_guidance(zg_cli::McpToolset::Search),
+                    McpToolset::Full => FULL_INSTRUCTIONS.to_owned(),
+                    McpToolset::Agent => {
+                        zg_cli::retrieval_guidance_variant(zg_cli::McpToolset::Agent, flow)
+                    }
+                    McpToolset::Search => {
+                        zg_cli::retrieval_guidance_variant(zg_cli::McpToolset::Search, flow)
+                    }
                     McpToolset::Relationships => {
-                        zg_cli::retrieval_guidance(zg_cli::McpToolset::Relationships)
+                        zg_cli::retrieval_guidance_variant(zg_cli::McpToolset::Relationships, flow)
                     }
                 }
-                .to_owned(),
-            )
+            })
     }
 
     async fn call_tool(

@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
+run-name: SWE-QA Bench / ${{ inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -41,6 +41,11 @@ on:
         default: smoke
         type: choice
         options: [smoke, full, diagnostic]
+      task_set:
+        description: Frozen task set (qa20 keeps the 20-task lock; caller-callee uses the 8+3 diagnostic set)
+        default: qa20
+        type: choice
+        options: [qa20, caller-callee]
       scope:
         description: Run the low/medium/high variability trio, all 20 tasks, or smoke
         required: true
@@ -66,6 +71,13 @@ on:
         options:
           - local
           - remote
+      guidance_variant:
+        description: Caller/callee guidance framing for the experiment (direct keeps default; flow broadens to call-chain tracing)
+        default: direct
+        type: choice
+        options:
+          - direct
+          - flow
 
 permissions: {}
 
@@ -140,19 +152,51 @@ jobs:
           python -m pip install --disable-pip-version-check uv==0.9.17
           uv sync --project benchmarks/swe-qa-bench --frozen
       - name: Validate tasks, hashes, commits, and reference isolation
-        run: >-
-          uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa validate
-          --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json
-          --references benchmarks/swe-qa-bench/zg_bench/swe_qa/data/references.json
-          --dataset benchmarks/swe-qa-bench/datasets
+        env:
+          TASK_SET: ${{ inputs.task_set || 'qa20' }}
+        run: |
+          set -euo pipefail
+          if [[ "$TASK_SET" == caller-callee ]]; then
+            uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa validate-cc \
+              --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection-caller-callee.json \
+              --references benchmarks/swe-qa-bench/zg_bench/swe_qa/data/references-caller-callee.json \
+              --dataset benchmarks/swe-qa-bench/datasets-caller-callee
+          else
+            uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa validate \
+              --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json \
+              --references benchmarks/swe-qa-bench/zg_bench/swe_qa/data/references.json \
+              --dataset benchmarks/swe-qa-bench/datasets
+          fi
       - name: Build this run's task matrix from the locked selection
         id: task-matrix
         env:
           SCOPE: ${{ inputs.scope }}
+          TASK_SET: ${{ inputs.task_set || 'qa20' }}
           EXPERIMENT_GROUP: ${{ inputs.experiment_group || 'legacy' }}
           EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
+          GUIDANCE_VARIANT: ${{ inputs.guidance_variant || 'direct' }}
         run: |
-          if [[ "$EXPERIMENT_GROUP" != legacy ]]; then
+          set -euo pipefail
+          if [[ "$GUIDANCE_VARIANT" == flow && ( "$EXPERIMENT_GROUP" == legacy || "$EXPERIMENT_PHASE" == diagnostic ) ]]; then
+            echo "::error::The flow guidance variant requires a smoke/full experiment; diagnostic freezes direct guidance."
+            exit 1
+          fi
+          selection=benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json
+          if [[ "$TASK_SET" == caller-callee ]]; then
+            if [[ "$EXPERIMENT_GROUP" == legacy ]]; then
+              echo "::error::The caller-callee task set requires an experiment arm (relationships, search, or agent)."
+              exit 1
+            fi
+            selection=benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection-caller-callee.json
+            case "$EXPERIMENT_PHASE" in
+              smoke) SCOPE=smoke ;;
+              full) SCOPE=all-full ;;
+              *)
+                echo "::error::The caller-callee task set supports only the smoke and full phases."
+                exit 1
+                ;;
+            esac
+          elif [[ "$EXPERIMENT_GROUP" != legacy ]]; then
             case "$EXPERIMENT_PHASE" in
               smoke) SCOPE=requests-1 ;;
               diagnostic) SCOPE=diagnostic-3 ;;
@@ -160,7 +204,7 @@ jobs:
             esac
           fi
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa matrix \
-            --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json \
+            --selection "$selection" \
             --scope "$SCOPE" >> "$GITHUB_OUTPUT"
       - name: Resolve and validate the embedding runtime
         id: embedding
@@ -557,13 +601,15 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/experiment-index-seed
-          key: caller-callee-graph-v1-${{ matrix.task }}-${{ needs.package-candidate.outputs.candidate-commit }}-${{ hashFiles('benchmarks/swe-qa-bench/zg_bench/**/*.py', 'benchmarks/swe-qa-bench/zg_bench/swe_qa/data/*', 'benchmarks/swe-qa-bench/uv.lock') }}
+          key: caller-callee-graph-v1-${{ inputs.task_set || 'qa20' }}-${{ matrix.task }}-${{ needs.package-candidate.outputs.candidate-commit }}-${{ hashFiles('benchmarks/swe-qa-bench/zg_bench/**/*.py', 'benchmarks/swe-qa-bench/zg_bench/swe_qa/data/*', 'benchmarks/swe-qa-bench/uv.lock') }}
       - name: Run one experiment arm and judge its trials
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           TASK_NAME: ${{ matrix.task }}
           EXPERIMENT_GROUP: ${{ inputs.experiment_group }}
           EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
+          TASK_SET: ${{ inputs.task_set || 'qa20' }}
+          GUIDANCE_VARIANT: ${{ inputs.guidance_variant || 'direct' }}
           CANDIDATE_COMMIT: ${{ needs.package-candidate.outputs.candidate-commit }}
           ZG_BENCH_INDEX_SEED_DIR: ${{ runner.temp }}/experiment-index-seed
         run: |
@@ -578,16 +624,19 @@ jobs:
             full) trials=5 ;;
           esac
           runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"
-          uv run --project benchmarks/swe-qa-bench zg-bench run swe-qa-bench \
+          suite=swe-qa-bench
+          if [[ "$TASK_SET" == caller-callee ]]; then suite=caller-callee; fi
+          uv run --project benchmarks/swe-qa-bench zg-bench run "$suite" \
             --tier full --task "$TASK_NAME" --agent opencode --model custom-openai/glm-5.2 \
             --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" "${diagnostic_flags[@]}" \
+            --guidance-variant "$GUIDANCE_VARIANT" \
             --n-attempts "$trials" --max-retries 2 \
             --embedding-model local/potion-code-16m-v2 \
             --zvec-grep-package "$RUNNER_TEMP/package/candidate.tgz" \
             --jobs-dir "$runs_dir" --job-name "experiment-${EXPERIMENT_GROUP}-zvec-grep"
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.tool_experiment collect \
             --runs-dir "$runs_dir" --task "$TASK_NAME" --trials "$trials" \
-            --group "$EXPERIMENT_GROUP" --phase "$EXPERIMENT_PHASE" \
+            --group "$EXPERIMENT_GROUP" --phase "$EXPERIMENT_PHASE" --task-set "$TASK_SET" \
             --candidate "$CANDIDATE_COMMIT" --harness "$GITHUB_SHA" \
             --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
             --output "$RUNNER_TEMP/experiment-report/$TASK_NAME"
@@ -642,10 +691,11 @@ jobs:
         env:
           EXPERIMENT_GROUP: ${{ inputs.experiment_group }}
           EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
+          TASK_SET: ${{ inputs.task_set || 'qa20' }}
         run: |
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.tool_experiment aggregate \
             --reports "$RUNNER_TEMP/experiment-tasks" --group "$EXPERIMENT_GROUP" \
-            --phase "$EXPERIMENT_PHASE" --output "$RUNNER_TEMP/experiment-summary"
+            --phase "$EXPERIMENT_PHASE" --task-set "$TASK_SET" --output "$RUNNER_TEMP/experiment-summary"
       - if: always() && steps.authorize.outcome == 'success'
         run: |
           if [[ -f "$RUNNER_TEMP/experiment-summary/report.md" ]]; then

@@ -48,6 +48,8 @@ class BenchmarkArgumentParser(argparse.ArgumentParser):
             self.error("--mcp-toolset requires --agent opencode --profile zvec-grep")
         if getattr(parsed, "record_model_requests", False) and parsed.mcp_toolset is None:
             self.error("--record-model-requests requires --mcp-toolset")
+        if getattr(parsed, "guidance_variant", None) is not None and parsed.mcp_toolset is None:
+            self.error("--guidance-variant requires --mcp-toolset")
         if parsed.command not in {"doctor", "run"}:
             return parsed
 
@@ -126,6 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="run a benchmark suite tier")
     run.add_argument("--mcp-toolset", choices=("agent", "search", "relationships"))
     run.add_argument("--record-model-requests", action="store_true")
+    run.add_argument("--guidance-variant", choices=("direct", "flow"))
     run.add_argument(
         "suite",
         help="built-in suite name or YAML path; use 'zg-bench list suites'",
@@ -297,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
                     embedding_endpoint=args.embedding_endpoint,
                     mcp_toolset=args.mcp_toolset,
                     record_model_requests=args.record_model_requests,
+                    guidance_variant=args.guidance_variant,
                 ),
             )
             for profile, job_name in run_specs
@@ -377,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
                 embedding_endpoint=args.embedding_endpoint,
                 mcp_toolset=args.mcp_toolset,
                 record_model_requests=args.record_model_requests,
+                guidance_variant=args.guidance_variant,
             )
             profile_return_code = execute(
                 command,

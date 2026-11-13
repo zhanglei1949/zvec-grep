@@ -1,0 +1,1 @@
+Where does the cycler property cycle mechanism propagate through the data flow when ax.plot() is called multiple times, and what control flow ensures that the linestyle values are correctly sequenced across successive plot invocations?

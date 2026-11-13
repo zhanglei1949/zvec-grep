@@ -1,0 +1,25 @@
+version = "1.0"
+
+[metadata]
+benchmark = "peng-weihan/SWE-QA-Bench"
+benchmark_revision = "c13deac7a0d99b0ca2e593e004c4739475785b08"
+task_id = "flask:43"
+source_index = 43
+index_base = 0
+role = "task"
+scenario = "stress"
+category = "where"
+question_type = "where"
+provenance = "upstream"
+question_hash = "c29cec6ec326b62eca9ded48fe514bb08234e7b08a13b0f85dc36e5e903d44d2"
+repository = "pallets/flask"
+repository_commit = "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 1200.0

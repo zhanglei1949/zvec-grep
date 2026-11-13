@@ -53,7 +53,7 @@ class ModelRequestTests(unittest.TestCase):
                         "model": "custom-openai/glm-5.2", "endpoint_sha256": "endpoint", "group": group,
                         "task": task, "graph_index": True, "surface_sha256": group, "trials": [trial] * 2})
                     path.with_suffix(".sha256").write_text(hashlib.sha256(path.read_bytes()).hexdigest())
-            aggregate(SimpleNamespace(reports=root / "input", output=root / "output", phase="diagnostic", group="all"))
+            aggregate(SimpleNamespace(reports=root / "input", output=root / "output", phase="diagnostic", group="all", task_set="qa20"))
             result = json.loads((root / "output/report.json").read_text())
             self.assertTrue(result["complete"])
             self.assertEqual(sum(len(r["trials"]) for r in result["reports"]), 12)

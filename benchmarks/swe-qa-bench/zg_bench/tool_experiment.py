@@ -24,6 +24,26 @@ GROUPS = ("relationships", "search", "agent")
 TOOLS = ("search", "callers", "callees")
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "zg_bench/swe_qa/data"
+TASK_SETS = {
+    "qa20": {
+        "selection": "selection.json",
+        "references": "references.json",
+        "scopes": {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3"},
+    },
+    "caller-callee": {
+        "selection": "selection-caller-callee.json",
+        "references": "references-caller-callee.json",
+        "scopes": {"smoke": "smoke", "full": "all-full"},
+    },
+}
+
+
+def experiment_tasks(task_set: str, phase: str) -> list[str]:
+    config = TASK_SETS[task_set]
+    if phase not in config["scopes"]:
+        raise ValueError(f"phase {phase} is not defined for task set {task_set}")
+    selection = load_object(DATA / config["selection"], label="selection")
+    return select_ci_tasks(selection, config["scopes"][phase])[1]
 
 
 def write_json(path: Path, value: object) -> None:
@@ -62,12 +82,14 @@ def audit_calls(calls: list[dict]) -> dict:
 
 
 def collect(args: argparse.Namespace) -> None:
+    if args.task not in experiment_tasks(args.task_set, args.phase):
+        raise ValueError(f"unexpected task for {args.task_set}/{args.phase}: {args.task}")
     jobs = _job_dirs(args.runs_dir, "zvec-grep")
     if len(jobs) != 1:
         raise ValueError(f"expected one Harbor job, found {len(jobs)}")
     job = jobs[0]
     _completed_job(job, expected_trials=args.trials)
-    reference = load_references(DATA / "references.json")[args.task]
+    reference = load_references(DATA / TASK_SETS[args.task_set]["references"])[args.task]
     runtime = resolve_opencode_model("custom-openai/glm-5.2", require_credentials=True)
     completion = default_completion()
     trials = []
@@ -97,14 +119,20 @@ def collect(args: argparse.Namespace) -> None:
     setup = [load_object(path, label="setup evidence") for path in setup_paths]
     if len(setup) != args.trials or any(s["mcp_toolset"] != args.group or not s["graph_index"] for s in setup):
         raise ValueError("setup evidence does not match experiment")
+    variants = {s.get("guidance_variant", "direct") for s in setup}
+    if len(variants) != 1:
+        raise ValueError("guidance variant changed between trials")
+    guidance_variant = next(iter(variants))
     surfaces = {t["surface"]["sha256"] for t in trials}
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
         "protocol": "caller-callee-context-diagnostic-v1" if args.phase == "diagnostic" else "caller-callee-e2e-v1", "group": args.group, "phase": args.phase,
+        "task_set": args.task_set,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),
         "judge_config": judge_generation_metadata(), "graph_index": True,
+        "guidance_variant": guidance_variant,
         "task": args.task, "expected_trials": args.trials, "surface_sha256": next(iter(surfaces)),
         "run_url": args.run_url, "trials": trials, "setup": setup,
     }
@@ -114,7 +142,11 @@ def collect(args: argparse.Namespace) -> None:
 
 
 def render(reports: list[dict]) -> str:
-    lines = ["# Caller/Callee E2E", "", "All completed tasks; no score/token outlier exclusions. Unused tools remain in the denominator.", "", "| Group | Tasks | Trials | Judge | Input tokens | Output tokens | Tools | Agent seconds |", "|---|---:|---:|---:|---:|---:|---:|---:|"]
+    lines = ["# Caller/Callee E2E", ""]
+    cohorts = {(r.get("task_set", "qa20"), r.get("guidance_variant", "direct")) for r in reports}
+    for task_set, variant in sorted(cohorts):
+        lines.extend([f"Task set: `{task_set}`; guidance variant: `{variant}`.", ""])
+    lines.extend(["All completed tasks; no score/token outlier exclusions. Unused tools remain in the denominator.", "", "| Group | Tasks | Trials | Judge | Input tokens | Output tokens | Tools | Agent seconds |", "|---|---:|---:|---:|---:|---:|---:|---:|"])
     for group in GROUPS:
         selected = [r for r in reports if r["group"] == group]
         if not selected:
@@ -134,7 +166,7 @@ def render(reports: list[dict]) -> str:
             for trial in report["trials"]:
                 capture = trial["model_requests"]
                 lines.append(f"| {report['group']} | {report['task']} | {trial['trial_name']} | {capture['tool_bearing_requests']} | {capture['context_issue_request_ids']} | {len(capture['invalid_zg_attempts'])} |")
-    lines.extend(["", "Costs missing from the custom provider are unknown. Empty-response classification is unknown unless supported by explicit response evidence. Raw calls retain parameters, responses, status and session IDs.", "", "Usage-stratified results are descriptive, not causal. GLM self-judging and the fixed 20-task selection limit generalization."])
+    lines.extend(["", "Costs missing from the custom provider are unknown. Empty-response classification is unknown unless supported by explicit response evidence. Raw calls retain parameters, responses, status and session IDs.", "", "Usage-stratified results are descriptive, not causal. GLM self-judging and the fixed task selection limit generalization."])
     return "\n".join(lines) + "\n"
 
 
@@ -172,19 +204,33 @@ def comparisons(reports: list[dict]) -> list[dict]:
 
 
 def aggregate(args: argparse.Namespace) -> None:
+    expected_tasks = experiment_tasks(args.task_set, args.phase)
+    groups = (("relationships", "agent") if args.phase == "diagnostic" else GROUPS) if args.group == "all" else (args.group,)
     reports = []
     for path in sorted(args.reports.rglob("task-report.json")):
         if hashlib.sha256(path.read_bytes()).hexdigest() != path.with_suffix(".sha256").read_text().strip():
             raise ValueError(f"report checksum mismatch: {path}")
         reports.append(load_object(path, label="experiment report"))
-    identities = {(r["protocol"], r["candidate"], r["harness"], r["phase"], r["expected_trials"], r["model"], r["endpoint_sha256"]) for r in reports}
+    identities = {
+        (
+            r["protocol"], r["candidate"], r["harness"], r["phase"],
+            r["expected_trials"], r["model"], r["endpoint_sha256"],
+            r.get("guidance_variant", "direct"), r.get("task_set", "qa20"),
+            json.dumps(r.get("judge_config"), sort_keys=True),
+        )
+        for r in reports
+    }
     if len(identities) > 1:
         raise ValueError("incompatible experiment reports")
     seen = set()
     surfaces = {}
     for report in reports:
-        if report["phase"] != args.phase or report["group"] not in GROUPS:
+        if report["phase"] != args.phase or report["group"] not in groups:
             raise ValueError("unexpected phase or group")
+        if report["task"] not in expected_tasks:
+            raise ValueError(f"unexpected task for {args.task_set}/{args.phase}: {report['task']}")
+        if report.get("guidance_variant", "direct") not in {"direct", "flow"}:
+            raise ValueError("unsupported guidance variant in experiment report")
         if len(report["trials"]) != report["expected_trials"] or not report["graph_index"]:
             raise ValueError("incomplete trials or graph configuration")
         previous = surfaces.setdefault(report["group"], report["surface_sha256"])
@@ -194,10 +240,8 @@ def aggregate(args: argparse.Namespace) -> None:
         if key in seen:
             raise ValueError(f"duplicate task report: {key}; select one complete attempt explicitly")
         seen.add(key)
-    selection = load_object(DATA / "selection.json", label="selection")
-    scope = {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3"}[args.phase]
-    _, expected_tasks = select_ci_tasks(selection, scope)
-    groups = (("relationships", "agent") if args.phase == "diagnostic" else GROUPS) if args.group == "all" else (args.group,)
+    if any(r.get("task_set", "qa20") != args.task_set for r in reports):
+        raise ValueError("experiment reports belong to a different task set")
     missing = [(g, t) for g in groups for t in expected_tasks if (g, t) not in seen]
     write_json(args.output / "report.json", {"reports": reports, "missing": missing, "complete": not missing, "comparisons": comparisons(reports), "usage_rates": usage_rates(reports)})
     text = render(reports) + "\nMissing tasks: " + json.dumps(missing) + "\n"
@@ -222,6 +266,7 @@ def main() -> None:
     summary.add_argument("--group", choices=(*GROUPS, "all"), required=True)
     for command in (task, summary):
         command.add_argument("--phase", choices=("smoke", "full", "diagnostic"), required=True)
+        command.add_argument("--task-set", choices=tuple(TASK_SETS), default="qa20")
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)

@@ -1802,7 +1802,8 @@ fn opencode_guidance(toolset: McpToolset) -> String {
     if toolset == McpToolset::Full {
         return guidance_block("zvec_grep_", false, "");
     }
-    let guidance = crate::retrieval_guidance(toolset).replace("zvec_grep_", "zvec_grep_zvec_grep_");
+    let guidance = crate::retrieval_guidance_variant(toolset, crate::guidance_flow_from_env())
+        .replace("zvec_grep_", "zvec_grep_zvec_grep_");
     format!("{GUIDANCE_START}\n## zvec-grep\n{guidance}\n{GUIDANCE_END}")
 }
 

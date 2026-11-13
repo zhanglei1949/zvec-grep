@@ -272,6 +272,74 @@ pub const fn retrieval_guidance(toolset: McpToolset) -> &'static str {
     }
 }
 
+/// Default caller/callee positioning sentence embedded in [`retrieval_guidance`].
+const DIRECT_RELATIONSHIP_GUIDANCE: &str = "For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites.";
+/// Experimental broadened positioning (guidance variant `flow`): extends
+/// caller/callee from direct call relationships to call-chain flow tracing.
+const FLOW_RELATIONSHIP_GUIDANCE: &str = "For a known symbol, use callers for incoming call sites or callees for outgoing call sites, including to trace how control or data flows through call chains, locate where a symbol is invoked, or enumerate what a symbol invokes.";
+
+/// Select the experimental relationship guidance variant from the environment.
+///
+/// `ZVEC_GREP_GUIDANCE_VARIANT=flow` enables [`FLOW_RELATIONSHIP_GUIDANCE`]; any
+/// other value or an unset variable keeps the default positioning. This is an
+/// opt-in experiment knob; the formal evaluation default is unchanged.
+#[must_use]
+pub fn guidance_flow_from_env() -> bool {
+    match std::env::var("ZVEC_GREP_GUIDANCE_VARIANT") {
+        Ok(value) => value.eq_ignore_ascii_case("flow"),
+        Err(_) => false,
+    }
+}
+
+/// Runtime retrieval guidance with an optional experimental relationship framing.
+///
+/// With `flow_relationships = false` the result is byte-identical to
+/// [`retrieval_guidance`], so callers that do not opt in keep the exact default.
+#[must_use]
+pub fn retrieval_guidance_variant(toolset: McpToolset, flow_relationships: bool) -> String {
+    let guidance = retrieval_guidance(toolset);
+    if flow_relationships {
+        guidance.replace(DIRECT_RELATIONSHIP_GUIDANCE, FLOW_RELATIONSHIP_GUIDANCE)
+    } else {
+        guidance.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod guidance_variant_tests {
+    use super::{McpToolset, retrieval_guidance, retrieval_guidance_variant};
+
+    #[test]
+    fn default_variant_is_byte_identical_to_const_guidance() {
+        for toolset in [
+            McpToolset::Agent,
+            McpToolset::Search,
+            McpToolset::Relationships,
+            McpToolset::Full,
+        ] {
+            assert_eq!(
+                retrieval_guidance_variant(toolset, false),
+                retrieval_guidance(toolset)
+            );
+        }
+    }
+
+    #[test]
+    fn flow_variant_broadens_relationship_framing_only() {
+        for toolset in [McpToolset::Agent, McpToolset::Relationships] {
+            let flow = retrieval_guidance_variant(toolset, true);
+            assert!(flow.contains("trace how control or data flows through call chains"));
+            assert!(!flow.contains("direct call relationships"));
+            assert!(flow.contains("no tool call is mandatory"));
+        }
+        // Search carries no relationship sentence, so flow leaves it unchanged.
+        assert_eq!(
+            retrieval_guidance_variant(McpToolset::Search, true),
+            retrieval_guidance(McpToolset::Search)
+        );
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
 pub enum ColorMode {
     #[default]

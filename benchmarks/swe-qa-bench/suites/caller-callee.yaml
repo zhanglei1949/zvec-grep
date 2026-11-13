@@ -1,0 +1,22 @@
+name: caller-callee
+path: ../datasets-caller-callee
+index_ignore_file: ../zg_bench/swe_qa/data/index-caller-callee.ignore
+tiers:
+  smoke:
+    tasks:
+      - requests-cc1
+      - requests-45
+      - sympy-cc1
+  full:
+    tasks:
+      - reflex-46
+      - scikit-learn-39
+      - sympy-37
+      - django-42
+      - conan-17
+      - flask-43
+      - requests-45
+      - matplotlib-45
+      - requests-cc1
+      - matplotlib-cc1
+      - sympy-cc1

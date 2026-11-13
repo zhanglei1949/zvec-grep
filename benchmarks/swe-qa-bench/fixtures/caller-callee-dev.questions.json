@@ -2,9 +2,21 @@
   "purpose": "Development-only guidance calibration; kept outside the indexed fixture and excluded from the 20 evaluation tasks",
   "questions": [
     "Where is a value normalized before storage?",
-    "Which function directly calls normalize?",
-    "Which function does import_record call directly?"
+    "Which functions directly call normalize?",
+    "Which function does import_record call directly?",
+    "Which functions directly call the top-level ::save? List each call site.",
+    "What does storage::flush directly call?",
+    "Which functions directly call orphan_leaf?",
+    "Who calls WrongScope::normalize?"
   ],
-  "expected": ["normalize in lib.rs", "save", "save"],
+  "expected": [
+    "normalize in lib.rs",
+    "save and storage::save",
+    "save",
+    "import_record and export_record",
+    "storage::save",
+    "no resolved callers (empty result)",
+    "no exact match; suggestions for normalize"
+  ],
   "revision_policy": "At most two guidance revisions for ambiguity or misuse; no evaluation-score or call-rate optimization"
 }

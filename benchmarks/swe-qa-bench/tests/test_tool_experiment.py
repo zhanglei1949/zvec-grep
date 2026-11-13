@@ -1,5 +1,7 @@
 import json
 import hashlib
+import os
+import shutil
 import sqlite3
 import unittest
 import subprocess
@@ -13,6 +15,24 @@ from zg_bench.tool_experiment import DATA, aggregate, audit_calls, comparisons, 
 
 
 class ProbeRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_requested_variant_reaches_install_and_live_probe(self):
+        for variant in ("direct", "flow"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temp:
+                agent = ZvecOpenCode(
+                    logs_dir=Path(temp), embedding_model="local/potion-code-16m-v2",
+                    mcp_target="opencode", mcp_toolset="agent", graph_index=True,
+                    guidance_variant=variant,
+                )
+                environment = SimpleNamespace(upload_file=AsyncMock())
+                metadata = {}
+                with patch.dict(os.environ, {"ZVEC_GREP_GUIDANCE_VARIANT": "flow"}), patch.object(
+                    agent, "exec_as_agent", new=AsyncMock(return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""))
+                ) as execute:
+                    await agent._setup_mcp(environment, "/workspace", metadata, supports_ready_check=True)
+                for call in (execute.call_args_list[0], execute.call_args_list[-1]):
+                    self.assertEqual(call.kwargs["env"], {"ZVEC_GREP_GUIDANCE_VARIANT": variant})
+                self.assertEqual(metadata["guidance_variant"], variant)
+
     async def test_task_probe_uses_existing_node_without_requiring_python(self):
         with tempfile.TemporaryDirectory() as temp:
             agent = ZvecOpenCode(logs_dir=Path(temp), embedding_model="local/potion-code-16m-v2", mcp_target="opencode", mcp_toolset="search", graph_index=True)
@@ -23,6 +43,49 @@ class ProbeRuntimeTests(unittest.IsolatedAsyncioTestCase):
             command = execute.call_args.kwargs["command"]
             self.assertIn("node /tmp/zg-bench-mcp-probe.mjs", command)
             self.assertNotIn("python", command)
+
+
+@unittest.skipUnless(shutil.which("node"), "Node is required for the MCP probe")
+class LiveGuidanceProbeTests(unittest.TestCase):
+    def test_live_guidance_must_match_requested_variant(self):
+        root = Path(__file__).resolve().parents[1]
+        groups = json.loads((root / "fixtures/caller-callee-guidance-v2.json").read_text())["groups"]
+        script = """
+            const surface = JSON.parse(process.env.SURFACE_FIXTURE);
+            globalThis.fetch = async (_url, options) => {
+                const {method} = JSON.parse(options.body);
+                const result = method === "initialize"
+                    ? {protocolVersion: "2025-03-26", instructions: surface.instructions}
+                    : method === "tools/list" ? {tools: surface.tools} : {};
+                return new Response(JSON.stringify({result}), {headers: {"Content-Type": "application/json"}});
+            };
+            process.argv = ["node", process.env.PROBE_PATH, "http://fixture", process.env.PROBE_GROUP];
+            await import(process.env.PROBE_PATH);
+        """
+        cases = [
+            ("agent", "direct", "direct", "direct", True),
+            ("agent", "flow", "flow", "flow", True),
+            ("agent", "flow", "direct", "direct", False),  # Old candidate.
+            ("agent", "flow", "direct", "flow", False),  # Reused direct daemon.
+            ("agent", "direct", "flow", "direct", False),
+            ("search", "flow", "direct", "direct", True),  # Search is unchanged.
+        ]
+        for group, requested, instructions_variant, guidance_variant, valid in cases:
+            with self.subTest(group=group, requested=requested, instructions=instructions_variant, guidance=guidance_variant), tempfile.TemporaryDirectory() as temp:
+                surface = dict(groups[group])
+                for field, variant in (("instructions", instructions_variant), ("guidance", guidance_variant)):
+                    if variant == "flow":
+                        surface[field] = surface[field].replace("direct call relationships", "trace how control or data flows through call chains")
+                config = Path(temp) / "opencode"
+                config.mkdir()
+                (config / "AGENTS.md").write_text(surface["guidance"])
+                env = {**os.environ, "XDG_CONFIG_HOME": temp, "PROBE_PATH": (root / "zg_bench/mcp_probe.mjs").as_uri(),
+                       "PROBE_GROUP": group, "SURFACE_FIXTURE": json.dumps(surface), "ZVEC_GREP_GUIDANCE_VARIANT": requested}
+                env.pop("OPENCODE_CONFIG", None)
+                result = subprocess.run([shutil.which("node"), "--input-type=module", "--eval", script], env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, valid, result.stderr)
+                if not valid:
+                    self.assertIn("differs from requested guidance variant", result.stderr)
 
 
 class ToolExperimentTests(unittest.TestCase):
@@ -42,7 +105,7 @@ class ToolExperimentTests(unittest.TestCase):
                     "group": "agent", "task": task, "graph_index": True,
                     "surface_sha256": "surface", "trials": [trial] * 5})
                 path.with_suffix(".sha256").write_text(hashlib.sha256(path.read_bytes()).hexdigest())
-            args = SimpleNamespace(reports=root / "artifacts", group="agent", phase="full", output=root / "complete")
+            args = SimpleNamespace(reports=root / "artifacts", group="agent", phase="full", task_set="qa20", output=root / "complete")
             aggregate(args)
             report = json.loads((args.output / "report.json").read_text())
             self.assertTrue(report["complete"])

@@ -1,0 +1,1 @@
+Where does the solver selection logic in _BaseRidge.fit() determine which lower-level helper functions to invoke based on the combination of sparse data, intercept fitting, and solver parameters?

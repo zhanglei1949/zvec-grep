@@ -64,6 +64,20 @@ const configDirectory = process.env.OPENCODE_CONFIG
   ? dirname(process.env.OPENCODE_CONFIG)
   : join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "opencode");
 const guidance = await readFile(join(configDirectory, "AGENTS.md"), "utf8");
+// Verify the live daemon and installed guidance before spending model budget.
+// An older candidate or a reused daemon can ignore the requested variant.
+const variant = process.env.ZVEC_GREP_GUIDANCE_VARIANT;
+if (variant === "direct" || variant === "flow") {
+  const flowMarker = "trace how control or data flows through call chains";
+  const expectFlow = variant === "flow" && group !== "search";
+  for (const [name, text] of Object.entries({
+    instructions: initialized.instructions,
+    guidance,
+  })) {
+    if (typeof text !== "string" || text.includes(flowMarker) !== expectFlow)
+      throw new Error(`MCP ${name} differs from requested guidance variant ${variant}`);
+  }
+}
 const surface = { instructions: initialized.instructions, tools, guidance };
 surface.sha256 = createHash("sha256")
   .update(JSON.stringify(surface))

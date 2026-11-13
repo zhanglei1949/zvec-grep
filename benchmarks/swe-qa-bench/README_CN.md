@@ -33,6 +33,32 @@ OpenCode 1.18.4、custom-openai/glm-5.2 和 local/potion-code-16m-v2。
 且与本任务 Agent 不重叠。异常最多额外重试两次；沿用原有失败归档策略。
 所有 run 必须绑定同一冻结版本，冒烟与正式产物不混用。
 
+手动启动还可选 `task_set=caller-callee`，改用冻结的 8+3 诊断题集：八道
+上游关系题（已审计的六道 caller/callee 题加 requests:45、matplotlib:45）
+与三道自造 symbol-anchored 探针（requests:cc1、matplotlib:cc1、
+sympy:cc1）。输入锁定在 `selection-caller-callee.json`、
+`references-caller-callee.json` 和 `datasets-caller-callee/`，由
+`python -m zg_bench.swe_qa validate-cc` 校验；QA20 冻结输入不变。该题集
+必须选择实验组，仅支持 `smoke`（三题）与 `full`（十一题），任务矩阵复用
+selection 相对的 `smoke` 与 `all-full` scope；collect/aggregate 需传
+`--task-set caller-callee`，不同题集的
+报告不得合并。锚点题参考答案以 pinned 源码核验冻结，不取工具输出：
+matplotlib:cc1 为别名/间接调用边界探针，sympy:cc1 检验推导式调用解析与
+20 条截断。该题集是定向诊断样本，结论不外推为 SWE-QA 总体收益。
+
+caller/callee 参考答案修订为 v2：三道锚点题保留源码事实，候选工具的空边、
+解析与截断观察放入不传给 judge 的 `verification_notes`。问题与源码事实
+不变；所有对照组须使用同一修订。本次不重评分已保存答复，不改已发布结果。
+
+E2E 对固定 commit 的仓库按候选支持的类型和 suite ignore 文件建图，
+不限 Python，也未传入文件大小覆盖参数。当前候选源码的代码文件默认上限
+为 1MiB，与先前“仅 Python、2MiB”的审计协议不同。组间固定候选包、
+仓库 commit、embedding 和 ignore 摘要，细节见[索引协议](docs/caller-callee-guidance-contrast-run.md#e2e-索引协议v1)。
+
+指导对照可选 `guidance_variant=direct|flow`，默认 direct；flow 只支持
+smoke/full 实验。运行前探针会核对实际 MCP instructions 和 AGENTS.md。
+题集与指导应分别对照，命令见[运行说明](docs/caller-callee-guidance-contrast-run.md)。
+
 完整会话树用量沿用 opencode-session-tree-v1。实验额外导出
 `agent/tool-calls.json`：主会话及递归子代理调用的标识、时间、参数、输出和
 错误。普通非实验运行继续不导出这些内容。审计按工具记录尝试、成功、失败、
@@ -58,6 +84,7 @@ uv run --project benchmarks/swe-qa-bench python -m zg_bench.tool_experiment aggr
 
 不同候选、harness、阶段、trial 数量、模型 endpoint 或同组工具指导不得混合；
 同一组/任务多个 attempt 的报告须明确选择完整的一份，不能拼接 trial。
+caller-callee 题集的离线合并追加 `--task-set caller-callee`。
 模型与轨迹原始证据不提交 Git；记录 run URL、版本和下载位置。
 
 此 benchmark 用于衡量 `zvec-grep` 对 Agent 回答代码仓库级软件工程问题的能力有何影响。发布结果中，两个 profile 使用相同的 Claude Code Agent、Claude Opus 5 模型、任务 prompt、代码仓库 commit、环境和限制：

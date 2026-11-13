@@ -47,6 +47,7 @@ class ZvecGrepMixin:
         mcp_target: str | None = None,
         mcp_toolset: str | None = None,
         graph_index: bool = False,
+        guidance_variant: str | None = None,
         zvec_grep_package_sha256: str | None = None,
         extra_env: dict[str, str] | None = None,
         **kwargs: Any,
@@ -114,6 +115,9 @@ class ZvecGrepMixin:
         if not isinstance(graph_index, bool):
             raise ValueError("graph_index must be a boolean")
         self._graph_index = graph_index
+        if guidance_variant not in (None, "direct", "flow"):
+            raise ValueError("unsupported guidance variant")
+        self._guidance_variant = guidance_variant
         self._zvec_grep_package_sha256 = zvec_grep_package_sha256
         self._api_key_source = api_key_source
         self._embedding_api_key = api_key
@@ -576,13 +580,16 @@ class ZvecGrepMixin:
             await self.exec_as_agent(
                 environment,
                 command=f"{_NVM_INIT} node /tmp/zg-bench-mcp-probe.mjs http://127.0.0.1:7999/mcp {self._mcp_toolset} > /logs/agent/tool-surface.json",
-                cwd=workdir,
+                **install_kwargs,
             )
             metadata["mcp_toolset"] = self._mcp_toolset
             metadata["graph_index"] = self._graph_index
+            metadata["guidance_variant"] = self._guidance_variant or "direct"
 
     def _mcp_install_environment(self) -> dict[str, str] | None:
         """Return target-specific environment for `zg --install`."""
+        if self._mcp_toolset is not None:
+            return {"ZVEC_GREP_GUIDANCE_VARIANT": self._guidance_variant or "direct"}
         return None
 
     async def _install_zvec_grep(
