@@ -1,0 +1,2457 @@
+{
+  "candidate": "bfe5a0acefed7f1a4f46161a3c5da9fd3fdaec54",
+  "harness": "405b6dd162774662a925ae8be6949ac3a65eb968",
+  "verified_trials": 24,
+  "total_http_requests": 204,
+  "tool_bearing_requests": 180,
+  "context_issue_requests": 0,
+  "package_sha256": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+  "task_reports": [
+    {
+      "variant": "direct",
+      "task": "matplotlib-37",
+      "sha256": "c82d425faea397fb854f6fa655e71114dbb79fcf93798ee08a94e52244d46807",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378735002/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-cc2",
+      "sha256": "c0f927e4f52b3b704ad1eac945f27cd6d461911c69a9638426a1bc4bb11f88c1",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378735002/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "requests-cc1",
+      "sha256": "70e311def2170974caf12d7c972009762bc96feb54dbf83d7b07bf579dd7f215",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378735002/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-38",
+      "sha256": "c23bbfd643cc520de616ad0061b57bec72d31ad905386b63dfd0971d63f74017",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378735002/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-cc2",
+      "sha256": "f1fa3bb0717a81b7239072e5f65572e2804c0921b121d8f4dba53fb6c752300f",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378735002/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "xarray-32",
+      "sha256": "47aad8479f31835a2a35709d97c6358e1c7d03b528d99b97d86942eb91d1e5e2",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378735002/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-37",
+      "sha256": "c669305230496b70ea696a6f63ec61547ec3abe700a086ab8dff23d16bb21b51",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378755997/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-cc2",
+      "sha256": "70141d30a4aa4129c719c00a75a684954a3c912da61db1f2a5b970d6e6888361",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378755997/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "requests-cc1",
+      "sha256": "a0d2a681981e6a7eaa1192bd3b42086a415adcb03fa550092a640211560d8cda",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378755997/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-38",
+      "sha256": "8f680ea0c82185f567a597e6af6ee00e0185c041324c058e14feef3d8db92576",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378755997/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-cc2",
+      "sha256": "8cdba9ddeac88d3a341388eba34593d6fe9b390eb026e66384401fe17ee9c63c",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378755997/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "xarray-32",
+      "sha256": "1bda51ed6fdf4aad26d5f1acaefe821ac1319dec975279caa95f1054cbea385e",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43378755997/attempts/1"
+    }
+  ],
+  "pairs": [
+    {
+      "task": "matplotlib-37",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "1651d4418c80ef5860b6ee89170af6e8bdd6f8685d543d186c2048f8a2911c0f",
+        "1651d4418c80ef5860b6ee89170af6e8bdd6f8685d543d186c2048f8a2911c0f",
+        "1651d4418c80ef5860b6ee89170af6e8bdd6f8685d543d186c2048f8a2911c0f",
+        "1651d4418c80ef5860b6ee89170af6e8bdd6f8685d543d186c2048f8a2911c0f"
+      ]
+    },
+    {
+      "task": "sympy-38",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "084dc9bfea8906505e52dfb3a2c776e257c22af7cf6ac9f367ba06f3ce7192a6",
+        "084dc9bfea8906505e52dfb3a2c776e257c22af7cf6ac9f367ba06f3ce7192a6",
+        "084dc9bfea8906505e52dfb3a2c776e257c22af7cf6ac9f367ba06f3ce7192a6",
+        "084dc9bfea8906505e52dfb3a2c776e257c22af7cf6ac9f367ba06f3ce7192a6"
+      ]
+    },
+    {
+      "task": "xarray-32",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "f739402e0bec1cac78dc7ab76381cd6bf585c8e4619ebadef3dceae4f1bac0a1",
+        "f739402e0bec1cac78dc7ab76381cd6bf585c8e4619ebadef3dceae4f1bac0a1",
+        "f739402e0bec1cac78dc7ab76381cd6bf585c8e4619ebadef3dceae4f1bac0a1",
+        "f739402e0bec1cac78dc7ab76381cd6bf585c8e4619ebadef3dceae4f1bac0a1"
+      ]
+    },
+    {
+      "task": "requests-cc1",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "d127999e7cba89728f6b2d3a49c84039470016763869eb0c0b33c58fb9045b42",
+        "d127999e7cba89728f6b2d3a49c84039470016763869eb0c0b33c58fb9045b42",
+        "d127999e7cba89728f6b2d3a49c84039470016763869eb0c0b33c58fb9045b42",
+        "d127999e7cba89728f6b2d3a49c84039470016763869eb0c0b33c58fb9045b42"
+      ]
+    },
+    {
+      "task": "matplotlib-cc2",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "3e0684be96f20fda8f133310f9e1097264128d7f0e995260ba691ca1cc147f75",
+        "3e0684be96f20fda8f133310f9e1097264128d7f0e995260ba691ca1cc147f75",
+        "3e0684be96f20fda8f133310f9e1097264128d7f0e995260ba691ca1cc147f75",
+        "3e0684be96f20fda8f133310f9e1097264128d7f0e995260ba691ca1cc147f75"
+      ]
+    },
+    {
+      "task": "sympy-cc2",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "ab5ff3c3c94ee4568577fba7ae9995be90199155169c197fe98eccec0c4b7f34",
+        "ab5ff3c3c94ee4568577fba7ae9995be90199155169c197fe98eccec0c4b7f34",
+        "ab5ff3c3c94ee4568577fba7ae9995be90199155169c197fe98eccec0c4b7f34",
+        "ab5ff3c3c94ee4568577fba7ae9995be90199155169c197fe98eccec0c4b7f34"
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "variant": "direct",
+      "category": "all",
+      "trials": 12,
+      "used_trials": 6,
+      "tools": {
+        "callers": {
+          "attempted": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 4,
+          "succeeded": 4,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 80.5,
+      "input_tokens": 109161.08333333333,
+      "output_tokens": 1755.5,
+      "tool_calls": 9,
+      "agent_seconds": 36.461946437583336
+    },
+    {
+      "variant": "direct",
+      "category": "concept",
+      "trials": 6,
+      "used_trials": 0,
+      "tools": {
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 70.66666666666667,
+      "input_tokens": 192450.83333333334,
+      "output_tokens": 3230.3333333333335,
+      "tool_calls": 16,
+      "agent_seconds": 59.09047599466667
+    },
+    {
+      "variant": "direct",
+      "category": "symbol",
+      "trials": 6,
+      "used_trials": 6,
+      "tools": {
+        "callers": {
+          "attempted": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 4,
+          "succeeded": 4,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 90.33333333333333,
+      "input_tokens": 25871.333333333332,
+      "output_tokens": 280.6666666666667,
+      "tool_calls": 2,
+      "agent_seconds": 13.833416880500007
+    },
+    {
+      "variant": "flow",
+      "category": "all",
+      "trials": 12,
+      "used_trials": 5,
+      "tools": {
+        "callers": {
+          "attempted": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 3,
+          "succeeded": 3,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 82.25,
+      "input_tokens": 147681,
+      "output_tokens": 1394.25,
+      "tool_calls": 9.833333333333334,
+      "agent_seconds": 38.02896082758333
+    },
+    {
+      "variant": "flow",
+      "category": "concept",
+      "trials": 6,
+      "used_trials": 0,
+      "tools": {
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 68.5,
+      "input_tokens": 267888.1666666667,
+      "output_tokens": 2455.5,
+      "tool_calls": 17.5,
+      "agent_seconds": 61.01431362700001
+    },
+    {
+      "variant": "flow",
+      "category": "symbol",
+      "trials": 6,
+      "used_trials": 5,
+      "tools": {
+        "callers": {
+          "attempted": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 3,
+          "succeeded": 3,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 96,
+      "input_tokens": 27473.833333333332,
+      "output_tokens": 333,
+      "tool_calls": 2.1666666666666665,
+      "agent_seconds": 15.043608028166663
+    }
+  ],
+  "protocol": "caller-callee-guidance-contrast-v1",
+  "runs": {
+    "direct": 43378735002,
+    "flow": 43378755997
+  },
+  "failed_trials": 0,
+  "missing_trials": 0,
+  "retry_attempts": 0,
+  "actual_child_sessions": 0,
+  "judge_requests_in_http_capture": false,
+  "auxiliary_title_requests": 24,
+  "actual_tool_names": [
+    "bash",
+    "edit",
+    "glob",
+    "grep",
+    "read",
+    "skill",
+    "task",
+    "todowrite",
+    "write",
+    "zvec_grep_zvec_grep_callees",
+    "zvec_grep_zvec_grep_callers"
+  ],
+  "index_identities": {
+    "a5e1f6086e92d5cc0a23f85685d03d85b89a8395": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "77effb9f2d0f9bea14a763a30c48453aae712abff1ee6175aa10929dddb92ba9",
+      "platform": "linux/amd64",
+      "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "46e939b5525d9c72b677340985582b04b128478a": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "77effb9f2d0f9bea14a763a30c48453aae712abff1ee6175aa10929dddb92ba9",
+      "platform": "linux/amd64",
+      "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "3c817ed8ab551d71e36907ce869afe5e4ca789ff": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "77effb9f2d0f9bea14a763a30c48453aae712abff1ee6175aa10929dddb92ba9",
+      "platform": "linux/amd64",
+      "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "40119bf35c53fc222934894d842cfc07b2e264bf": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "77effb9f2d0f9bea14a763a30c48453aae712abff1ee6175aa10929dddb92ba9",
+      "platform": "linux/amd64",
+      "repo_commit": "40119bf35c53fc222934894d842cfc07b2e264bf",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    }
+  },
+  "trial_inventory": [
+    {
+      "variant": "direct",
+      "task": "matplotlib-37",
+      "category": "concept",
+      "trial": "matplotlib-37__VDEwDaU",
+      "repeat": 1,
+      "judge": 95,
+      "http_requests": 9,
+      "tool_bearing_requests": 8,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-matplotlib-37-43378735002-1/matplotlib-37/experiment-relationships-zvec-grep/matplotlib-37__VDEwDaU/agent/model-requests.jsonl",
+      "raw_sha256": "883ac510428d9e58195649064660bc7cec71900fa184852624af9cf5d781463c",
+      "native_calls": {
+        "grep": 6,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 120317,
+      "output_tokens": 2591,
+      "tool_calls": 11,
+      "agent_seconds": 50.793126219,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 44.24,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "883ac510428d9e58195649064660bc7cec71900fa184852624af9cf5d781463c",
+        "tool-calls.json": "537f827c93c5edf53163b60bf9cc1fd47ae28a29578856f3c3f00ffe78a8505b",
+        "session-usage.json": "eede943347cbd9dff2490f2e9309f5c7378e85f13135755b281471dad437ec47",
+        "trajectory.json": "ea44110e5317877c08257a5c78701f5464c7822e9bc7b8c809452a4dafdd5ca9",
+        "zvec-grep-setup.json": "061593f869b3aecb431a261d6f9595b2ddb2fa320479c538b91d4ff5e0ba4b4b",
+        "result.json": "4f4661e1daaf528dbb2237a420cf873d4c5d5d76fedfdc978c878285ca64d80c"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-37",
+      "category": "concept",
+      "trial": "matplotlib-37__LKuJoAE",
+      "repeat": 2,
+      "judge": 94,
+      "http_requests": 12,
+      "tool_bearing_requests": 11,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-matplotlib-37-43378735002-1/matplotlib-37/experiment-relationships-zvec-grep/matplotlib-37__LKuJoAE/agent/model-requests.jsonl",
+      "raw_sha256": "7e6e0b3289345ba3701037652a70c894c226227cb112a2bd5f27b174c787a9cb",
+      "native_calls": {
+        "grep": 5,
+        "read": 11
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 190510,
+      "output_tokens": 2542,
+      "tool_calls": 16,
+      "agent_seconds": 55.669795023999995,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "7e6e0b3289345ba3701037652a70c894c226227cb112a2bd5f27b174c787a9cb",
+        "tool-calls.json": "07ceb749224ebe66152d31c6189858e5c1d590b4ba8748ea5bfce336f0f49fd8",
+        "session-usage.json": "f194d3229ec800e3e881e196f2e649c366ea64aee7e293755ab319088ad82f87",
+        "trajectory.json": "91ab4ea7dc5acadded16a1849f0ee5d1d9d281c0df36a73ea2e375269aa151c3",
+        "zvec-grep-setup.json": "b03355514a732612c177d9333b963461f51377ba582b02fda072047e61f5461c",
+        "result.json": "760c29d011f88de5ac3ea6aaede415488e6b6216b981d7872d9b21ad0e02d45d"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-cc2",
+      "category": "symbol",
+      "trial": "matplotlib-cc2__XYfbGbV",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-matplotlib-cc2-43378735002-1/matplotlib-cc2/experiment-relationships-zvec-grep/matplotlib-cc2__XYfbGbV/agent/model-requests.jsonl",
+      "raw_sha256": "8e0efc605da7665a307877695d2b9caf0f899ffdec63ee2c64a7451656085318",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a56478001Ry07ey3gcvnP1H",
+          "call_id": "call_762cf8f5956644fbaef319cb",
+          "session_id": "ses_e2c5aa91effei1qpWwpXXmP3F5",
+          "message_id": "msg_1d3a558f6001Hneg7UnJ237w41",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_process_plot_var_args._make_line"
+          },
+          "output": "_process_plot_var_args::_make_line  lib/matplotlib/axes/_base.py:334\n  Callees:\n    _process_plot_var_args::_setdefaults  lib/matplotlib/axes/_base.py:325\n      call at lib/matplotlib/axes/_base.py:336:9\n    _process_plot_var_args::_getdefaults  lib/matplotlib/axes/_base.py:310\n      call at lib/matplotlib/axes/_base.py:336:27\n",
+          "error": null,
+          "started_at": 1794552194340,
+          "finished_at": 1794552194936
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "input_tokens": 26087,
+      "output_tokens": 306,
+      "tool_calls": 2,
+      "agent_seconds": 12.164669742000005,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 41.692,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "8e0efc605da7665a307877695d2b9caf0f899ffdec63ee2c64a7451656085318",
+        "tool-calls.json": "2e1974a894264d2750cb69c23ef9edbdc3e8f99284b865a471c2207b82cf602a",
+        "session-usage.json": "72a39c7809b1bc062b379da1cc024638f4c1e4a78b2694b75872e4bfcceb6448",
+        "trajectory.json": "b6920706fc408fa8553006e3dab4b6144ce24648b8d4adbaa81bcd80220c974c",
+        "zvec-grep-setup.json": "3278ec359049b54fc62cbfa25269c2c2225202409e670e7701124cdd13902567",
+        "result.json": "517ccca5edb0b85ff7d49ac1c4b31e8fbefd5821f34548bf74db172df69ee4ab"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-cc2",
+      "category": "symbol",
+      "trial": "matplotlib-cc2__Np89Ziu",
+      "repeat": 2,
+      "judge": 100,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-matplotlib-cc2-43378735002-1/matplotlib-cc2/experiment-relationships-zvec-grep/matplotlib-cc2__Np89Ziu/agent/model-requests.jsonl",
+      "raw_sha256": "23fce192dd3e080acc28a75d609ec75a97f4f48b66c9becaa7d42682e43b179d",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a5d521001Q19ECahF6MBJiH",
+          "call_id": "call_faba0a6a8ea74868ab39babc",
+          "session_id": "ses_e2c5a398fffe6ccDHrBhIpG6u3",
+          "message_id": "msg_1d3a5c8a30011ColDOWT8rsEpm",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_process_plot_var_args._make_line"
+          },
+          "output": "_process_plot_var_args::_make_line  lib/matplotlib/axes/_base.py:334\n  Callees:\n    _process_plot_var_args::_setdefaults  lib/matplotlib/axes/_base.py:325\n      call at lib/matplotlib/axes/_base.py:336:9\n    _process_plot_var_args::_getdefaults  lib/matplotlib/axes/_base.py:310\n      call at lib/matplotlib/axes/_base.py:336:27\n",
+          "error": null,
+          "started_at": 1794552223175,
+          "finished_at": 1794552224378
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "input_tokens": 26086,
+      "output_tokens": 313,
+      "tool_calls": 2,
+      "agent_seconds": 13.864485835999998,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "23fce192dd3e080acc28a75d609ec75a97f4f48b66c9becaa7d42682e43b179d",
+        "tool-calls.json": "8b26611e81675354ecc03088a17c12691f8755d0eff6c01917a5c72ace1c3ecc",
+        "session-usage.json": "ccfd39097ff70e587c760b5ebf24a2bf700e5bfc4e66e3c8050e8e881db6985a",
+        "trajectory.json": "a598f6ebbf8da9d56c219c9dcce04c82facbae150e7c770ae2334573c2f8eeec",
+        "zvec-grep-setup.json": "300cb756c0b7b17fbf0bafd7e870754408ad12cd0f75aa038f5755e1c3086fc9",
+        "result.json": "5abb325d8ff8c2a441381532885d97c4df4fd78d4552a53ecdbcec8c38425432"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "requests-cc1",
+      "category": "symbol",
+      "trial": "requests-cc1__nTMeomg",
+      "repeat": 1,
+      "judge": 97,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-requests-cc1-43378735002-1/requests-cc1/experiment-relationships-zvec-grep/requests-cc1__nTMeomg/agent/model-requests.jsonl",
+      "raw_sha256": "9c39debf650600e044297b04a56836a0c77285b2e6cb016233974268965d1124",
+      "native_calls": {},
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a2ca2b001VoRzbLMUZGEy7Y",
+          "call_id": "call_d8256866c2264231b279b4f7",
+          "session_id": "ses_e2c5d51b6ffeh4TNZbfFefAIil",
+          "message_id": "msg_1d3a2c014001wqcHxnQ7ufqytQ",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects",
+            "globs": [
+              "src/requests/**"
+            ]
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794552023621,
+          "finished_at": 1794552024826
+        }
+      ],
+      "invalid_zg_attempts": [
+        {
+          "id": "prt_1d3a2beeb001Ihbgr5cqjpppw7",
+          "call_id": "call_a94018a287224f7d9bddeed9",
+          "session_id": "ses_e2c5d51b6ffeh4TNZbfFefAIil",
+          "message_id": "msg_1d3a2b179001HktG8Nq4Q1H8n4",
+          "name": "invalid",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "tool": "zvec_grep_zvec_grep_callers",
+            "error": "Invalid input for tool zvec_grep_zvec_grep_callers: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"resolve_redirects\", \"globs\": src/requests/**}.\nError message: JSON Parse error: Unexpected identifier \"src\""
+          },
+          "output": "The arguments provided to the tool are invalid: Invalid input for tool zvec_grep_zvec_grep_callers: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"resolve_redirects\", \"globs\": src/requests/**}.\nError message: JSON Parse error: Unexpected identifier \"src\"",
+          "error": null,
+          "started_at": 1794552020847,
+          "finished_at": 1794552020861
+        }
+      ],
+      "input_tokens": 25643,
+      "output_tokens": 214,
+      "tool_calls": 2,
+      "agent_seconds": 14.483542358999992,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 3.321,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "9c39debf650600e044297b04a56836a0c77285b2e6cb016233974268965d1124",
+        "tool-calls.json": "e4e3d2b9981ad5a4e8cee15f60a91b6b843e58daf5a47469ba91f4ce1ebd6110",
+        "session-usage.json": "3020e1325aaa2b947bf751cdd8470fd169bb12ae5c294eb592b2e2bc09c640c8",
+        "trajectory.json": "10fc6c84f7c93c75af3b2c2efc724bc03173997dec60ec2eff95fe3ecfc20572",
+        "zvec-grep-setup.json": "4bfb41f3a30a7e2931d6afb8a9dc2c0ecee66d2a8fdd7a320bb40948c45f24cd",
+        "result.json": "15b14c1bad34286c07b16723932703bce6f70b792c5abddc75cfb2a791dd253b"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "requests-cc1",
+      "category": "symbol",
+      "trial": "requests-cc1__v622qcZ",
+      "repeat": 2,
+      "judge": 94,
+      "http_requests": 3,
+      "tool_bearing_requests": 2,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-requests-cc1-43378735002-1/requests-cc1/experiment-relationships-zvec-grep/requests-cc1__v622qcZ/agent/model-requests.jsonl",
+      "raw_sha256": "278b0a00d0a2e46322dd662536fdef18cfa3263d5e088f41dde0a0a2fead43dd",
+      "native_calls": {},
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a34eb7001OYm23yqvcOrR6g",
+          "call_id": "call_29239424103e4c65a6a6102b",
+          "session_id": "ses_e2c5cc093ffecGdel6ni4rQvFI",
+          "message_id": "msg_1d3a34234001KBpfCR0LvEEHvP",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects",
+            "globs": [
+              "src/requests/**"
+            ]
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794552057733,
+          "finished_at": 1794552058532
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "input_tokens": 16943,
+      "output_tokens": 189,
+      "tool_calls": 1,
+      "agent_seconds": 10.78166565900001,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "278b0a00d0a2e46322dd662536fdef18cfa3263d5e088f41dde0a0a2fead43dd",
+        "tool-calls.json": "549fc18ebdee82ca376ee09d815185b22eafa29df466f4b537135c03ae4bcbbf",
+        "session-usage.json": "2a35905bfd8e74ac03e8b97ea8c389b69a9b7fe7f688dc77a544ad4f503875fb",
+        "trajectory.json": "c78deb0916f61733113943f4637c4f834bee4faf2365165dc6e5dd7d2cae5950",
+        "zvec-grep-setup.json": "5a92c2d87359454f74410ae6af1c56b113e66d7c133fe1548c539c97e848847c",
+        "result.json": "5514051b350b7edb32bc84cb181b43565e20e42a3f8fc54684c6760d7bf1026e"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-38",
+      "category": "concept",
+      "trial": "sympy-38__sirsKsQ",
+      "repeat": 1,
+      "judge": 13,
+      "http_requests": 7,
+      "tool_bearing_requests": 6,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-sympy-38-43378735002-1/sympy-38/experiment-relationships-zvec-grep/sympy-38__sirsKsQ/agent/model-requests.jsonl",
+      "raw_sha256": "d59f2ada6d4701e93655336e8507b0e9a9c523aa5abdb69d1dc060b5cc656933",
+      "native_calls": {
+        "grep": 6,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 105278,
+      "output_tokens": 3296,
+      "tool_calls": 11,
+      "agent_seconds": 48.551237950000015,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 80.631,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "d59f2ada6d4701e93655336e8507b0e9a9c523aa5abdb69d1dc060b5cc656933",
+        "tool-calls.json": "6978484f6697b0a17f86cb18c5ff17e6f768b0b7d7f5de69451459fa07a995d8",
+        "session-usage.json": "7acf50e1c4a7857a0c1098050ac110972f5e8e7620df8afe17ef55bbb7a124be",
+        "trajectory.json": "728591cde750e3bd7a66b7c519399fde6fe2cca5ed7002dfab8a99beffd28024",
+        "zvec-grep-setup.json": "6219fffbc05553a870c3198cbbe3cd16583408f31bc163a1bd6d82c7a095471c",
+        "result.json": "d2319a9743016d54ccfe44d2bb27fd2aab233749f8e2565785aac1495d0a5d8a"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-38",
+      "category": "concept",
+      "trial": "sympy-38__HunuVKH",
+      "repeat": 2,
+      "judge": 31,
+      "http_requests": 7,
+      "tool_bearing_requests": 6,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-sympy-38-43378735002-1/sympy-38/experiment-relationships-zvec-grep/sympy-38__HunuVKH/agent/model-requests.jsonl",
+      "raw_sha256": "ef16148805c49edba2dff30436d32542e93f623679246b0d7ea6a641c983756a",
+      "native_calls": {
+        "grep": 5,
+        "read": 4
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 91872,
+      "output_tokens": 5154,
+      "tool_calls": 9,
+      "agent_seconds": 67.23187049600001,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "ef16148805c49edba2dff30436d32542e93f623679246b0d7ea6a641c983756a",
+        "tool-calls.json": "fa10901f1de414fcf6537a73a40ad4a46e956db5c98f4bc50937c44bb9dd3d43",
+        "session-usage.json": "321deaf7d86121a3fd0780a2520241a1a86ddeda8d196b2fb49dfe244f858154",
+        "trajectory.json": "3cd050e99a36d4f8c059de9bd95cb13661b610caafdb99e7a9c9c4f069c9e632",
+        "zvec-grep-setup.json": "12590e382413c492b6573952e6ad189bcdf84cd0c7343bf9ed79a947f20326f8",
+        "result.json": "16fc5ec273514e92c33783ccd31a951eb71419b0d45245e05b0e445fc3012e8d"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-cc2",
+      "category": "symbol",
+      "trial": "sympy-cc2__cVNDuT3",
+      "repeat": 1,
+      "judge": 62,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-sympy-cc2-43378735002-1/sympy-cc2/experiment-relationships-zvec-grep/sympy-cc2__cVNDuT3/agent/model-requests.jsonl",
+      "raw_sha256": "53a4c7923853f4819b5ba605337fa6b6de4bfb55cff1678a62d760ff3d0d8527",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a76c7c001U3uBxQ1rpxGRzt",
+          "call_id": "call_13f43fe4a741473186ad9c4a",
+          "session_id": "ses_e2c58a35fffeWBmwp00XdK390Q",
+          "message_id": "msg_1d3a75f79001GQJHZXtEJQ2udg",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_get_func_order",
+            "globs": [
+              "**/sympy/solvers/ode/systems.py"
+            ]
+          },
+          "output": "_get_func_order  sympy/solvers/ode/systems.py:28\n  Callees:\n    ode_order  sympy/solvers/deutils.py:94\n      call at sympy/solvers/ode/systems.py:29:23\n",
+          "error": null,
+          "started_at": 1794552327484,
+          "finished_at": 1794552328348
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "input_tokens": 25736,
+      "output_tokens": 317,
+      "tool_calls": 2,
+      "agent_seconds": 15.220032623000023,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 82.74,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "53a4c7923853f4819b5ba605337fa6b6de4bfb55cff1678a62d760ff3d0d8527",
+        "tool-calls.json": "8f47dde980b75ad00d374014e023250ab8381689aef831c73f5c1701615c8e84",
+        "session-usage.json": "202e1f2f70377affc14326663fb1469ec193e4e495d59822ad1eca147472d6ae",
+        "trajectory.json": "67a45cde957d6eda52cb50b9f545f4540236eecf6976adb0953913bd86ff7925",
+        "zvec-grep-setup.json": "a1d308d1a019c4431f7c14b9a7950b99471916071aedf28f4e499040fe3957d0",
+        "result.json": "5452d0ab2204cff2b0117d6beb4f48bd7927c0bdf7aa3166af09114b7da66e33"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-cc2",
+      "category": "symbol",
+      "trial": "sympy-cc2__4ov7myt",
+      "repeat": 2,
+      "judge": 89,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-sympy-cc2-43378735002-1/sympy-cc2/experiment-relationships-zvec-grep/sympy-cc2__4ov7myt/agent/model-requests.jsonl",
+      "raw_sha256": "25337158cddc2d2298829e55c0eb3fdd1919c24e59e8c4e7b47040b2e3c433c6",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a7f7220011RwTSlnLSEKIqG",
+          "call_id": "call_a9ee0c004e3b421385570ab8",
+          "session_id": "ses_e2c58246fffebAQA9YoedrcLSY",
+          "message_id": "msg_1d3a7ed60001aZwVmLRFl1zUjm",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_get_func_order",
+            "globs": [
+              "sympy/solvers/ode/systems.py"
+            ]
+          },
+          "output": "_get_func_order  sympy/solvers/ode/systems.py:28\n  Callees:\n    ode_order  sympy/solvers/deutils.py:94\n      call at sympy/solvers/ode/systems.py:29:23\n",
+          "error": null,
+          "started_at": 1794552362806,
+          "finished_at": 1794552363612
+        }
+      ],
+      "invalid_zg_attempts": [
+        {
+          "id": "prt_1d3a7eb06001BtutlZueMtIltK",
+          "call_id": "call_140cb6d1ed184eb8b331f127",
+          "session_id": "ses_e2c58246fffebAQA9YoedrcLSY",
+          "message_id": "msg_1d3a7de55001OGmtVrZVahEhih",
+          "name": "invalid",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "tool": "zvec_grep_zvec_grep_callees",
+            "error": "Invalid input for tool zvec_grep_zvec_grep_callees: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"_get_func_order\", \"globs\": sympy/solvers/ode/systems.py}.\nError message: JSON Parse error: Unexpected identifier \"sympy\""
+          },
+          "output": "The arguments provided to the tool are invalid: Invalid input for tool zvec_grep_zvec_grep_callees: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"_get_func_order\", \"globs\": sympy/solvers/ode/systems.py}.\nError message: JSON Parse error: Unexpected identifier \"sympy\"",
+          "error": null,
+          "started_at": 1794552359939,
+          "finished_at": 1794552359945
+        }
+      ],
+      "input_tokens": 34733,
+      "output_tokens": 345,
+      "tool_calls": 3,
+      "agent_seconds": 16.486105064000007,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "25337158cddc2d2298829e55c0eb3fdd1919c24e59e8c4e7b47040b2e3c433c6",
+        "tool-calls.json": "aa8359a9c06b016246ac3bb8530f4cea3a053de4a394187bce9ccc8693878f0a",
+        "session-usage.json": "e7c957c2d1d8ab76924958cff9b4532dc910001c21417fe5f7131cc346228859",
+        "trajectory.json": "e83b17a1b8697d106582ded9a7a62829fb58d9dc45b80732c4572a80312641f2",
+        "zvec-grep-setup.json": "b2e2ac6a980473a19bed6bab844fee4390f1b12b32b843eb359e576abc871fdd",
+        "result.json": "5047123a89a7e7b24e7b42ff6690f0e95456f77c0ce1748f29b2dc4597ae64ca"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "xarray-32",
+      "category": "concept",
+      "trial": "xarray-32__59T25nZ",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 14,
+      "tool_bearing_requests": 13,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-xarray-32-43378735002-1/xarray-32/experiment-relationships-zvec-grep/xarray-32__59T25nZ/agent/model-requests.jsonl",
+      "raw_sha256": "d585e32eea9bbfffa205c86b78b908fb23dc2b01198eeb3e790b4ddf96bc071d",
+      "native_calls": {
+        "grep": 8,
+        "read": 16,
+        "glob": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 299575,
+      "output_tokens": 3778,
+      "tool_calls": 25,
+      "agent_seconds": 73.080505676,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "40119bf35c53fc222934894d842cfc07b2e264bf",
+        "duration_seconds": 26.513,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "d585e32eea9bbfffa205c86b78b908fb23dc2b01198eeb3e790b4ddf96bc071d",
+        "tool-calls.json": "a60786d0276fe4c52dbed1f5b11025ce71cfbc4a65bc3352ec6bf35eada3c615",
+        "session-usage.json": "664ccf7c188e3821e9410065f023d67176dae005cfb19c4a9e958de61af4f31c",
+        "trajectory.json": "dd04da5a10955f34f4b14517825b487342d5917dd917c6bb417f02224a8609ab",
+        "zvec-grep-setup.json": "5953e9c9c2a0d9065de67bd468523cb294e69c78fb749bd127b985e0fc444f0a",
+        "result.json": "491a04fa42813d8856dd8cb568c95382c1e60d6d7454cd81b58ab9a3e9747c3b"
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "xarray-32",
+      "category": "concept",
+      "trial": "xarray-32__zeY79rv",
+      "repeat": 2,
+      "judge": 91,
+      "http_requests": 20,
+      "tool_bearing_requests": 19,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/direct/caller-callee-evidence-guidance-contrast-relationships-xarray-32-43378735002-1/xarray-32/experiment-relationships-zvec-grep/xarray-32__zeY79rv/agent/model-requests.jsonl",
+      "raw_sha256": "8396d059621ba9d4e005d62232306d52a402651ea999c04908098a8c7f5cdb1f",
+      "native_calls": {
+        "grep": 11,
+        "read": 13
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 347153,
+      "output_tokens": 2021,
+      "tool_calls": 24,
+      "agent_seconds": 59.21632060299999,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "40119bf35c53fc222934894d842cfc07b2e264bf",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "8396d059621ba9d4e005d62232306d52a402651ea999c04908098a8c7f5cdb1f",
+        "tool-calls.json": "c6c3513a57159db8dcd1017704567f71cdae5016c30f692d04223d93ae3542de",
+        "session-usage.json": "4ae50f2bd3982727302de0ef367667d5e4a586e9a02f8351ac9f515e3f5b4acf",
+        "trajectory.json": "19301f0489ba000c82536d0c1bff18173827f578d24b8c1ecef863b2c410051d",
+        "zvec-grep-setup.json": "0474acc09e3e5513537350db5cb6bf6c8d47d83113e21cd5a0c40e1238d87d85",
+        "result.json": "a557dff537e10167867897f974313a42e14673d9efe6fca472e709298b440b6e"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-37",
+      "category": "concept",
+      "trial": "matplotlib-37__hpwgTdJ",
+      "repeat": 1,
+      "judge": 94,
+      "http_requests": 8,
+      "tool_bearing_requests": 7,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-matplotlib-37-43378755997-1/matplotlib-37/experiment-relationships-zvec-grep/matplotlib-37__hpwgTdJ/agent/model-requests.jsonl",
+      "raw_sha256": "620e478b999972b6e92114ff9323c3b057bb49aa39be8971a645c23d4bba3917",
+      "native_calls": {
+        "grep": 5,
+        "read": 4
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 89212,
+      "output_tokens": 1534,
+      "tool_calls": 9,
+      "agent_seconds": 37.213032149,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 45.407,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "620e478b999972b6e92114ff9323c3b057bb49aa39be8971a645c23d4bba3917",
+        "tool-calls.json": "95228a1d830dba8e7b8b152e06d14a15028abc85acac9873d9b7f6d35598a120",
+        "session-usage.json": "32209e3757cef0223ccd72313697a6bb950a09d5dadb769b0d2650b2dce524a4",
+        "trajectory.json": "c020dd48272b3a2b654491bfb24b09f11ee5fdfb59d9ad31ea6e156fb3f04ca3",
+        "zvec-grep-setup.json": "77a5f3185bedbd4c679128446aa3c8c560847d72429fc1eca52abde3a9f604ce",
+        "result.json": "91b2224eb66431d10c65c98e273378da236f01559ef93572989cc1a984c48cc8"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-37",
+      "category": "concept",
+      "trial": "matplotlib-37__aeBDxKU",
+      "repeat": 2,
+      "judge": 94,
+      "http_requests": 13,
+      "tool_bearing_requests": 12,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-matplotlib-37-43378755997-1/matplotlib-37/experiment-relationships-zvec-grep/matplotlib-37__aeBDxKU/agent/model-requests.jsonl",
+      "raw_sha256": "8a6e0197f5b111a78d74b2c8c23c1cb90fbad870755dd4e850e0f7f5715e1099",
+      "native_calls": {
+        "grep": 8,
+        "read": 8
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 211284,
+      "output_tokens": 3470,
+      "tool_calls": 16,
+      "agent_seconds": 65.75644865500003,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "8a6e0197f5b111a78d74b2c8c23c1cb90fbad870755dd4e850e0f7f5715e1099",
+        "tool-calls.json": "546f269dd8b1e12695b724614171be1663958ee88e76e28de088f84a1078bb22",
+        "session-usage.json": "1af6213d3af6de81a62bbf8b8fc2228eca31646320f7848fcf59b8eea9d4f56d",
+        "trajectory.json": "0c083475ac1e2345f999a6dfaf332d682848674eeb194276c6c5cf80a889bbad",
+        "zvec-grep-setup.json": "157cdad8d2c05caa1ef020cc0ea637fda8488d908d3053a2b1ee7d650d499bb0",
+        "result.json": "086d5f436cae3d70fe35a04b1f1e4435334c9dc2e126c2c1bb26e4cf2305fce8"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-cc2",
+      "category": "symbol",
+      "trial": "matplotlib-cc2__jMYiXP9",
+      "repeat": 1,
+      "judge": 99,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-matplotlib-cc2-43378755997-1/matplotlib-cc2/experiment-relationships-zvec-grep/matplotlib-cc2__jMYiXP9/agent/model-requests.jsonl",
+      "raw_sha256": "94aa55f84154771b4befbe0411b744c7fd7c4a8bcdeba0bbbf825e86e6666261",
+      "native_calls": {
+        "grep": 1,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 26214,
+      "output_tokens": 422,
+      "tool_calls": 2,
+      "agent_seconds": 14.505587627000004,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 32.634,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "94aa55f84154771b4befbe0411b744c7fd7c4a8bcdeba0bbbf825e86e6666261",
+        "tool-calls.json": "ee7c00aecb02aa4a8a5a451df38b336aa329e59bd2cb833a3a04ec8af14d732d",
+        "session-usage.json": "7019b3e6870f83d858a36e43b0b63da1173c33258ddb98f8185f10a60b5b4e6f",
+        "trajectory.json": "4b8afd1ab7085a7b80d54835002d2dc6a169144b4c366e1317bea41faa86fa4b",
+        "zvec-grep-setup.json": "f3e0d22ff00e7ca32d8b66ffc183da24a70b829c2a3a37f51c198aa27cb4bc0c",
+        "result.json": "bc5e6d0cad55cc4964d0f8126f062070e4a1cf8ace39bd56e3d6e6b5f53d1d6e"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-cc2",
+      "category": "symbol",
+      "trial": "matplotlib-cc2__UVsGvYH",
+      "repeat": 2,
+      "judge": 98,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-matplotlib-cc2-43378755997-1/matplotlib-cc2/experiment-relationships-zvec-grep/matplotlib-cc2__UVsGvYH/agent/model-requests.jsonl",
+      "raw_sha256": "f76417eb4697745ea5cbb473d9282d322d7b59d9771c38e97d9ae0d16a2989c2",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a4b58a001pPBoBmLLeAGKJT",
+          "call_id": "call_c97d28da35f34ef39aba3d78",
+          "session_id": "ses_e2c5b5862ffeZPNulCEBZc2788",
+          "message_id": "msg_1d3a4a9770017pHBwPoEZqKyTW",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_process_plot_var_args._make_line"
+          },
+          "output": "_process_plot_var_args::_make_line  lib/matplotlib/axes/_base.py:334\n  Callees:\n    _process_plot_var_args::_setdefaults  lib/matplotlib/axes/_base.py:325\n      call at lib/matplotlib/axes/_base.py:336:9\n    _process_plot_var_args::_getdefaults  lib/matplotlib/axes/_base.py:310\n      call at lib/matplotlib/axes/_base.py:336:27\n",
+          "error": null,
+          "started_at": 1794552150088,
+          "finished_at": 1794552150701
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "input_tokens": 26302,
+      "output_tokens": 470,
+      "tool_calls": 2,
+      "agent_seconds": 14.543777574999996,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "f76417eb4697745ea5cbb473d9282d322d7b59d9771c38e97d9ae0d16a2989c2",
+        "tool-calls.json": "88faabb3b1da637e4158f7de0de32fab328739abc78fe0000d4c348d1dddabef",
+        "session-usage.json": "6694f7f93ea4d252f6dfd9463763154d8d7da16c6311be0fcd3fb64593820ba5",
+        "trajectory.json": "45968c6e7a0a2dbf60f229ea6d74547f66bd8b22abb546ab1f146734cfd4338e",
+        "zvec-grep-setup.json": "17de6bc3ee6a8126f28b705e6f4559110bbceb5bc8890d74ecca3dc4b075829f",
+        "result.json": "363296b4e69206734a2d3618260dac1a1c3fadec71ecfda36084fe5340389769"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "requests-cc1",
+      "category": "symbol",
+      "trial": "requests-cc1__FhcU3Ub",
+      "repeat": 1,
+      "judge": 98,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-requests-cc1-43378755997-1/requests-cc1/experiment-relationships-zvec-grep/requests-cc1__FhcU3Ub/agent/model-requests.jsonl",
+      "raw_sha256": "847768a0d00b8762dea10a858d48fe6fa44e7edaa4dc08a745da248956032efd",
+      "native_calls": {},
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a1fd06001FibiCJ2NdVwImd",
+          "call_id": "call_252f79d920c8486f8745b040",
+          "session_id": "ses_e2c5e2c0cffehDBxW429XuwBVU",
+          "message_id": "msg_1d3a1e211001Pz3fPsG2au1vpe",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects",
+            "globs": [
+              "src/requests/**"
+            ]
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794551971240,
+          "finished_at": 1794551971692
+        }
+      ],
+      "invalid_zg_attempts": [
+        {
+          "id": "prt_1d3a1e0e7001EKJxouUuelqfMS",
+          "call_id": "call_b9c619bc85104730b6e5ae30",
+          "session_id": "ses_e2c5e2c0cffehDBxW429XuwBVU",
+          "message_id": "msg_1d3a1d5a20018FL1awwqA8Cmb1",
+          "name": "invalid",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "tool": "zvec_grep_zvec_grep_callers",
+            "error": "Invalid input for tool zvec_grep_zvec_grep_callers: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"resolve_redirects\", \"globs\": src/requests/**}.\nError message: JSON Parse error: Unexpected identifier \"src\""
+          },
+          "output": "The arguments provided to the tool are invalid: Invalid input for tool zvec_grep_zvec_grep_callers: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"resolve_redirects\", \"globs\": src/requests/**}.\nError message: JSON Parse error: Unexpected identifier \"src\"",
+          "error": null,
+          "started_at": 1794551964081,
+          "finished_at": 1794551964085
+        }
+      ],
+      "input_tokens": 25775,
+      "output_tokens": 226,
+      "tool_calls": 2,
+      "agent_seconds": 16.097714723999992,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 3.449,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "847768a0d00b8762dea10a858d48fe6fa44e7edaa4dc08a745da248956032efd",
+        "tool-calls.json": "4228e5a1d6cec7fede2f42ae9af9d3a411b1170353659c2dd892398420be9084",
+        "session-usage.json": "80b1277f822c1f46ddd059f6b349c644cc55a93907497b3575e61df67054d25c",
+        "trajectory.json": "5f251737832bdb3ab3d670111c5167034ea2c12292fca09de9c3ef6fb0421f05",
+        "zvec-grep-setup.json": "32ac35e548737cd6f66330052b4609a40bd0a4b8167a827d7697112dd533ff49",
+        "result.json": "0df9f754bb4fc68cad460fd7c445692843d83ac91a9e24fbc83a8aacff1d63d2"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "requests-cc1",
+      "category": "symbol",
+      "trial": "requests-cc1__8maPKKF",
+      "repeat": 2,
+      "judge": 99,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-requests-cc1-43378755997-1/requests-cc1/experiment-relationships-zvec-grep/requests-cc1__8maPKKF/agent/model-requests.jsonl",
+      "raw_sha256": "8b48feb8c374e4d044333b6f8eb186a544b53d62f6b133e8791899038be9b848",
+      "native_calls": {},
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a270fd001fAPnLVkYY37gO5",
+          "call_id": "call_a1333ecd6b4a4dd1981796d8",
+          "session_id": "ses_e2c5da52bffetylKCjswbYZCks",
+          "message_id": "msg_1d3a26a70001OKGrdsALEVFJNT",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects",
+            "globs": [
+              "src/requests/**"
+            ]
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794552000967,
+          "finished_at": 1794552001452
+        }
+      ],
+      "invalid_zg_attempts": [
+        {
+          "id": "prt_1d3a26967001VrLddsW23fxBuc",
+          "call_id": "call_556bbf6c3a3f40a087c14dff",
+          "session_id": "ses_e2c5da52bffetylKCjswbYZCks",
+          "message_id": "msg_1d3a25cdd001kDfkniTR3fJsL7",
+          "name": "invalid",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "tool": "zvec_grep_zvec_grep_callers",
+            "error": "Invalid input for tool zvec_grep_zvec_grep_callers: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"resolve_redirects\", \"globs\": src/requests/**}.\nError message: JSON Parse error: Unexpected identifier \"src\""
+          },
+          "output": "The arguments provided to the tool are invalid: Invalid input for tool zvec_grep_zvec_grep_callers: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"resolve_redirects\", \"globs\": src/requests/**}.\nError message: JSON Parse error: Unexpected identifier \"src\"",
+          "error": null,
+          "started_at": 1794551999038,
+          "finished_at": 1794551999042
+        }
+      ],
+      "input_tokens": 25783,
+      "output_tokens": 218,
+      "tool_calls": 2,
+      "agent_seconds": 11.155518473000006,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "8b48feb8c374e4d044333b6f8eb186a544b53d62f6b133e8791899038be9b848",
+        "tool-calls.json": "1ae8c983263ef3a2f9acc7879983cc2517f0b4cc84adfdf442b11c458aab07d7",
+        "session-usage.json": "4974e8470d2bf4fe2c87038cbdf2109cf30e2cdc8936c4b6ee2c6e09faf47a37",
+        "trajectory.json": "29b20fc301f449f229285763bb3641d983fce4e57bc37d71f42315faa81e8921",
+        "zvec-grep-setup.json": "8fd0efdb83da53aea0ce97b016fe74a1e26f2215d3442fcdadb8e47695b7fa12",
+        "result.json": "1a2c8fa0915508e1d6319d6f0d82ff9eb5656d213c6c97e32615c0773748b241"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-38",
+      "category": "concept",
+      "trial": "sympy-38__hskx9SE",
+      "repeat": 1,
+      "judge": 23,
+      "http_requests": 8,
+      "tool_bearing_requests": 7,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-sympy-38-43378755997-1/sympy-38/experiment-relationships-zvec-grep/sympy-38__hskx9SE/agent/model-requests.jsonl",
+      "raw_sha256": "e3b7be537d239d97fae59565be0877e0cd6667729fcbc593ff7b5e3b113a020b",
+      "native_calls": {
+        "grep": 6,
+        "read": 6
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 133260,
+      "output_tokens": 2705,
+      "tool_calls": 12,
+      "agent_seconds": 44.09269977800002,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 67.427,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "e3b7be537d239d97fae59565be0877e0cd6667729fcbc593ff7b5e3b113a020b",
+        "tool-calls.json": "aff52f938ba0835865eecd32e1149ff66bbab6393e7271f3299b68ad48e721a3",
+        "session-usage.json": "a923bfdc199c647c4863bf0865637b269aa91d5df0d446306ac7e35a1f6ab606",
+        "trajectory.json": "e1e8ed2ee907f80db38490ce5982d1730169b593da84bd356714c0118f6f4f91",
+        "zvec-grep-setup.json": "87a3ddad5a37b7505b7aa593c04991d4d54a4e44a0be2b29b1f70d5fa4d78049",
+        "result.json": "82ebb785d18c5034a02a12dfe731c74355bfba3d50dfd5dc75d5ac47064c4871"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-38",
+      "category": "concept",
+      "trial": "sympy-38__K97tydZ",
+      "repeat": 2,
+      "judge": 27,
+      "http_requests": 9,
+      "tool_bearing_requests": 8,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-sympy-38-43378755997-1/sympy-38/experiment-relationships-zvec-grep/sympy-38__K97tydZ/agent/model-requests.jsonl",
+      "raw_sha256": "cb48138da882adf1782577962711487f50682d448321497d07c293a9339077d7",
+      "native_calls": {
+        "bash": 1,
+        "grep": 5,
+        "read": 3
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 105762,
+      "output_tokens": 1194,
+      "tool_calls": 9,
+      "agent_seconds": 29.65268260899999,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "cb48138da882adf1782577962711487f50682d448321497d07c293a9339077d7",
+        "tool-calls.json": "9c315214de01f273f7d44d4091ce11a4f1e158d958b6e461645d93fda79152f1",
+        "session-usage.json": "980e1a6f7263997b71dd8240206a0fbeb204f8f64a8f3a46eccd87f2638d9acd",
+        "trajectory.json": "35b2b3eb6ce5926cce0635e8b7ef9a577149d31d8cf1c503d47880339e7e98b8",
+        "zvec-grep-setup.json": "0629d900236e371f091be19a9b47e664247e11581e419710b1011f07f936b432",
+        "result.json": "a778fd413dc3d5f76f7c2be7b840b60fda3758b609e8361bee84e825fdc027e9"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-cc2",
+      "category": "symbol",
+      "trial": "sympy-cc2__VytLAVx",
+      "repeat": 1,
+      "judge": 86,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-sympy-cc2-43378755997-1/sympy-cc2/experiment-relationships-zvec-grep/sympy-cc2__VytLAVx/agent/model-requests.jsonl",
+      "raw_sha256": "ce3e978d0f099ac3dbee2fbe6b716a93d4897497bff516dc3276025ce2a1dd46",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a7499c001elDYiqnJIuFKrB",
+          "call_id": "call_c311aace208142ff9ea49214",
+          "session_id": "ses_e2c58ca56ffenR1cYvr9Jt4O62",
+          "message_id": "msg_1d3a738f1001IQNPhlKeF3jR6R",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_get_func_order",
+            "globs": [
+              "**/sympy/solvers/ode/systems.py"
+            ]
+          },
+          "output": "_get_func_order  sympy/solvers/ode/systems.py:28\n  Callees:\n    ode_order  sympy/solvers/deutils.py:94\n      call at sympy/solvers/ode/systems.py:29:23\n",
+          "error": null,
+          "started_at": 1794552318646,
+          "finished_at": 1794552320247
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "input_tokens": 25868,
+      "output_tokens": 332,
+      "tool_calls": 2,
+      "agent_seconds": 16.918194214,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 86.91,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "ce3e978d0f099ac3dbee2fbe6b716a93d4897497bff516dc3276025ce2a1dd46",
+        "tool-calls.json": "77c655ad521d26d84283da46a78120783f863da3f38ac3390a9089401469a061",
+        "session-usage.json": "ca024e3ec01fa3b4115c93aee80af58a6ff53d0bc0c631f2d4338db605134b3b",
+        "trajectory.json": "9a685f25484861dff496e8b8417b7a55e4c3df08878d182a2360f85d30cae988",
+        "zvec-grep-setup.json": "6182618eda3224e502cb65e96120288ddc34e1ad5ed0bf0bf4db4e9f731ef973",
+        "result.json": "8a7f46f48cc34d65d10cabfac5ac8d4f8c3d2e4f7ceedc39bf7200d7afa6b3f0"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-cc2",
+      "category": "symbol",
+      "trial": "sympy-cc2__mfdc2Jq",
+      "repeat": 2,
+      "judge": 96,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-sympy-cc2-43378755997-1/sympy-cc2/experiment-relationships-zvec-grep/sympy-cc2__mfdc2Jq/agent/model-requests.jsonl",
+      "raw_sha256": "871a5c9dad28612924a65e4602d2ba39701d08214633c838877e0e40ef3f853d",
+      "native_calls": {
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [
+        {
+          "id": "prt_1d3a7e6c8001mhdyMGeG9V4dMG",
+          "call_id": "call_0b5a075d2c09490a9fa5e7cc",
+          "session_id": "ses_e2c583644ffeFZEdh05lVbBLMT",
+          "message_id": "msg_1d3a7dcc8001BxtDPtBwufSv3v",
+          "name": "zvec_grep_zvec_grep_callees",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_get_func_order",
+            "globs": [
+              "sympy/solvers/ode/systems.py"
+            ]
+          },
+          "output": "_get_func_order  sympy/solvers/ode/systems.py:28\n  Callees:\n    ode_order  sympy/solvers/deutils.py:94\n      call at sympy/solvers/ode/systems.py:29:23\n",
+          "error": null,
+          "started_at": 1794552358616,
+          "finished_at": 1794552359465
+        }
+      ],
+      "invalid_zg_attempts": [
+        {
+          "id": "prt_1d3a7db75001JjC64SYRbFrUMT",
+          "call_id": "call_04c0cee004a34741bd865f74",
+          "session_id": "ses_e2c583644ffeFZEdh05lVbBLMT",
+          "message_id": "msg_1d3a7cc9f001OjTjbMSYbsj3AX",
+          "name": "invalid",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "tool": "zvec_grep_zvec_grep_callees",
+            "error": "Invalid input for tool zvec_grep_zvec_grep_callees: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"_get_func_order\", \"globs\": sympy/solvers/ode/systems.py}.\nError message: JSON Parse error: Unexpected identifier \"sympy\""
+          },
+          "output": "The arguments provided to the tool are invalid: Invalid input for tool zvec_grep_zvec_grep_callees: JSON parsing failed: Text: {\"root\": \"/app\", \"symbol\": \"_get_func_order\", \"globs\": sympy/solvers/ode/systems.py}.\nError message: JSON Parse error: Unexpected identifier \"sympy\"",
+          "error": null,
+          "started_at": 1794552355946,
+          "finished_at": 1794552355955
+        }
+      ],
+      "input_tokens": 34901,
+      "output_tokens": 330,
+      "tool_calls": 3,
+      "agent_seconds": 17.040855555999972,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "871a5c9dad28612924a65e4602d2ba39701d08214633c838877e0e40ef3f853d",
+        "tool-calls.json": "6b3542857ba392318cc86952384f721dfe75e5b481a845a51094767149e8219c",
+        "session-usage.json": "ad460c797cf32454c8f06db8f8240f7040721b50f6c7f4fa7fa954d8aec4d329",
+        "trajectory.json": "8052a5f0860e00b46bceef4f9ad02f23b7a48cc58beda3a222fd263b589d1065",
+        "zvec-grep-setup.json": "5f02a429e88cd2a09ffc651f8d1c3feaa3f7acdbc16b2aac52e2546ec6c0c151",
+        "result.json": "d360eb81bba2ef36924b4cb73491db4770a136f56e54d09858e42b1e4a9a4623"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "xarray-32",
+      "category": "concept",
+      "trial": "xarray-32__SLewd52",
+      "repeat": 1,
+      "judge": 78,
+      "http_requests": 15,
+      "tool_bearing_requests": 14,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-xarray-32-43378755997-1/xarray-32/experiment-relationships-zvec-grep/xarray-32__SLewd52/agent/model-requests.jsonl",
+      "raw_sha256": "f35bae85d903707fd4e3014f6355d23fc19e3547ae2ea53508bb7a58bdc5bed4",
+      "native_calls": {
+        "grep": 5,
+        "read": 8
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 220537,
+      "output_tokens": 2484,
+      "tool_calls": 13,
+      "agent_seconds": 66.897035978,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "40119bf35c53fc222934894d842cfc07b2e264bf",
+        "duration_seconds": 20.241,
+        "seed_restored": false
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "f35bae85d903707fd4e3014f6355d23fc19e3547ae2ea53508bb7a58bdc5bed4",
+        "tool-calls.json": "5cbd3f90c92f0763165d68e2272b11deb446c972700828221727846cb22a96e9",
+        "session-usage.json": "c03c84c9d48b18204295f343e76852a139e43f4b583bd55778392bae3a3f068c",
+        "trajectory.json": "b330a78786ca91d35fa703bc6b0a6efb3a0d73fad3b00bb58a066f572ed11b21",
+        "zvec-grep-setup.json": "8534031dc99b1561023b4e37a73ddfc995a0c32fac842697ceda562860dd427c",
+        "result.json": "5223997ca3fc97521f67ba2336b983291b1eb04a6111c01572cc4c81680c3fb0"
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "xarray-32",
+      "category": "concept",
+      "trial": "xarray-32__6gTNeT6",
+      "repeat": 2,
+      "judge": 95,
+      "http_requests": 33,
+      "tool_bearing_requests": 32,
+      "context_issue_request_ids": [],
+      "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "raw_requests": "artifacts/flow/caller-callee-evidence-guidance-contrast-relationships-xarray-32-43378755997-1/xarray-32/experiment-relationships-zvec-grep/xarray-32__6gTNeT6/agent/model-requests.jsonl",
+      "raw_sha256": "ecd5971dafd137887e53b4ff1d4ac493e1a963e6d6b97a5bea05f5976bf97432",
+      "native_calls": {
+        "grep": 22,
+        "read": 23,
+        "glob": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "shell_zg_call_ids": [],
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "input_tokens": 847274,
+      "output_tokens": 3346,
+      "tool_calls": 46,
+      "agent_seconds": 122.473982593,
+      "cost_usd": null,
+      "index": {
+        "repo_commit": "40119bf35c53fc222934894d842cfc07b2e264bf",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      },
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_tool_descriptions_match": true,
+      "all_http_statuses": 200,
+      "file_sha256": {
+        "model-requests.jsonl": "ecd5971dafd137887e53b4ff1d4ac493e1a963e6d6b97a5bea05f5976bf97432",
+        "tool-calls.json": "b6670b52be5355c047e86e1575195cd3e3ff9779c7e529abaaea4f6aeadc4c3a",
+        "session-usage.json": "959d9b9cc847ea64a271192505c61ec5bafde761be2bae1d8a2aedd3371f7865",
+        "trajectory.json": "787b9866611750a8eac6beab64dbf2e192e5f6c072479368a90f6322734269aa",
+        "zvec-grep-setup.json": "351ebacb7baccd8bb03cad495f130ce0e2a035e14f40a68f617e521aa8ad3f70",
+        "result.json": "63a2c5913155ea01b0bf95212260876c58dc1b45ca16129d605f46e85d99b2f5"
+      }
+    }
+  ]
+}

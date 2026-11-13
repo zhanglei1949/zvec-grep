@@ -46,9 +46,10 @@ selection 相对的 `smoke` 与 `all-full` scope；collect/aggregate 需传
 matplotlib:cc1 为别名/间接调用边界探针，sympy:cc1 检验推导式调用解析与
 20 条截断。该题集是定向诊断样本，结论不外推为 SWE-QA 总体收益。
 
-caller/callee 参考答案修订为 v3：三道锚点题保留源码事实，候选工具的空边、
-解析与截断观察放入不传给 judge 的 `verification_notes`。问题与源码事实
-不变；所有对照组须使用同一修订。本次不重评分已保存答复，不改已发布结果。
+caller/callee 参考答案修订为 v3：原有十一条记录不变，新增三道原样复制的
+概念题和两道按源码核对的 callees 题。候选工具的空边、解析与截断观察留在
+不传给 judge 的 `verification_notes`；所有对照组须使用同一修订。
+本次不重评分已保存答复，不改已发布结果。
 
 本轮仅运行 [24-trial 关系组 direct/flow 对照](docs/caller-callee-guidance-contrast-20261113.md)，不重跑全量。smoke/full 也采集并审计实际 HTTP 请求中的 messages/tools，保留零调用。
 
