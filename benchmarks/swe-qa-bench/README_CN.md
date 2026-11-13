@@ -51,7 +51,9 @@ caller/callee 参考答案修订为 v3：原有十一条记录不变，新增三
 不传给 judge 的 `verification_notes`；所有对照组须使用同一修订。
 本次不重评分已保存答复，不改已发布结果。
 
-本轮仅运行 [24-trial 关系组 direct/flow 对照](docs/caller-callee-guidance-contrast-20261113.md)，不重跑全量。smoke/full 也采集并审计实际 HTTP 请求中的 messages/tools，保留零调用。
+此前的 [24-trial 关系组 direct/flow 对照](docs/caller-callee-guidance-contrast-20261113.md) 已完成，未重跑全量。smoke/full 也采集并审计实际 HTTP 请求中的 messages/tools，保留零调用。
+
+另外的 [八道上游关系题及完整结果](docs/caller-callee-upstream-8-20261113.md) 使用 `experiment_phase=upstream-8`、`task_set=caller-callee`、`experiment_group=relationships`；direct/flow 各 8 题 × 2 次，共 32 个 trial。v2 仅补充已核实的 Django 伪装文本 PNG 附件排除，首轮失败与部分结果独立保留；与 24-trial 诊断不混合。
 
 E2E 对固定 commit 的仓库按候选支持的类型和 suite ignore 文件建图，
 不限 Python，也未传入文件大小覆盖参数。当前候选源码的代码文件默认上限

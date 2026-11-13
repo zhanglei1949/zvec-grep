@@ -33,7 +33,7 @@ dev fixture（`fixtures/caller-callee-dev/`）扩充后的符号与考察点：
 
 ## 在另一台机器上运行
 
-当前执行的 [24-trial 关系组对照协议](caller-callee-guidance-contrast-20261113.md) 使用新增 `guidance-contrast` 阶段；每个变体仅六题 × 两次。以下 smoke/full 为保留的其他入口，所有实验阶段均采集实际模型请求。
+已完成的 [24-trial 关系组对照](caller-callee-guidance-contrast-20261113.md) 使用 `guidance-contrast` 阶段，每个变体六题 × 两次。另有独立的 [八道上游题及结果](caller-callee-upstream-8-20261113.md)，使用 `upstream-8` 阶段，每个变体八题 × 两次。以下 smoke/full 为保留的其他入口，所有实验阶段均采集实际模型请求。
 
 ### 题集与阶段
 

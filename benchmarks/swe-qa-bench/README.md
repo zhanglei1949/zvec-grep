@@ -29,7 +29,7 @@ Caller/callee references are revision 3: the original eleven records are unchang
 
 The E2E index scans the pinned repository using the candidate's supported file types and the suite's ignore file, with graph indexing enabled; it is not restricted to Python. No file-size override is passed. In the current candidate source, the default code-file limit is 1MiB. The earlier Python-only/2MiB audit uses a different protocol. Freeze the candidate package, repository commit, embedding model and ignore-file digest across arms; see the [index protocol](docs/caller-callee-guidance-contrast-run.md#e2e-索引协议v1).
 
-Guidance comparisons opt into `guidance_variant=flow`; `direct` remains the default. Flow supports smoke/full and guidance-contrast experiments, and the preflight probe checks both live MCP instructions and installed AGENTS.md. Vary the task set and guidance separately; see the [run guide](docs/caller-callee-guidance-contrast-run.md).
+Guidance comparisons opt into `guidance_variant=flow`; `direct` remains the default. Flow supports smoke/full, guidance-contrast and upstream-8 experiments, and the preflight probe checks both live MCP instructions and installed AGENTS.md. Vary the task set and guidance separately; see the [run guide](docs/caller-callee-guidance-contrast-run.md).
 
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
@@ -45,7 +45,7 @@ time.
 
 The [24-trial relationships guidance contrast](docs/caller-callee-guidance-contrast-20261113.md) fixes six tasks and two repetitions per direct/flow variant. Select `experiment_phase=guidance-contrast`, `task_set=caller-callee`, `experiment_group=relationships`. All experiment phases now capture and audit actual outbound model requests; zero-call trials remain included.
 
-The separate [eight upstream relationship questions](docs/caller-callee-upstream-8-20261113.md) use `experiment_phase=upstream-8`, `task_set=caller-callee`, and `experiment_group=relationships`: eight fixed SWE-QA questions × two repetitions per direct/flow variant, 32 trials total. Questions, references, candidate and guidance are retained from the previous protocol; only the selected task scope changes. The two diagnostics are reported separately.
+The separate [eight upstream relationship questions and completed results](docs/caller-callee-upstream-8-20261113.md) use `experiment_phase=upstream-8`, `task_set=caller-callee`, and `experiment_group=relationships`: eight fixed SWE-QA questions × two repetitions per direct/flow variant, 32 trials total. Questions, references, candidate and guidance are retained. The v2 index policy excludes a verified Django PNG attachment mislabeled as text; the initial incomplete cohort is preserved separately. The two diagnostics are reported separately.
 
 ## Benchmark definition
 
