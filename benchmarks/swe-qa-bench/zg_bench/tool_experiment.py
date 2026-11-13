@@ -33,7 +33,7 @@ TASK_SETS = {
     "caller-callee": {
         "selection": "selection-caller-callee.json",
         "references": "references-caller-callee.json",
-        "scopes": {"smoke": "smoke", "full": "all-full", "guidance-contrast": "guidance-contrast"},
+        "scopes": {"smoke": "smoke", "full": "all-full", "guidance-contrast": "guidance-contrast", "upstream-8": "upstream-8"},
     },
 }
 
@@ -105,7 +105,7 @@ def collect(args: argparse.Namespace) -> None:
             frozen = load_object(ROOT / "fixtures/caller-callee-guidance-v2.json", label="diagnostic guidance")
             if trial["surface"] != frozen["groups"][args.group]:
                 raise ValueError("installed guidance differs from frozen diagnostic version")
-        if args.phase == "guidance-contrast":
+        if args.phase in ("guidance-contrast", "upstream-8"):
             variant = load_object(directory / "agent/zvec-grep-setup.json", label="setup evidence")["guidance_variant"]
             frozen = load_object(ROOT / "fixtures/caller-callee-guidance-contrast-v1.json", label="contrast guidance")
             if trial["surface"] != frozen["variants"][variant]:
@@ -132,7 +132,7 @@ def collect(args: argparse.Namespace) -> None:
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
-        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
+        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
         "task_set": args.task_set,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),
@@ -212,9 +212,9 @@ def comparisons(reports: list[dict]) -> list[dict]:
 
 def aggregate(args: argparse.Namespace) -> None:
     expected_tasks = experiment_tasks(args.task_set, args.phase)
-    if args.phase == "guidance-contrast" and args.group not in ("all", "relationships"):
+    if args.phase in ("guidance-contrast", "upstream-8") and args.group not in ("all", "relationships"):
         raise ValueError("guidance contrast requires the relationships arm")
-    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-contrast": ("relationships",)}.get(args.phase, GROUPS)
+    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-contrast": ("relationships",), "upstream-8": ("relationships",)}.get(args.phase, GROUPS)
     groups = phase_groups if args.group == "all" else (args.group,)
     reports = []
     for path in sorted(args.reports.rglob("task-report.json")):
@@ -243,7 +243,7 @@ def aggregate(args: argparse.Namespace) -> None:
             raise ValueError("unsupported guidance variant in experiment report")
         if len(report["trials"]) != report["expected_trials"] or not report["graph_index"]:
             raise ValueError("incomplete trials or graph configuration")
-        if args.phase == "guidance-contrast" and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
+        if args.phase in ("guidance-contrast", "upstream-8") and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
             raise ValueError("guidance contrast requires two trials and actual request evidence")
         previous = surfaces.setdefault(report["group"], report["surface_sha256"])
         if previous != report["surface_sha256"]:
@@ -277,7 +277,7 @@ def main() -> None:
     summary.add_argument("--reports", type=Path, required=True)
     summary.add_argument("--group", choices=(*GROUPS, "all"), required=True)
     for command in (task, summary):
-        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast"), required=True)
+        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast", "upstream-8"), required=True)
         command.add_argument("--task-set", choices=tuple(TASK_SETS), default="qa20")
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

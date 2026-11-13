@@ -13,7 +13,8 @@ from zg_bench.core.io import load_object
 # 35206585943 run. These are fixed IDs, not a fresh stability classification.
 REPRO_TASK_IDS = ("reflex:6", "requests:16", "conan:39")
 DIAGNOSTIC_TASK_IDS = ("matplotlib:37", "sympy:38", "xarray:32")
-CI_SCOPES = ("repro-3", "smoke", "all-full", "gate-20", "requests-1", "diagnostic-3", "guidance-contrast")
+UPSTREAM_RELATION_TASK_IDS = ("reflex:46", "scikit-learn:39", "sympy:37", "django:42", "conan:17", "flask:43", "requests:45", "matplotlib:45")
+CI_SCOPES = ("repro-3", "smoke", "all-full", "gate-20", "requests-1", "diagnostic-3", "guidance-contrast", "upstream-8")
 
 
 def select_ci_tasks(
@@ -21,7 +22,9 @@ def select_ci_tasks(
 ) -> tuple[list[str], list[str]]:
     tasks = selection["tasks"]
     tasks_by_id = {task["task_id"]: task for task in tasks}
-    if scope == "guidance-contrast":
+    if scope == "upstream-8":
+        task_ids = list(UPSTREAM_RELATION_TASK_IDS)
+    elif scope == "guidance-contrast":
         task_ids = list(selection["gate"]["guidance_contrast_tasks"])
     elif scope == "diagnostic-3":
         task_ids = list(DIAGNOSTIC_TASK_IDS)

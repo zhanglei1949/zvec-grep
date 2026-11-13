@@ -253,6 +253,11 @@ class CallerCalleeWorkflowTests(unittest.TestCase):
             ("caller-callee", "relationships", "guidance-contrast", "flow", True),
             ("caller-callee", "agent", "guidance-contrast", "flow", False),
             ("qa20", "relationships", "guidance-contrast", "direct", False),
+            ("caller-callee", "relationships", "upstream-8", "direct", True),
+            ("caller-callee", "relationships", "upstream-8", "flow", True),
+            ("caller-callee", "agent", "upstream-8", "flow", False),
+            ("caller-callee", "search", "upstream-8", "direct", False),
+            ("qa20", "relationships", "upstream-8", "direct", False),
         ):
             with self.subTest(task_set=task_set, group=group, phase=phase, variant=variant), tempfile.TemporaryDirectory() as temp:
                 env = {**os.environ, "TASK_SET": task_set, "EXPERIMENT_GROUP": group,

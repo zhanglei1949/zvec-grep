@@ -37,10 +37,10 @@ on:
         type: choice
         options: [legacy, relationships, search, agent]
       experiment_phase:
-        description: Smoke, full, prior context diagnostic, or six-task guidance contrast
+        description: Smoke, full, prior diagnostics, or the eight upstream relationship questions
         default: smoke
         type: choice
-        options: [smoke, full, diagnostic, guidance-contrast]
+        options: [smoke, full, diagnostic, guidance-contrast, upstream-8]
       task_set:
         description: Frozen task set (qa20 keeps the 20-task lock; caller-callee uses the targeted diagnostic set)
         default: qa20
@@ -181,8 +181,8 @@ jobs:
             echo "::error::The flow guidance variant requires an experiment; the prior diagnostic freezes direct guidance."
             exit 1
           fi
-          if [[ "$EXPERIMENT_PHASE" == guidance-contrast && ( "$TASK_SET" != caller-callee || "$EXPERIMENT_GROUP" != relationships ) ]]; then
-            echo "::error::The guidance contrast requires task_set=caller-callee and the relationships arm."
+          if [[ ( "$EXPERIMENT_PHASE" == guidance-contrast || "$EXPERIMENT_PHASE" == upstream-8 ) && ( "$TASK_SET" != caller-callee || "$EXPERIMENT_GROUP" != relationships ) ]]; then
+            echo "::error::The guidance comparisons require task_set=caller-callee and the relationships arm."
             exit 1
           fi
           selection=benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json
@@ -196,8 +196,9 @@ jobs:
               smoke) SCOPE=smoke ;;
               full) SCOPE=all-full ;;
               guidance-contrast) SCOPE=guidance-contrast ;;
+              upstream-8) SCOPE=upstream-8 ;;
               *)
-                echo "::error::The caller-callee task set supports smoke, full, and guidance-contrast."
+                echo "::error::The caller-callee task set supports smoke, full, guidance-contrast, and upstream-8."
                 exit 1
                 ;;
             esac
@@ -624,7 +625,7 @@ jobs:
           test '${{ inputs.embedding }}' = local
           case "$EXPERIMENT_PHASE" in
             smoke) trials=1 ;;
-            diagnostic|guidance-contrast) trials=2 ;;
+            diagnostic|guidance-contrast|upstream-8) trials=2 ;;
             full) trials=5 ;;
           esac
           runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"

@@ -45,6 +45,8 @@ time.
 
 The [24-trial relationships guidance contrast](docs/caller-callee-guidance-contrast-20261113.md) fixes six tasks and two repetitions per direct/flow variant. Select `experiment_phase=guidance-contrast`, `task_set=caller-callee`, `experiment_group=relationships`. All experiment phases now capture and audit actual outbound model requests; zero-call trials remain included.
 
+The separate [eight upstream relationship questions](docs/caller-callee-upstream-8-20261113.md) use `experiment_phase=upstream-8`, `task_set=caller-callee`, and `experiment_group=relationships`: eight fixed SWE-QA questions × two repetitions per direct/flow variant, 32 trials total. Questions, references, candidate and guidance are retained from the previous protocol; only the selected task scope changes. The two diagnostics are reported separately.
+
 ## Benchmark definition
 
 This benchmark uses a pinned 20-task subset of
