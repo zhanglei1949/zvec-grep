@@ -37,10 +37,10 @@ on:
         type: choice
         options: [legacy, relationships, search, agent]
       experiment_phase:
-        description: Experiment smoke (requests-16 once) or full (20 tasks five times)
+        description: Smoke, full benchmark, or three-task request-context diagnostic
         default: smoke
         type: choice
-        options: [smoke, full]
+        options: [smoke, full, diagnostic]
       scope:
         description: Run the low/medium/high variability trio, all 20 tasks, or smoke
         required: true
@@ -153,7 +153,11 @@ jobs:
           EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
         run: |
           if [[ "$EXPERIMENT_GROUP" != legacy ]]; then
-            if [[ "$EXPERIMENT_PHASE" == smoke ]]; then SCOPE=requests-1; else SCOPE=all-full; fi
+            case "$EXPERIMENT_PHASE" in
+              smoke) SCOPE=requests-1 ;;
+              diagnostic) SCOPE=diagnostic-3 ;;
+              full) SCOPE=all-full ;;
+            esac
           fi
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa matrix \
             --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json \
@@ -567,11 +571,16 @@ jobs:
           test -n "$GLM_API_KEY"
           test "$SWE_QA_MODEL" = glm-5.2
           test '${{ inputs.embedding }}' = local
-          if [[ "$EXPERIMENT_PHASE" == smoke ]]; then trials=1; else trials=5; fi
+          diagnostic_flags=()
+          case "$EXPERIMENT_PHASE" in
+            smoke) trials=1 ;;
+            diagnostic) trials=2; diagnostic_flags+=(--record-model-requests) ;;
+            full) trials=5 ;;
+          esac
           runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"
           uv run --project benchmarks/swe-qa-bench zg-bench run swe-qa-bench \
             --tier full --task "$TASK_NAME" --agent opencode --model custom-openai/glm-5.2 \
-            --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" \
+            --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" "${diagnostic_flags[@]}" \
             --n-attempts "$trials" --max-retries 2 \
             --embedding-model local/potion-code-16m-v2 \
             --zvec-grep-package "$RUNNER_TEMP/package/candidate.tgz" \

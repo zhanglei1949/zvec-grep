@@ -21,6 +21,7 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.config import AgentConfig
 
 from zg_bench import runner, settings
+from zg_bench.model_requests import audit_model_requests
 from zg_bench.agents.opencode import (
     ResilientOpenCode,
     resilient_nvm_node_install_snippet,
@@ -309,7 +310,7 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 zg_tools = {"relationships": ("callers", "callees"), "search": ("search",), "agent": ("search", "callers", "callees")}.get(tool_group, ())
                 frozen_guidance = None
                 if tool_group is not None:
-                    frozen_guidance = json.loads((Path(__file__).resolve().parents[1] / "fixtures/caller-callee-guidance.json").read_text())["groups"][tool_group]
+                    frozen_guidance = json.loads((Path(__file__).resolve().parents[1] / "fixtures/caller-callee-guidance-v2.json").read_text())["groups"][tool_group]
                     guidance_path = root / "config/opencode/AGENTS.md"
                     guidance_path.parent.mkdir(parents=True)
                     guidance_path.write_text(frozen_guidance["guidance"])
@@ -359,6 +360,7 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 mcp.daemon_threads = True
                 mcp_thread = threading.Thread(target=mcp.serve_forever, daemon=True)
                 mcp_thread.start()
+                recorder = None
                 try:
                     command = runner.build_harbor_command(
                         suite,
@@ -378,6 +380,10 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                     provider["options"]["baseURL"] = (
                         f"http://127.0.0.1:{server.server_port}/v1"
                     )
+                    if frozen_guidance is not None:
+                        recorder = subprocess.Popen(["node", str(Path(__file__).resolve().parents[1] / "zg_bench/model_request_recorder.mjs"), provider["options"]["baseURL"], str(root / "requests.jsonl"), str(root / "closed")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        ready = json.loads(recorder.stdout.readline())
+                        provider["options"]["baseURL"] = ready["baseURL"]
                     config.update(autoupdate=False, share="disabled", lsp=False)
                     if tool_group is not None:
                         arm_config = runner.build_opencode_config(runner.resolve_opencode_model(model).configuration, profile="zvec-grep", tool_experiment=True)
@@ -550,7 +556,24 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                                 not disable_web_tools,
                                 f"Unexpected {tool} availability: {sorted(tool_names)}",
                             )
+                    if recorder is not None:
+                        recorder.terminate()
+                        recorder.wait(timeout=10)
+                        self.assertEqual(recorder.returncode, 0, recorder.stderr.read())
+                        recorded = [json.loads(line) for line in (root / "requests.jsonl").read_text().splitlines()]
+                        captured = [event["body"] for event in recorded if event["type"] == "request"]
+                        self.assertCountEqual(captured, requests)
+                        self.assertNotIn(fixture_key, (root / "requests.jsonl").read_text())
+                        audit = audit_model_requests(root / "requests.jsonl", frozen_guidance, [])
+                        self.assertEqual(audit["context_issue_request_ids"], [])
+                        self.assertEqual(audit["tool_bearing_requests"], 6)
                 finally:
+                    if recorder is not None:
+                        if recorder.poll() is None:
+                            recorder.terminate()
+                            recorder.wait(timeout=10)
+                        recorder.stdout.close()
+                        recorder.stderr.close()
                     mcp.shutdown()
                     mcp.server_close()
                     mcp_thread.join(timeout=5)

@@ -598,9 +598,12 @@ def build_harbor_command(
     embedding_model: str = ZVEC_GREP_EMBEDDING,
     embedding_endpoint: str | None = ZVEC_GREP_EMBEDDING_ENDPOINT,
     mcp_toolset: str | None = None,
+    record_model_requests: bool = False,
 ) -> list[str]:
     if profile not in PROFILES:
         raise ValueError(f"unsupported profile: {profile}")
+    if record_model_requests and (profile != "zvec-grep" or agent != "opencode" or mcp_toolset is None):
+        raise ValueError("request recording requires an OpenCode tool experiment")
     if (
         isinstance(n_attempts, bool)
         or not isinstance(n_attempts, int)
@@ -650,6 +653,8 @@ def build_harbor_command(
         harbor_agent = _ZVEC_AGENT_IMPORT_PATHS[agent]
         if mcp_toolset is not None:
             agent_kwargs.extend([f"mcp_toolset={mcp_toolset}", "graph_index=true", "collect_tool_calls=true"])
+        if record_model_requests:
+            agent_kwargs.append("record_model_requests=true")
         agent_kwargs.extend(
             [
                 f"zvec_grep_package={zvec_grep_package}",

@@ -17,6 +17,8 @@ from zg_bench.engines.judge import default_completion, judge_candidate, judge_ge
 from zg_bench.engines.registry import resolve_opencode_model
 from zg_bench.swe_qa.collect import _completed_job, _job_dirs, _profile_result, _select_trials
 from zg_bench.swe_qa.pairs import load_references
+from zg_bench.swe_qa.selection import select_ci_tasks
+from zg_bench.model_requests import audit_model_requests
 
 GROUPS = ("relationships", "search", "agent")
 TOOLS = ("search", "callers", "callees")
@@ -77,6 +79,11 @@ def collect(args: argparse.Namespace) -> None:
         trial["audit"] = audit_calls(audit["calls"])
         trial["calls"] = audit["calls"]
         trial["surface"] = load_object(directory / "agent/tool-surface.json", label="live tool surface")
+        if args.phase == "diagnostic":
+            frozen = load_object(ROOT / "fixtures/caller-callee-guidance-v2.json", label="diagnostic guidance")
+            if trial["surface"] != frozen["groups"][args.group]:
+                raise ValueError("installed guidance differs from frozen diagnostic version")
+            trial["model_requests"] = audit_model_requests(directory / "agent/model-requests.jsonl", trial["surface"], trial["calls"])
         trial["evidence"] = str(directory.relative_to(args.runs_dir))
         trial["judge"] = judge_candidate(
             completion_fn=completion, api_key=runtime.api_key,
@@ -94,7 +101,7 @@ def collect(args: argparse.Namespace) -> None:
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
-        "protocol": "caller-callee-e2e-v1", "group": args.group, "phase": args.phase,
+        "protocol": "caller-callee-context-diagnostic-v1" if args.phase == "diagnostic" else "caller-callee-e2e-v1", "group": args.group, "phase": args.phase,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),
         "judge_config": judge_generation_metadata(), "graph_index": True,
@@ -121,6 +128,12 @@ def render(reports: list[dict]) -> str:
         for trial in report["trials"]:
             counts = trial["audit"]["tools"]
             lines.append(f"| {report['group']} | {report['task']} | {trial['trial_name']} | {trial['judge']['total']} | " + " | ".join(str(counts[t]["attempted"]) for t in TOOLS) + f" | {len(trial['audit']['shell_zg_call_ids'])} |")
+    if any(r["phase"] == "diagnostic" for r in reports):
+        lines.extend(["", "## Actual outbound context", "", "Tools and full messages are captured at the HTTP boundary. Context issues are retained as outcomes, not reasons to rerun unused tools.", "", "| Group | Task | Trial | Requests with tools | Context issue IDs | Invalid zg attempts before execution |", "|---|---|---|---:|---|---:|"])
+        for report in reports:
+            for trial in report["trials"]:
+                capture = trial["model_requests"]
+                lines.append(f"| {report['group']} | {report['task']} | {trial['trial_name']} | {capture['tool_bearing_requests']} | {capture['context_issue_request_ids']} | {len(capture['invalid_zg_attempts'])} |")
     lines.extend(["", "Costs missing from the custom provider are unknown. Empty-response classification is unknown unless supported by explicit response evidence. Raw calls retain parameters, responses, status and session IDs.", "", "Usage-stratified results are descriptive, not causal. GLM self-judging and the fixed 20-task selection limit generalization."])
     return "\n".join(lines) + "\n"
 
@@ -182,8 +195,9 @@ def aggregate(args: argparse.Namespace) -> None:
             raise ValueError(f"duplicate task report: {key}; select one complete attempt explicitly")
         seen.add(key)
     selection = load_object(DATA / "selection.json", label="selection")
-    expected_tasks = ["requests-16"] if args.phase == "smoke" else [t["task_slug"] for t in selection["tasks"]]
-    groups = GROUPS if args.group == "all" else (args.group,)
+    scope = {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3"}[args.phase]
+    _, expected_tasks = select_ci_tasks(selection, scope)
+    groups = (("relationships", "agent") if args.phase == "diagnostic" else GROUPS) if args.group == "all" else (args.group,)
     missing = [(g, t) for g in groups for t in expected_tasks if (g, t) not in seen]
     write_json(args.output / "report.json", {"reports": reports, "missing": missing, "complete": not missing, "comparisons": comparisons(reports), "usage_rates": usage_rates(reports)})
     text = render(reports) + "\nMissing tasks: " + json.dumps(missing) + "\n"
@@ -207,7 +221,7 @@ def main() -> None:
     summary.add_argument("--reports", type=Path, required=True)
     summary.add_argument("--group", choices=(*GROUPS, "all"), required=True)
     for command in (task, summary):
-        command.add_argument("--phase", choices=("smoke", "full"), required=True)
+        command.add_argument("--phase", choices=("smoke", "full", "diagnostic"), required=True)
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)

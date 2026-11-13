@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import shlex
 import time
+from pathlib import Path
 from typing import override
 
 from harbor.agents.installed.base import NonZeroAgentExitCodeError
@@ -57,7 +59,12 @@ def resilient_nvm_node_install_snippet(
 class ResilientOpenCode(OpenCode):
     """OpenCode with bounded installation retries and recursive usage capture."""
 
-    def __init__(self, *args, collect_session_usage: bool = False, collect_tool_calls: bool = False, **kwargs):
+    def __init__(self, *args, collect_session_usage: bool = False, collect_tool_calls: bool = False, record_model_requests: bool = False, **kwargs):
+        if not isinstance(record_model_requests, bool):
+            raise ValueError("record_model_requests must be a boolean")
+        if record_model_requests and not collect_session_usage:
+            raise ValueError("request recording requires recursive session usage collection")
+        self._record_model_requests = record_model_requests
         self._collect_tool_calls = collect_tool_calls
         if not isinstance(collect_tool_calls, bool):
             raise ValueError("collect_tool_calls must be a boolean")
@@ -69,6 +76,30 @@ class ResilientOpenCode(OpenCode):
         self._usage_capture_error: str | None = None
         self._usage_collection_wall_seconds = 0.0
         self._ripgrep_install_wall_seconds = 0.0
+
+    async def _start_request_recorder(self, environment: BaseEnvironment) -> None:
+        provider = self.model_name.split("/", 1)[0]
+        upstream = self._opencode_config["provider"][provider]["options"]["baseURL"]
+        await environment.upload_file(Path(__file__).resolve().parents[1] / "model_request_recorder.mjs", "/tmp/zg-model-request-recorder.mjs")
+        result = await self.exec_as_agent(environment, command=(
+            "set -e; . ~/.nvm/nvm.sh; "
+            "nohup node /tmp/zg-model-request-recorder.mjs "
+            f"{shlex.quote(upstream)} /logs/agent/model-requests.jsonl /logs/agent/model-recorder.closed "
+            "> /logs/agent/model-recorder.json 2> /logs/agent/model-recorder.stderr < /dev/null & "
+            "echo $! > /logs/agent/model-recorder.pid; "
+            "for i in $(seq 1 50); do test -s /logs/agent/model-recorder.json && break; sleep 0.1; done; "
+            "test -s /logs/agent/model-recorder.json; cat /logs/agent/model-recorder.json"
+        ), timeout_sec=20)
+        ready = json.loads(result.stdout)
+        self._opencode_config = copy.deepcopy(self._opencode_config)
+        self._opencode_config["provider"][provider]["options"]["baseURL"] = ready["baseURL"]
+
+    async def _stop_request_recorder(self, environment: BaseEnvironment) -> None:
+        await self.exec_as_agent(environment, command=(
+            'set -e; kill -TERM "$(cat /logs/agent/model-recorder.pid)"; '
+            "for i in $(seq 1 50); do test -s /logs/agent/model-recorder.closed && break; sleep 0.1; done; "
+            "test -s /logs/agent/model-recorder.closed"
+        ), timeout_sec=20)
 
     async def _verify_ripgrep(self, environment: BaseEnvironment) -> None:
         started = time.monotonic()
@@ -106,6 +137,9 @@ class ResilientOpenCode(OpenCode):
             await super().run(instruction, environment, context)
             return
         execution_complete = False
+        original_config = self._opencode_config
+        if self._record_model_requests:
+            await self._start_request_recorder(environment)
         self._usage_capture_complete = False
         self._usage_capture_error = None
         try:
@@ -141,6 +175,11 @@ class ResilientOpenCode(OpenCode):
                 self._usage_capture_error = type(exc).__name__
             finally:
                 self._usage_collection_wall_seconds = time.monotonic() - started
+                if self._record_model_requests:
+                    try:
+                        await self._stop_request_recorder(environment)
+                    finally:
+                        self._opencode_config = original_config
 
     @override
     def populate_context_post_run(self, context: AgentContext) -> None:

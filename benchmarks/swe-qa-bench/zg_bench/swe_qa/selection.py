@@ -12,7 +12,8 @@ from zg_bench.core.io import load_object
 # Relative low, medium, and high path variability in the historical
 # 35206585943 run. These are fixed IDs, not a fresh stability classification.
 REPRO_TASK_IDS = ("reflex:6", "requests:16", "conan:39")
-CI_SCOPES = ("repro-3", "smoke", "all-full", "gate-20", "requests-1")
+DIAGNOSTIC_TASK_IDS = ("matplotlib:37", "sympy:38", "xarray:32")
+CI_SCOPES = ("repro-3", "smoke", "all-full", "gate-20", "requests-1", "diagnostic-3")
 
 
 def select_ci_tasks(
@@ -20,7 +21,9 @@ def select_ci_tasks(
 ) -> tuple[list[str], list[str]]:
     tasks = selection["tasks"]
     tasks_by_id = {task["task_id"]: task for task in tasks}
-    if scope == "requests-1":
+    if scope == "diagnostic-3":
+        task_ids = list(DIAGNOSTIC_TASK_IDS)
+    elif scope == "requests-1":
         task_ids = ["requests:16"]
     elif scope == "smoke":
         task_ids = list(selection["gate"]["auto_tasks"])
