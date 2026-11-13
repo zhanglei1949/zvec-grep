@@ -1,4 +1,5 @@
 # Caller/callee suite index ignore policy.
 .zg-bench-index.ignore
-# No undecodable text fixtures are known for the pinned repositories yet.
+# Django mail fixture is a PNG image despite its .txt suffix.
+tests/mail/attachments/file_png.txt
 # Any other indexing failure remains fatal and visible in the task result.

@@ -1,4 +1,4 @@
-# 八道上游关系题 direct/flow E2E 对照 v1
+# 八道上游关系题 direct/flow E2E 对照 v2
 
 本轮运行此前从 SWE-QA-Bench 筛出的全部八道上游关系题，只使用 relationships 组，direct/flow 各重复两次，共 32 个独立 trial。它们与前一轮 24-trial 的三道 QA20 概念题和三道自拟符号题分别报告。
 
@@ -34,3 +34,11 @@ Agent 自主选择，保留零调用、低分和空返回；不按调用或评�
 原始产物和本轮一次性脚本保存在忽略目录 `runs/upstream-8-20261113/` 与 Actions artifacts；运行 ID、harness SHA、结果和精简校验清单完成后补充到本文。原有 24-trial 报告和原始记录完整保留。
 
 启动前校验：220 项 Python 回归通过（仅 Docker 合同项因未启用环境而跳过），包含锁定 OpenCode 1.18.4 对本地模拟服务的真实主/子代理请求检查。actionlint、diff 检查、八题矩阵、题目 hash、仓库 commit 和参考隔离校验通过。selection、references 和指导快照逐字节未改；仓库 admin/maintain 权限及 GLM_API_KEY Secret 名称已确认。
+
+## v1 索引失败与 v2 修正
+
+首轮 v1 的 direct [43384378065](https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065)、flow [43384409264](https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264) 使用 harness `d570e8546f75278bc9e1af87182b105907544164`。两版 Django 索引均因 `tests/mail/attachments/file_png.txt` 无法按文本提取而失败，Agent 尚未运行；沿用异常重试后仍失败。其他任务继续运行，原始产物保留在 `runs/upstream-8-20261113/` 及原 run，不按评分或调用率选择样本。
+
+已从 pinned Django commit 下载该文件独立核实：144 字节、PNG 魔数 `89504e470d0a1a0a`，SHA256 `138b31cf5ec7b3109fe9a0262620b0b0b5a9d5975fd7c3fd3f5de81383db266a`。原 QA20 的 index.ignore 已包含此精确路径，关系题集的 ignore 文件此前遗漏。v2 只补入该文件路径，不跳过其他提取错误，不改问题、参考答案、指导、模型或候选代码。
+
+ignore 摘要已在 index seed 身份和缓存 key 中，因此修复后不会复用不兼容索引。为保持全部任务和两版指导使用同一 harness/索引协议，重新 dispatch 本轮 8 题 × 2 次 × 2 版，作为独立 v2 队列；不与 v1 的部分结果拼接，不重跑 QA20 全量。v2 原始数据放在 `runs/upstream-8-png-20261113/`。这种重跑由索引准备故障触发，与未调用、空返回或低分无关。

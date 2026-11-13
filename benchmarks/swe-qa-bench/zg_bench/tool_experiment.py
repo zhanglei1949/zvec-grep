@@ -132,7 +132,7 @@ def collect(args: argparse.Namespace) -> None:
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
-        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
+        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v2"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
         "task_set": args.task_set,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),

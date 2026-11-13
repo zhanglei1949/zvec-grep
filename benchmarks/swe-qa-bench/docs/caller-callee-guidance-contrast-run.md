@@ -64,7 +64,7 @@ zg --index --embedding local/potion-code-16m-v2 --graph \
   --ignore-file .zg-bench-index.ignore
 ```
 
-`.zg-bench-index.ignore` 由各 suite 的 `index_ignore_file` 上传：QA20 使用 `index.ignore`，16 题集使用 `index-caller-callee.ignore`。后者只排除上传的 ignore 文件本身，没有额外的语言或路径白名单。参考答案、审计备注和本地 runs 证据不上传到任务仓库。
+`.zg-bench-index.ignore` 由各 suite 的 `index_ignore_file` 上传：QA20 使用 `index.ignore`，16 题集使用 `index-caller-callee.ignore`。后者排除上传的 ignore 文件本身，以及经核实实际为 PNG 的 Django `tests/mail/attachments/file_png.txt`；该精确路径在八题实验 v2 修正中补入，之前冻结的 24-trial 仍使用其原版本。没有语言或目录白名单。参考答案、审计备注和本地 runs 证据不上传到任务仓库。
 
 | 项目 | 本轮约定 |
 |---|---|
