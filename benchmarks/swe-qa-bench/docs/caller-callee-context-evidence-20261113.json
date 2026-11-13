@@ -1,0 +1,691 @@
+{
+  "candidate": "7e271bab1b2730e0bda4f6d1ec81ef0430f768f1",
+  "harness": "7e271bab1b2730e0bda4f6d1ec81ef0430f768f1",
+  "verified_trials": 12,
+  "total_http_requests": 125,
+  "tool_bearing_requests": 113,
+  "context_issue_requests": 0,
+  "package_sha256": "ad3e026d664e6f5ddd183a7b17459362b3812f05160a3e040e87fbe8ce24fef7",
+  "task_reports": [
+    {
+      "group": "agent",
+      "task": "matplotlib-37",
+      "sha256": "8cc31c7bc1e3c5e62a2699c7842388bcc521ed3a674bfe5bc6ca7bfc8ebd78a6",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43348127237/attempts/1"
+    },
+    {
+      "group": "agent",
+      "task": "sympy-38",
+      "sha256": "0d0bb5cc7815d2e69d7bbf753efad5088bb5a7916aea0d9ac5244dbb5b754b96",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43348127237/attempts/1"
+    },
+    {
+      "group": "agent",
+      "task": "xarray-32",
+      "sha256": "421efb5d9439c683e73bb130b6d290deaa83f35e5090861f83f818d2c729cb42",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43348127237/attempts/1"
+    },
+    {
+      "group": "relationships",
+      "task": "matplotlib-37",
+      "sha256": "fe7f35ad4adaf575bf9d2cf7a4fbf0680f2a88b6ae06f63ed8c9916f14922bea",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43348122347/attempts/1"
+    },
+    {
+      "group": "relationships",
+      "task": "sympy-38",
+      "sha256": "842d4308753ad06cb904f85a2c9f8923c099c4cf206413c24acc0eecfc3cd736",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43348122347/attempts/1"
+    },
+    {
+      "group": "relationships",
+      "task": "xarray-32",
+      "sha256": "d903fa0a426f63b9a36e660eef5c53f4f9fbb3a467c5d91ae654bdb0d57989d8",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43348122347/attempts/1"
+    }
+  ],
+  "runs": {
+    "relationships": 43348122347,
+    "agent": 43348127237
+  },
+  "verified_layers": [
+    "actual tool definitions",
+    "global guidance in system messages",
+    "MCP instructions in system messages",
+    "actual tool descriptions"
+  ],
+  "groups": {
+    "relationships": {
+      "trials": 6,
+      "http_requests": 78,
+      "tool_bearing_requests": 72,
+      "zg_calls": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      }
+    },
+    "agent": {
+      "trials": 6,
+      "http_requests": 47,
+      "tool_bearing_requests": 41,
+      "zg_calls": {
+        "search": 8,
+        "callers": 1,
+        "callees": 0
+      }
+    }
+  },
+  "trials": [
+    {
+      "group": "agent",
+      "task": "matplotlib-37",
+      "trial": "matplotlib-37__yzz3Uxy",
+      "repeat": 1,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers",
+        "zvec_grep_zvec_grep_search"
+      ],
+      "first_messages_sha256": "b0b3a58bc3f4d68df9751f5c58454c7c758ab34232720367c14bbc089eac3470",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/agent/caller-callee-evidence-diagnostic-agent-matplotlib-37-43348127237-1/matplotlib-37/experiment-agent-zvec-grep/matplotlib-37__yzz3Uxy/agent/model-requests.jsonl",
+      "raw_sha256": "275db943e1abdf90e4c014a8d5b4ae8ed67926a0431a2fe908d019ce6c4a1d19",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 2,
+        "read": 2
+      },
+      "zg": {
+        "search": 1,
+        "callers": 1,
+        "callees": 0
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d2a521c2001Ulnz4XqGzVSsGq",
+          "call_id": "call_2400df907aa34c03a154679a",
+          "session_id": "ses_e2d5b0954ffeGm4XBCs7NU2SLt",
+          "message_id": "msg_1d2a5153a00172SWR4wjg5WSzV",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "FontInfo"
+          },
+          "output": "FontInfo  lib/matplotlib/_mathtext.py:211\n  Callers:\n    TruetypeFonts::_get_info  lib/matplotlib/_mathtext.py:373\n      call at lib/matplotlib/_mathtext.py:394:16\n",
+          "error": null,
+          "started_at": 1794535399984,
+          "finished_at": 1794535400210
+        }
+      ],
+      "judge": 98,
+      "input_tokens": 134847,
+      "agent_seconds": 35.25374021300001
+    },
+    {
+      "group": "agent",
+      "task": "matplotlib-37",
+      "trial": "matplotlib-37__SYfhbmV",
+      "repeat": 2,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers",
+        "zvec_grep_zvec_grep_search"
+      ],
+      "first_messages_sha256": "b0b3a58bc3f4d68df9751f5c58454c7c758ab34232720367c14bbc089eac3470",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/agent/caller-callee-evidence-diagnostic-agent-matplotlib-37-43348127237-1/matplotlib-37/experiment-agent-zvec-grep/matplotlib-37__SYfhbmV/agent/model-requests.jsonl",
+      "raw_sha256": "b30a6b38c3cee62970d925edfeea117f4372035960664706d72a527b1bc3a872",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 3,
+        "read": 2
+      },
+      "zg": {
+        "search": 1,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 95,
+      "input_tokens": 134737,
+      "agent_seconds": 40.98215238700002
+    },
+    {
+      "group": "agent",
+      "task": "sympy-38",
+      "trial": "sympy-38__mm2s5Rh",
+      "repeat": 1,
+      "http_requests": 11,
+      "tool_bearing_requests": 10,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers",
+        "zvec_grep_zvec_grep_search"
+      ],
+      "first_messages_sha256": "334e4920676c9c96ffdd1f7f85abed069d71432aee945a42201d71167e6bd5e2",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/agent/caller-callee-evidence-diagnostic-agent-sympy-38-43348127237-1/sympy-38/experiment-agent-zvec-grep/sympy-38__mm2s5Rh/agent/model-requests.jsonl",
+      "raw_sha256": "25b510f320930be6a17a2a94b57a27c3b1c7a3cfa3b5de9469a406c24ca385fb",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "read": 9,
+        "grep": 4
+      },
+      "zg": {
+        "search": 2,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 23,
+      "input_tokens": 201922,
+      "agent_seconds": 48.095002462
+    },
+    {
+      "group": "agent",
+      "task": "sympy-38",
+      "trial": "sympy-38__fkjWVLM",
+      "repeat": 2,
+      "http_requests": 9,
+      "tool_bearing_requests": 8,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers",
+        "zvec_grep_zvec_grep_search"
+      ],
+      "first_messages_sha256": "334e4920676c9c96ffdd1f7f85abed069d71432aee945a42201d71167e6bd5e2",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/agent/caller-callee-evidence-diagnostic-agent-sympy-38-43348127237-1/sympy-38/experiment-agent-zvec-grep/sympy-38__fkjWVLM/agent/model-requests.jsonl",
+      "raw_sha256": "e3b36b16528f8f836e01d2fa3c4029f5ea2be0ea037c25b7acc7d427eac6e0f1",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "read": 6,
+        "grep": 4
+      },
+      "zg": {
+        "search": 2,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 14,
+      "input_tokens": 126721,
+      "agent_seconds": 40.96386763199999
+    },
+    {
+      "group": "agent",
+      "task": "xarray-32",
+      "trial": "xarray-32__AW9gprE",
+      "repeat": 1,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers",
+        "zvec_grep_zvec_grep_search"
+      ],
+      "first_messages_sha256": "49e48c795a9b528632f7a8079ebf7c2fda9ee80fa8d17fc8849ca9f7da03803d",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/agent/caller-callee-evidence-diagnostic-agent-xarray-32-43348127237-1/xarray-32/experiment-agent-zvec-grep/xarray-32__AW9gprE/agent/model-requests.jsonl",
+      "raw_sha256": "fead9f3bc6f08a94a47d4cc2aa6273f7939bdd7dbe8324c7e4ae818cbac89dab",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 3,
+        "read": 5
+      },
+      "zg": {
+        "search": 1,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 91,
+      "input_tokens": 136429,
+      "agent_seconds": 46.349835330999994
+    },
+    {
+      "group": "agent",
+      "task": "xarray-32",
+      "trial": "xarray-32__Dee2WLc",
+      "repeat": 2,
+      "http_requests": 9,
+      "tool_bearing_requests": 8,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers",
+        "zvec_grep_zvec_grep_search"
+      ],
+      "first_messages_sha256": "49e48c795a9b528632f7a8079ebf7c2fda9ee80fa8d17fc8849ca9f7da03803d",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/agent/caller-callee-evidence-diagnostic-agent-xarray-32-43348127237-1/xarray-32/experiment-agent-zvec-grep/xarray-32__Dee2WLc/agent/model-requests.jsonl",
+      "raw_sha256": "6daa3e9045b6ab2522064bee2b8c5fe36a5f20725edf2034fdf139193c8731ff",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 2,
+        "read": 9
+      },
+      "zg": {
+        "search": 1,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 91,
+      "input_tokens": 264248,
+      "agent_seconds": 57.67921443699998
+    },
+    {
+      "group": "relationships",
+      "task": "matplotlib-37",
+      "trial": "matplotlib-37__8BXAqH3",
+      "repeat": 1,
+      "http_requests": 9,
+      "tool_bearing_requests": 8,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers"
+      ],
+      "first_messages_sha256": "72316bbd5e12ec765f5668191f9e30d5ca3158cbef346dbf4648dd7a1132b802",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/relationships/caller-callee-evidence-diagnostic-relationships-matplotlib-37-43348122347-1/matplotlib-37/experiment-relationships-zvec-grep/matplotlib-37__8BXAqH3/agent/model-requests.jsonl",
+      "raw_sha256": "933083292178e5c39dd0b6459eb1dc5bf527e6035074b59ce3db3d18c21f774b",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 6,
+        "read": 6
+      },
+      "zg": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 95,
+      "input_tokens": 117828,
+      "agent_seconds": 47.658599566
+    },
+    {
+      "group": "relationships",
+      "task": "matplotlib-37",
+      "trial": "matplotlib-37__wfJ2kMf",
+      "repeat": 2,
+      "http_requests": 15,
+      "tool_bearing_requests": 14,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers"
+      ],
+      "first_messages_sha256": "72316bbd5e12ec765f5668191f9e30d5ca3158cbef346dbf4648dd7a1132b802",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/relationships/caller-callee-evidence-diagnostic-relationships-matplotlib-37-43348122347-1/matplotlib-37/experiment-relationships-zvec-grep/matplotlib-37__wfJ2kMf/agent/model-requests.jsonl",
+      "raw_sha256": "c116fe1eaf23ebcd87995d80f3bcc827f15c2eadad7bc8be0bec1b5b997ad01f",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 4,
+        "read": 9
+      },
+      "zg": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 99,
+      "input_tokens": 207625,
+      "agent_seconds": 53.86704404599998
+    },
+    {
+      "group": "relationships",
+      "task": "sympy-38",
+      "trial": "sympy-38__W8yXfkZ",
+      "repeat": 1,
+      "http_requests": 10,
+      "tool_bearing_requests": 9,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers"
+      ],
+      "first_messages_sha256": "58e883879c1f807fd1a84fb90189284d7586f4e882fd52b60502b007044e3b5b",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/relationships/caller-callee-evidence-diagnostic-relationships-sympy-38-43348122347-1/sympy-38/experiment-relationships-zvec-grep/sympy-38__W8yXfkZ/agent/model-requests.jsonl",
+      "raw_sha256": "a2971717a611e340979eb62bdff197eade542ddd532dd8b62ea416b08fff1481",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 7,
+        "read": 8
+      },
+      "zg": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 25,
+      "input_tokens": 187032,
+      "agent_seconds": 56.603328041999994
+    },
+    {
+      "group": "relationships",
+      "task": "sympy-38",
+      "trial": "sympy-38__dbS8cNp",
+      "repeat": 2,
+      "http_requests": 7,
+      "tool_bearing_requests": 6,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers"
+      ],
+      "first_messages_sha256": "58e883879c1f807fd1a84fb90189284d7586f4e882fd52b60502b007044e3b5b",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/relationships/caller-callee-evidence-diagnostic-relationships-sympy-38-43348122347-1/sympy-38/experiment-relationships-zvec-grep/sympy-38__dbS8cNp/agent/model-requests.jsonl",
+      "raw_sha256": "100f636d88c696f366f374613e2b4f432472adc4fe030615d69436a2567af400",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 4,
+        "bash": 1,
+        "read": 3
+      },
+      "zg": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 27,
+      "input_tokens": 82249,
+      "agent_seconds": 25.74798380800002
+    },
+    {
+      "group": "relationships",
+      "task": "xarray-32",
+      "trial": "xarray-32__sZ9tFKT",
+      "repeat": 1,
+      "http_requests": 12,
+      "tool_bearing_requests": 11,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers"
+      ],
+      "first_messages_sha256": "91dfe2b19d0814d5da080f31e91b1aae6758e899a72dfac6f34fcc0b999b9b76",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/relationships/caller-callee-evidence-diagnostic-relationships-xarray-32-43348122347-1/xarray-32/experiment-relationships-zvec-grep/xarray-32__sZ9tFKT/agent/model-requests.jsonl",
+      "raw_sha256": "0b920304125469c9461195ccb4816098de0361f8b885c97dab92a608fe0d04e1",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 7,
+        "bash": 1,
+        "read": 9
+      },
+      "zg": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 91,
+      "input_tokens": 192339,
+      "agent_seconds": 44.42286192299999
+    },
+    {
+      "group": "relationships",
+      "task": "xarray-32",
+      "trial": "xarray-32__xT7VGTp",
+      "repeat": 2,
+      "http_requests": 25,
+      "tool_bearing_requests": 24,
+      "http_status": 200,
+      "first_tool_request_id": 2,
+      "first_actual_tools": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "skill",
+        "task",
+        "todowrite",
+        "write",
+        "zvec_grep_zvec_grep_callees",
+        "zvec_grep_zvec_grep_callers"
+      ],
+      "first_messages_sha256": "91dfe2b19d0814d5da080f31e91b1aae6758e899a72dfac6f34fcc0b999b9b76",
+      "guidance_roles": [
+        "system"
+      ],
+      "actual_guidance_verified_all_tool_requests": true,
+      "raw_requests": "raw/relationships/caller-callee-evidence-diagnostic-relationships-xarray-32-43348122347-1/xarray-32/experiment-relationships-zvec-grep/xarray-32__xT7VGTp/agent/model-requests.jsonl",
+      "raw_sha256": "6418d37e184edb04b4023bfc98553e7b4cb688cf53f7f9cd0797af32ece867a9",
+      "invalid_zg_attempts": [],
+      "native_calls": {
+        "grep": 16,
+        "read": 18
+      },
+      "zg": {
+        "search": 0,
+        "callers": 0,
+        "callees": 0
+      },
+      "relation_calls": [],
+      "judge": 93,
+      "input_tokens": 515350,
+      "agent_seconds": 78.22681432800002
+    }
+  ],
+  "initial_request_pairs": [
+    {
+      "group": "relationships",
+      "task": "matplotlib-37",
+      "initial_request_json_equal": true,
+      "body_sha256": [
+        "4cfa840e51817822e6ce10bb1e23f08e204141acd3739e06e18ccb696ac67c99",
+        "4cfa840e51817822e6ce10bb1e23f08e204141acd3739e06e18ccb696ac67c99"
+      ]
+    },
+    {
+      "group": "relationships",
+      "task": "sympy-38",
+      "initial_request_json_equal": true,
+      "body_sha256": [
+        "1e985414c96ec2b91dc5449929316e711cb0706225f1e6425823105158f62762",
+        "1e985414c96ec2b91dc5449929316e711cb0706225f1e6425823105158f62762"
+      ]
+    },
+    {
+      "group": "relationships",
+      "task": "xarray-32",
+      "initial_request_json_equal": true,
+      "body_sha256": [
+        "aecd3679cf4a448e5014b9a56a538e099443673a7dec672a2f9da94a34bca2f2",
+        "aecd3679cf4a448e5014b9a56a538e099443673a7dec672a2f9da94a34bca2f2"
+      ]
+    },
+    {
+      "group": "agent",
+      "task": "matplotlib-37",
+      "initial_request_json_equal": true,
+      "body_sha256": [
+        "b0b7fbce9842aea347a0f6a1fe1ddd3e8a95429d6819dcce959d261473907df3",
+        "b0b7fbce9842aea347a0f6a1fe1ddd3e8a95429d6819dcce959d261473907df3"
+      ]
+    },
+    {
+      "group": "agent",
+      "task": "sympy-38",
+      "initial_request_json_equal": true,
+      "body_sha256": [
+        "f6f3505c96d8b04a12fc6aeed351910db5382f21d2d7bffc1dca4f7ccddd7d56",
+        "f6f3505c96d8b04a12fc6aeed351910db5382f21d2d7bffc1dca4f7ccddd7d56"
+      ]
+    },
+    {
+      "group": "agent",
+      "task": "xarray-32",
+      "initial_request_json_equal": true,
+      "body_sha256": [
+        "8cb5efc0e01266c0acb406882048075ce198a4310c6cdf01cc5f0115f9519267",
+        "8cb5efc0e01266c0acb406882048075ce198a4310c6cdf01cc5f0115f9519267"
+      ]
+    }
+  ]
+}
