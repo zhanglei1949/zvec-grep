@@ -33,7 +33,7 @@ TASK_SETS = {
     "caller-callee": {
         "selection": "selection-caller-callee.json",
         "references": "references-caller-callee.json",
-        "scopes": {"smoke": "smoke", "full": "all-full"},
+        "scopes": {"smoke": "smoke", "full": "all-full", "guidance-contrast": "guidance-contrast"},
     },
 }
 
@@ -105,7 +105,12 @@ def collect(args: argparse.Namespace) -> None:
             frozen = load_object(ROOT / "fixtures/caller-callee-guidance-v2.json", label="diagnostic guidance")
             if trial["surface"] != frozen["groups"][args.group]:
                 raise ValueError("installed guidance differs from frozen diagnostic version")
-            trial["model_requests"] = audit_model_requests(directory / "agent/model-requests.jsonl", trial["surface"], trial["calls"])
+        if args.phase == "guidance-contrast":
+            variant = load_object(directory / "agent/zvec-grep-setup.json", label="setup evidence")["guidance_variant"]
+            frozen = load_object(ROOT / "fixtures/caller-callee-guidance-contrast-v1.json", label="contrast guidance")
+            if trial["surface"] != frozen["variants"][variant]:
+                raise ValueError("installed guidance differs from frozen contrast version")
+        trial["model_requests"] = audit_model_requests(directory / "agent/model-requests.jsonl", trial["surface"], trial["calls"])
         trial["evidence"] = str(directory.relative_to(args.runs_dir))
         trial["judge"] = judge_candidate(
             completion_fn=completion, api_key=runtime.api_key,
@@ -127,7 +132,7 @@ def collect(args: argparse.Namespace) -> None:
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
-        "protocol": "caller-callee-context-diagnostic-v1" if args.phase == "diagnostic" else "caller-callee-e2e-v1", "group": args.group, "phase": args.phase,
+        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
         "task_set": args.task_set,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),
@@ -160,10 +165,12 @@ def render(reports: list[dict]) -> str:
         for trial in report["trials"]:
             counts = trial["audit"]["tools"]
             lines.append(f"| {report['group']} | {report['task']} | {trial['trial_name']} | {trial['judge']['total']} | " + " | ".join(str(counts[t]["attempted"]) for t in TOOLS) + f" | {len(trial['audit']['shell_zg_call_ids'])} |")
-    if any(r["phase"] == "diagnostic" for r in reports):
+    if any("model_requests" in t for r in reports for t in r["trials"]):
         lines.extend(["", "## Actual outbound context", "", "Tools and full messages are captured at the HTTP boundary. Context issues are retained as outcomes, not reasons to rerun unused tools.", "", "| Group | Task | Trial | Requests with tools | Context issue IDs | Invalid zg attempts before execution |", "|---|---|---|---:|---|---:|"])
         for report in reports:
             for trial in report["trials"]:
+                if "model_requests" not in trial:
+                    continue
                 capture = trial["model_requests"]
                 lines.append(f"| {report['group']} | {report['task']} | {trial['trial_name']} | {capture['tool_bearing_requests']} | {capture['context_issue_request_ids']} | {len(capture['invalid_zg_attempts'])} |")
     lines.extend(["", "Costs missing from the custom provider are unknown. Empty-response classification is unknown unless supported by explicit response evidence. Raw calls retain parameters, responses, status and session IDs.", "", "Usage-stratified results are descriptive, not causal. GLM self-judging and the fixed task selection limit generalization."])
@@ -205,7 +212,10 @@ def comparisons(reports: list[dict]) -> list[dict]:
 
 def aggregate(args: argparse.Namespace) -> None:
     expected_tasks = experiment_tasks(args.task_set, args.phase)
-    groups = (("relationships", "agent") if args.phase == "diagnostic" else GROUPS) if args.group == "all" else (args.group,)
+    if args.phase == "guidance-contrast" and args.group not in ("all", "relationships"):
+        raise ValueError("guidance contrast requires the relationships arm")
+    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-contrast": ("relationships",)}.get(args.phase, GROUPS)
+    groups = phase_groups if args.group == "all" else (args.group,)
     reports = []
     for path in sorted(args.reports.rglob("task-report.json")):
         if hashlib.sha256(path.read_bytes()).hexdigest() != path.with_suffix(".sha256").read_text().strip():
@@ -233,6 +243,8 @@ def aggregate(args: argparse.Namespace) -> None:
             raise ValueError("unsupported guidance variant in experiment report")
         if len(report["trials"]) != report["expected_trials"] or not report["graph_index"]:
             raise ValueError("incomplete trials or graph configuration")
+        if args.phase == "guidance-contrast" and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
+            raise ValueError("guidance contrast requires two trials and actual request evidence")
         previous = surfaces.setdefault(report["group"], report["surface_sha256"])
         if previous != report["surface_sha256"]:
             raise ValueError("tool instructions differ across tasks in one arm")
@@ -265,7 +277,7 @@ def main() -> None:
     summary.add_argument("--reports", type=Path, required=True)
     summary.add_argument("--group", choices=(*GROUPS, "all"), required=True)
     for command in (task, summary):
-        command.add_argument("--phase", choices=("smoke", "full", "diagnostic"), required=True)
+        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast"), required=True)
         command.add_argument("--task-set", choices=tuple(TASK_SETS), default="qa20")
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

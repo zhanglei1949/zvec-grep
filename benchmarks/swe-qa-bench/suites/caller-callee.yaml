@@ -20,3 +20,8 @@ tiers:
       - requests-cc1
       - matplotlib-cc1
       - sympy-cc1
+      - matplotlib-37
+      - sympy-38
+      - xarray-32
+      - matplotlib-cc2
+      - sympy-cc2

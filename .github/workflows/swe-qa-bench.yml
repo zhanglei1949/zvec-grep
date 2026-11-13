@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / ${{ inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
+run-name: SWE-QA Bench / ${{ inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -37,12 +37,12 @@ on:
         type: choice
         options: [legacy, relationships, search, agent]
       experiment_phase:
-        description: Smoke, full benchmark, or three-task request-context diagnostic
+        description: Smoke, full, prior context diagnostic, or six-task guidance contrast
         default: smoke
         type: choice
-        options: [smoke, full, diagnostic]
+        options: [smoke, full, diagnostic, guidance-contrast]
       task_set:
-        description: Frozen task set (qa20 keeps the 20-task lock; caller-callee uses the 8+3 diagnostic set)
+        description: Frozen task set (qa20 keeps the 20-task lock; caller-callee uses the targeted diagnostic set)
         default: qa20
         type: choice
         options: [qa20, caller-callee]
@@ -178,7 +178,11 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GUIDANCE_VARIANT" == flow && ( "$EXPERIMENT_GROUP" == legacy || "$EXPERIMENT_PHASE" == diagnostic ) ]]; then
-            echo "::error::The flow guidance variant requires a smoke/full experiment; diagnostic freezes direct guidance."
+            echo "::error::The flow guidance variant requires an experiment; the prior diagnostic freezes direct guidance."
+            exit 1
+          fi
+          if [[ "$EXPERIMENT_PHASE" == guidance-contrast && ( "$TASK_SET" != caller-callee || "$EXPERIMENT_GROUP" != relationships ) ]]; then
+            echo "::error::The guidance contrast requires task_set=caller-callee and the relationships arm."
             exit 1
           fi
           selection=benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json
@@ -191,8 +195,9 @@ jobs:
             case "$EXPERIMENT_PHASE" in
               smoke) SCOPE=smoke ;;
               full) SCOPE=all-full ;;
+              guidance-contrast) SCOPE=guidance-contrast ;;
               *)
-                echo "::error::The caller-callee task set supports only the smoke and full phases."
+                echo "::error::The caller-callee task set supports smoke, full, and guidance-contrast."
                 exit 1
                 ;;
             esac
@@ -617,10 +622,9 @@ jobs:
           test -n "$GLM_API_KEY"
           test "$SWE_QA_MODEL" = glm-5.2
           test '${{ inputs.embedding }}' = local
-          diagnostic_flags=()
           case "$EXPERIMENT_PHASE" in
             smoke) trials=1 ;;
-            diagnostic) trials=2; diagnostic_flags+=(--record-model-requests) ;;
+            diagnostic|guidance-contrast) trials=2 ;;
             full) trials=5 ;;
           esac
           runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"
@@ -628,7 +632,7 @@ jobs:
           if [[ "$TASK_SET" == caller-callee ]]; then suite=caller-callee; fi
           uv run --project benchmarks/swe-qa-bench zg-bench run "$suite" \
             --tier full --task "$TASK_NAME" --agent opencode --model custom-openai/glm-5.2 \
-            --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" "${diagnostic_flags[@]}" \
+            --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" --record-model-requests \
             --guidance-variant "$GUIDANCE_VARIANT" \
             --n-attempts "$trials" --max-retries 2 \
             --embedding-model local/potion-code-16m-v2 \

@@ -23,9 +23,10 @@ from .validation import (
 )
 
 SUITE = "caller-callee"
-EXPECTED_TASK_COUNT = 11
+EXPECTED_TASK_COUNT = 16
 EXPECTED_CATEGORIES = ("what", "where", "how", "why")
-EXPECTED_SCENARIOS = {"main": 6, "control": 1, "stress": 1, "anchor": 3}
+EXPECTED_SCENARIOS = {"main": 9, "control": 1, "stress": 1, "anchor": 5}
+GUIDANCE_CONTRAST_TASK_IDS = ["matplotlib:37", "sympy:38", "xarray:32", "requests:cc1", "matplotlib:cc2", "sympy:cc2"]
 SMOKE_TASK_ID = "requests:cc1"
 AUTO_TASK_IDS = ["requests:cc1", "requests:45", "sympy:cc1"]
 SELF_AUTHORED_SOURCE = "self-authored/caller-callee"
@@ -35,7 +36,7 @@ ANCHOR_ID_RE = re.compile(r"^[a-z0-9-]+:cc\d+$")
 def validate_caller_callee_assets(
     *, selection_path: Path, references_path: Path, dataset_path: Path
 ) -> dict[str, Any]:
-    """Validate the 8+3 caller/callee lock, judge references, and Harbor dataset."""
+    """Validate the caller/callee lock, judge references, and Harbor dataset."""
     selection = _object(selection_path, label="selection")
     references = _object(references_path, label="references")
     tasks = _records(selection, "tasks", label="selection")
@@ -122,7 +123,7 @@ def validate_caller_callee_assets(
     scenario_counts = Counter(str(task.get("scenario")) for task in tasks)
     if dict(scenario_counts) != EXPECTED_SCENARIOS:
         raise SweQaError(
-            "selection must contain 6 main, 1 control, 1 stress, and 3 anchor tasks"
+            "selection must contain 9 main, 1 control, 1 stress, and 5 anchor tasks"
         )
     smoke = [task for task in tasks if task.get("role") == "smoke"]
     if len(smoke) != 1 or smoke[0]["task_id"] != SMOKE_TASK_ID:
@@ -131,6 +132,8 @@ def validate_caller_callee_assets(
         raise SweQaError("selection gate.smoke_task does not match the smoke task")
     if gate.get("auto_tasks") != AUTO_TASK_IDS:
         raise SweQaError(f"selection gate.auto_tasks must equal {AUTO_TASK_IDS}")
+    if gate.get("guidance_contrast_tasks") != GUIDANCE_CONTRAST_TASK_IDS:
+        raise SweQaError("selection gate.guidance_contrast_tasks differs from the six-task protocol")
     if gate.get("full_tasks") != [task["task_id"] for task in tasks]:
         raise SweQaError("selection gate.full_tasks must list all tasks in order")
 

@@ -1,6 +1,6 @@
 # Caller/Callee guidance 对照实验与 symbol-anchored 功能题集运行说明
 
-本文档说明如何运行 caller/callee guidance 变体对照（`direct` vs `flow`），以及独立的 11 题诊断集（八道上游关系题与三道 symbol-anchored 题）。开发校准另用 dev fixture。题集和变体分别选择，QA20 冻结输入保持不变。
+本文档说明如何运行 caller/callee guidance 变体对照（`direct` vs `flow`），以及独立的 16 题诊断集（十一道上游题与五道 symbol-anchored 题）。开发校准另用 dev fixture。题集和变体分别选择，QA20 冻结输入保持不变。
 
 ## 背景与目标
 
@@ -33,12 +33,14 @@ dev fixture（`fixtures/caller-callee-dev/`）扩充后的符号与考察点：
 
 ## 在另一台机器上运行
 
+当前执行的 [24-trial 关系组对照协议](caller-callee-guidance-contrast-20261113.md) 使用新增 `guidance-contrast` 阶段；每个变体仅六题 × 两次。以下 smoke/full 为保留的其他入口，所有实验阶段均采集实际模型请求。
+
 ### 题集与阶段
 
 | task_set | smoke | full | diagnostic |
 |---|---|---|---|
 | `qa20`（默认） | requests-16 × 1 | 20 题 × 5 | 三题 × 2，仅 direct |
-| `caller-callee` | requests-cc1、requests-45、sympy-cc1，各 1 次 | 11 题 × 5 | 不支持 |
+| `caller-callee` | requests-cc1、requests-45、sympy-cc1，各 1 次 | 16 题 × 5 | 不支持（另有 guidance-contrast） |
 
 `caller-callee` 必须选择 relationships/search/agent 之一。它是定向诊断样本，不能据其评分推断 SWE-QA 总体收益。冻结资产可先离线验证：
 
@@ -49,20 +51,20 @@ uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa validate-cc \
   --dataset benchmarks/swe-qa-bench/datasets-caller-callee
 ```
 
-本地运行该题集时用 `zg-bench run caller-callee`；collect/aggregate 均追加 `--task-set caller-callee`。开发 fixture 不属于这 11 题，也不进入正式评分。
+本地运行该题集时用 `zg-bench run caller-callee`；collect/aggregate 均追加 `--task-set caller-callee`。开发 fixture 不属于这 16 题，也不进入正式评分。
 
-任务矩阵复用已有 scope：`smoke` 读取当前 selection 的 `gate.auto_tasks`，`all-full` 读取其全部任务。两者在 caller/callee selection 下分别为三题和十一题，不再增加题集专属 scope。
+任务矩阵的 `smoke` 读取当前 selection 的 `gate.auto_tasks`，`all-full` 读取其全部任务，两者分别为三题和十六题。新增 `guidance-contrast` scope 只读取冻结的六题清单。
 
 ### E2E 索引协议（v1）
 
-QA20 和 11 题集共用现有 E2E runner。每个任务 checkout selection 锁定的仓库 commit，在仓库根目录执行：
+QA20 和 16 题集共用现有 E2E runner。每个任务 checkout selection 锁定的仓库 commit，在仓库根目录执行：
 
 ```sh
 zg --index --embedding local/potion-code-16m-v2 --graph \
   --ignore-file .zg-bench-index.ignore
 ```
 
-`.zg-bench-index.ignore` 由各 suite 的 `index_ignore_file` 上传：QA20 使用 `index.ignore`，11 题集使用 `index-caller-callee.ignore`。后者只排除上传的 ignore 文件本身，没有额外的语言或路径白名单。参考答案、审计备注和本地 runs 证据不上传到任务仓库。
+`.zg-bench-index.ignore` 由各 suite 的 `index_ignore_file` 上传：QA20 使用 `index.ignore`，16 题集使用 `index-caller-callee.ignore`。后者只排除上传的 ignore 文件本身，没有额外的语言或路径白名单。参考答案、审计备注和本地 runs 证据不上传到任务仓库。
 
 | 项目 | 本轮约定 |
 |---|---|
@@ -112,7 +114,7 @@ uv run --project benchmarks/swe-qa-bench python -m zg_bench.local_tool_preflight
 export GLM_API_KEY=<your-key>
 uv run --project benchmarks/swe-qa-bench zg-bench run swe-qa-bench \
   --tier full --task requests-16 --agent opencode --model custom-openai/glm-5.2 \
-  --profile zvec-grep --mcp-toolset agent --guidance-variant flow \
+  --profile zvec-grep --mcp-toolset agent --guidance-variant flow --record-model-requests \
   --n-attempts 1 --max-retries 2 \
   --embedding-model local/potion-code-16m-v2 \
   --zvec-grep-package /path/to/candidate.tgz \
@@ -138,7 +140,7 @@ gh workflow run swe-qa-bench.yml --repo OWNER/zvec-grep --ref main \
   -f model=glm-5.2 -f embedding=local -f scope=all-full
 ```
 
-上述命令默认 `task_set=qa20`；运行 11 题集时追加 `-f task_set=caller-callee`。`diagnostic` 会把实际 surface 与冻结的 v2（direct）快照比对，因此 **flow 变体只能用 smoke/full，不能用 diagnostic**；workflow 在启动任务前拒绝此组合。
+上述命令默认 `task_set=qa20`；运行 16 题集时追加 `-f task_set=caller-callee`。`diagnostic` 会把实际 surface 与冻结的 v2（direct）快照比对，因此 **flow 变体可用 smoke/full/guidance-contrast，不能用旧 diagnostic**；workflow 在启动任务前拒绝此组合。
 
 ## C0 / T1 对照协议
 

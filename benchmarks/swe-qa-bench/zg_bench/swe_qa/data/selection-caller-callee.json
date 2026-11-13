@@ -5,7 +5,7 @@
   "benchmark_revision": "c13deac7a0d99b0ca2e593e004c4739475785b08",
   "index_base": 0,
   "gate": {
-    "required_tasks": 11,
+    "required_tasks": 16,
     "smoke_task": "requests:cc1",
     "auto_tasks": [
       "requests:cc1",
@@ -23,7 +23,20 @@
       "matplotlib:45",
       "requests:cc1",
       "matplotlib:cc1",
-      "sympy:cc1"
+      "sympy:cc1",
+      "matplotlib:37",
+      "sympy:38",
+      "xarray:32",
+      "matplotlib:cc2",
+      "sympy:cc2"
+    ],
+    "guidance_contrast_tasks": [
+      "matplotlib:37",
+      "sympy:38",
+      "xarray:32",
+      "requests:cc1",
+      "matplotlib:cc2",
+      "sympy:cc2"
     ]
   },
   "tasks": [
@@ -202,6 +215,92 @@
       "repository_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
       "question_hash": "9f9870f42a2cc0f5cc0fcf92f36d41f5af5196b1432076190392bf2ee8ca8944",
       "question": "Which functions in sympy/solvers/ode/systems.py directly call ode_order? List each calling function with its call-site line numbers."
+    },
+    {
+      "order": 10,
+      "task_id": "matplotlib:37",
+      "task_slug": "matplotlib-37",
+      "source_file": "Benchmark/matplotlib.jsonl",
+      "source_index": 37,
+      "role": "task",
+      "category": "where",
+      "question_type": "where",
+      "repository": "matplotlib/matplotlib",
+      "repository_url": "https://github.com/matplotlib/matplotlib.git",
+      "repository_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+      "question_hash": "97feca511d28845f5d32adda672a5f4b448a8f7ad81ad8bbec6035b97dabadab",
+      "question": "Where does the FontInfo NamedTuple propagate font metrics and glyph data through the mathematical text rendering pipeline, and what control flow determines whether the postscript_name or the FT2Font object is used at different stages of character rendering?",
+      "scenario": "main",
+      "provenance": "upstream"
+    },
+    {
+      "order": 6,
+      "task_id": "sympy:38",
+      "task_slug": "sympy-38",
+      "source_file": "Benchmark/sympy.jsonl",
+      "source_index": 38,
+      "role": "task",
+      "category": "where",
+      "question_type": "where",
+      "repository": "sympy/sympy",
+      "repository_url": "https://github.com/sympy/sympy.git",
+      "repository_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+      "question_hash": "ef3d65caf1ba3d0a223b3acd3286d053466268d62694afcdcb27db56b3ab8520",
+      "question": "Where does the data flow from the deprecated matrix entry method through the matrix determinant class method to the determinant computation module?",
+      "scenario": "main",
+      "provenance": "upstream"
+    },
+    {
+      "order": 17,
+      "task_id": "xarray:32",
+      "task_slug": "xarray-32",
+      "source_file": "Benchmark/xarray.jsonl",
+      "source_index": 32,
+      "role": "task",
+      "category": "why",
+      "question_type": "why",
+      "repository": "pydata/xarray",
+      "repository_url": "https://github.com/pydata/xarray.git",
+      "repository_commit": "40119bf35c53fc222934894d842cfc07b2e264bf",
+      "question_hash": "3131c6f8efc05a9ff8d703da758970b9422a163245f632e4b2d74aeb0fb56735",
+      "question": "Why do performance bottlenecks emerge from the sequential invocation of from_variables(), from_xindex(), and assign_coords() operations on large datasets, and how does the overhead of variable materialization during coordinate transformation impact throughput compared to direct index assignment?",
+      "scenario": "main",
+      "provenance": "upstream"
+    },
+    {
+      "task_id": "matplotlib:cc2",
+      "task_slug": "matplotlib-cc2",
+      "source_file": "self-authored/caller-callee",
+      "source_index": null,
+      "role": "task",
+      "scenario": "anchor",
+      "category": "where",
+      "question_type": "where",
+      "provenance": "self-authored",
+      "repository": "matplotlib/matplotlib",
+      "repository_url": "https://github.com/matplotlib/matplotlib.git",
+      "repository_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+      "question_hash": "05bc10819222c6c65a82ccc933453c9e72c2710c825dc094404511bb606c0552",
+      "question": "Which functions or constructors does _process_plot_var_args._make_line in lib/matplotlib/axes/_base.py call directly? Give each target, its call-site line number, and the evaluation order of the nested calls.",
+      "relationship_direction": "outgoing"
+    },
+    {
+      "task_id": "sympy:cc2",
+      "task_slug": "sympy-cc2",
+      "source_file": "self-authored/caller-callee",
+      "source_index": null,
+      "role": "task",
+      "scenario": "anchor",
+      "category": "where",
+      "question_type": "where",
+      "provenance": "self-authored",
+      "repository": "sympy/sympy",
+      "repository_url": "https://github.com/sympy/sympy.git",
+      "repository_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+      "question_hash": "58526aa4d5df364b851fce9f0ca01c5391dfe7db224a91ed8706c160b7e4f205",
+      "question": "Which functions does _get_func_order in sympy/solvers/ode/systems.py call directly? Distinguish the project function from Python built-ins, and give call-site line numbers and how the returned values are combined.",
+      "relationship_direction": "outgoing"
     }
-  ]
+  ],
+  "task_set_revision": 2
 }

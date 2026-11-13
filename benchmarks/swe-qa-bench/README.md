@@ -23,13 +23,13 @@ the actual installed guidance are exported per trial. See the
 [versioned Chinese protocol](README_CN.md#callercallee-三组-e2e-实验v1)
 for preparation, audit semantics, artifacts and offline cross-run aggregation.
 
-The manual workflow accepts `task_set=caller-callee`: eight upstream relationship questions and three self-authored symbol-anchored probes. Inputs are locked in `selection-caller-callee.json`, `references-caller-callee.json`, and `datasets-caller-callee/`, validated by `python -m zg_bench.swe_qa validate-cc`. QA20 inputs stay unchanged. This task set requires an experiment arm and supports smoke (three tasks) and full (eleven tasks). It reuses the selection-relative `smoke` and `all-full` matrix scopes. Collect and aggregate take `--task-set caller-callee`; reports from different task sets are never merged. This is a targeted diagnostic sample, so results do not establish overall SWE-QA gains.
+The manual workflow accepts `task_set=caller-callee`: eleven upstream questions and five self-authored symbol-anchored probes. Inputs are locked in `selection-caller-callee.json`, `references-caller-callee.json`, and `datasets-caller-callee/`, validated by `python -m zg_bench.swe_qa validate-cc`. QA20 inputs stay unchanged. This task set requires an experiment arm and supports smoke (three tasks) and full (sixteen tasks). It reuses the selection-relative `smoke` and `all-full` matrix scopes. Collect and aggregate take `--task-set caller-callee`; reports from different task sets are never merged. This is a targeted diagnostic sample, so results do not establish overall SWE-QA gains.
 
-Caller/callee references are revision 2: the three anchor answers retain source facts, while candidate-specific empty-edge, resolution and truncation observations live in judge-excluded `verification_notes`. Questions and source facts are unchanged. Compare every arm under the same reference revision; this edit does not rescore saved responses or change published results.
+Caller/callee references are revision 3: the three anchor answers retain source facts, while candidate-specific empty-edge, resolution and truncation observations live in judge-excluded `verification_notes`. Questions and source facts are unchanged. Compare every arm under the same reference revision; this edit does not rescore saved responses or change published results.
 
 The E2E index scans the pinned repository using the candidate's supported file types and the suite's ignore file, with graph indexing enabled; it is not restricted to Python. No file-size override is passed. In the current candidate source, the default code-file limit is 1MiB. The earlier Python-only/2MiB audit uses a different protocol. Freeze the candidate package, repository commit, embedding model and ignore-file digest across arms; see the [index protocol](docs/caller-callee-guidance-contrast-run.md#e2e-索引协议v1).
 
-Guidance comparisons opt into `guidance_variant=flow`; `direct` remains the default. Flow supports smoke/full experiments, and the preflight probe checks both live MCP instructions and installed AGENTS.md. Vary the task set and guidance separately; see the [run guide](docs/caller-callee-guidance-contrast-run.md).
+Guidance comparisons opt into `guidance_variant=flow`; `direct` remains the default. Flow supports smoke/full and guidance-contrast experiments, and the preflight probe checks both live MCP instructions and installed AGENTS.md. Vary the task set and guidance separately; see the [run guide](docs/caller-callee-guidance-contrast-run.md).
 
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
@@ -42,6 +42,8 @@ environment, and limits for both profiles:
 
 Index construction is measured separately and is not included in agent wall
 time.
+
+The [24-trial relationships guidance contrast](docs/caller-callee-guidance-contrast-20261113.md) fixes six tasks and two repetitions per direct/flow variant. Select `experiment_phase=guidance-contrast`, `task_set=caller-callee`, `experiment_group=relationships`. All experiment phases now capture and audit actual outbound model requests; zero-call trials remain included.
 
 ## Benchmark definition
 

@@ -33,22 +33,24 @@ OpenCode 1.18.4、custom-openai/glm-5.2 和 local/potion-code-16m-v2。
 且与本任务 Agent 不重叠。异常最多额外重试两次；沿用原有失败归档策略。
 所有 run 必须绑定同一冻结版本，冒烟与正式产物不混用。
 
-手动启动还可选 `task_set=caller-callee`，改用冻结的 8+3 诊断题集：八道
+手动启动还可选 `task_set=caller-callee`，改用冻结的 16 题诊断集（原 8+3 基础上补入三道概念题和两道 callees 题）：原八道
 上游关系题（已审计的六道 caller/callee 题加 requests:45、matplotlib:45）
 与三道自造 symbol-anchored 探针（requests:cc1、matplotlib:cc1、
 sympy:cc1）。输入锁定在 `selection-caller-callee.json`、
 `references-caller-callee.json` 和 `datasets-caller-callee/`，由
 `python -m zg_bench.swe_qa validate-cc` 校验；QA20 冻结输入不变。该题集
-必须选择实验组，仅支持 `smoke`（三题）与 `full`（十一题），任务矩阵复用
+必须选择实验组，支持 `smoke`（三题）、`full`（十六题）及 `guidance-contrast`（固定六题，每题两次），任务矩阵复用
 selection 相对的 `smoke` 与 `all-full` scope；collect/aggregate 需传
 `--task-set caller-callee`，不同题集的
 报告不得合并。锚点题参考答案以 pinned 源码核验冻结，不取工具输出：
 matplotlib:cc1 为别名/间接调用边界探针，sympy:cc1 检验推导式调用解析与
 20 条截断。该题集是定向诊断样本，结论不外推为 SWE-QA 总体收益。
 
-caller/callee 参考答案修订为 v2：三道锚点题保留源码事实，候选工具的空边、
+caller/callee 参考答案修订为 v3：三道锚点题保留源码事实，候选工具的空边、
 解析与截断观察放入不传给 judge 的 `verification_notes`。问题与源码事实
 不变；所有对照组须使用同一修订。本次不重评分已保存答复，不改已发布结果。
+
+本轮仅运行 [24-trial 关系组 direct/flow 对照](docs/caller-callee-guidance-contrast-20261113.md)，不重跑全量。smoke/full 也采集并审计实际 HTTP 请求中的 messages/tools，保留零调用。
 
 E2E 对固定 commit 的仓库按候选支持的类型和 suite ignore 文件建图，
 不限 Python，也未传入文件大小覆盖参数。当前候选源码的代码文件默认上限

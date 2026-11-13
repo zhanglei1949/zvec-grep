@@ -34,7 +34,7 @@ def _selection() -> dict:
 class CallerCalleeAssetTests(unittest.TestCase):
     def test_reference_answers_exclude_candidate_tool_observations(self) -> None:
         references = json.loads(REFERENCES.read_text())
-        self.assertEqual(references["reference_revision"], 2)
+        self.assertEqual(references["reference_revision"], 3)
         records = {r["task_id"]: r for r in references["references"]}
         observations = {
             "requests:cc1": "a callers query returns Session::send plus the test callers",
@@ -56,7 +56,7 @@ class CallerCalleeAssetTests(unittest.TestCase):
         )
         self.assertTrue(result["valid"])
         self.assertEqual(result["suite"], "caller-callee")
-        self.assertEqual(result["task_count"], 11)
+        self.assertEqual(result["task_count"], 16)
         self.assertTrue(result["references_are_judge_only"])
 
     def test_question_hash_mismatch_is_rejected(self) -> None:
@@ -88,7 +88,7 @@ class CallerCalleeAssetTests(unittest.TestCase):
             selection["tasks"][0]["scenario"] = "control"
             path = Path(temp) / "selection.json"
             path.write_text(json.dumps(selection))
-            with self.assertRaisesRegex(SweQaError, "6 main, 1 control, 1 stress, and 3 anchor"):
+            with self.assertRaisesRegex(SweQaError, "9 main, 1 control, 1 stress, and 5 anchor"):
                 validate_caller_callee_assets(
                     selection_path=path, references_path=REFERENCES, dataset_path=DATASET
                 )
@@ -114,7 +114,7 @@ class CallerCalleeScopeTests(unittest.TestCase):
         self.assertEqual(slugs, ["requests-cc1", "requests-45", "sympy-cc1"])
         self.assertEqual(list(load_suite("caller-callee", tier="smoke").tasks), slugs)
         task_ids, slugs = select_ci_tasks(selection, "all-full")
-        self.assertEqual(len(task_ids), 11)
+        self.assertEqual(len(task_ids), 16)
         self.assertEqual(task_ids, selection["gate"]["full_tasks"])
         suite = load_suite("caller-callee", tier="full")
         self.assertEqual(list(suite.tasks), slugs)
@@ -159,7 +159,7 @@ class CallerCalleeExperimentTests(unittest.TestCase):
             hashlib.sha256(path.read_bytes()).hexdigest()
         )
 
-    def test_aggregate_completes_for_all_eleven_tasks(self) -> None:
+    def test_aggregate_completes_for_all_locked_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             for task in _selection()["tasks"]:
@@ -171,7 +171,7 @@ class CallerCalleeExperimentTests(unittest.TestCase):
             aggregate(args)
             report = json.loads((args.output / "report.json").read_text())
             self.assertTrue(report["complete"])
-            self.assertEqual(len(report["reports"]), 11)
+            self.assertEqual(len(report["reports"]), 16)
 
     def test_diagnostic_phase_is_rejected_for_caller_callee(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -249,6 +249,10 @@ class CallerCalleeWorkflowTests(unittest.TestCase):
             ("caller-callee", "agent", "full", "direct", True),
             ("caller-callee", "agent", "diagnostic", "direct", False),
             ("caller-callee", "legacy", "smoke", "direct", False),
+            ("caller-callee", "relationships", "guidance-contrast", "direct", True),
+            ("caller-callee", "relationships", "guidance-contrast", "flow", True),
+            ("caller-callee", "agent", "guidance-contrast", "flow", False),
+            ("qa20", "relationships", "guidance-contrast", "direct", False),
         ):
             with self.subTest(task_set=task_set, group=group, phase=phase, variant=variant), tempfile.TemporaryDirectory() as temp:
                 env = {**os.environ, "TASK_SET": task_set, "EXPERIMENT_GROUP": group,
