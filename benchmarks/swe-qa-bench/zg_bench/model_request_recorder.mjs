@@ -1,10 +1,16 @@
 // Trial-local OpenAI-compatible transport recorder. Headers are never persisted.
 import http from "node:http";
 import https from "node:https";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { dirname, join } from "node:path";
 
-const [upstreamBase, output, closed] = process.argv.slice(2);
+const [upstreamBase, output, closed, contractFile] = process.argv.slice(2);
+const contract = contractFile ? JSON.parse(readFileSync(contractFile, "utf8")) : null;
+const responsesDirectory = join(dirname(output), "model-responses");
+if (contract) mkdirSync(responsesDirectory, { recursive: true });
+let firstTaskChecked = false;
+const normalize = (text) => text.split(/\r?\n/).map((line) => line.trim()).join("\n").trim();
 const upstream = new URL(upstreamBase);
 if (!["http:", "https:"].includes(upstream.protocol) || upstream.username || upstream.password || upstream.search || upstream.hash)
   throw new Error("Upstream must be an HTTP(S) base URL without credentials, query or fragment");
@@ -30,12 +36,39 @@ const server = http.createServer(async (request, response) => {
     return;
   }
   record({ type: "request", id, path: request.url, body_sha256: createHash("sha256").update(bytes).digest("hex"), body });
+  if (contract && body.tools?.length) {
+    try {
+      const system = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+      const block = /<server name="zvec_grep">([\s\S]*?)<\/server>/.exec(system)?.[1];
+      if (!system.includes(contract.guidance.trim()) || !block || normalize(block) !== normalize(contract.instructions))
+        throw new Error("Installed AGENTS.md or MCP instructions absent from actual system message");
+      const names = body.tools.map((t) => t.function.name);
+      if (!contract.tool_names.every((name) => names.includes(name))) throw new Error("Relationship tool absent");
+      if (!firstTaskChecked && (body.messages.length !== 2 || body.messages[0].role !== "system" || body.messages[1].role !== "user"))
+        throw new Error("First task request contains previous conversation history");
+      if (body.tool_choice !== "auto") throw new Error("Expected voluntary API tool_choice=auto");
+      record({ type: "guidance_verified", id, first_task_request: !firstTaskChecked,
+        guidance_sha256: createHash("sha256").update(contract.guidance).digest("hex"),
+        instructions_sha256: createHash("sha256").update(contract.instructions).digest("hex"),
+        message_count: body.messages.length });
+      firstTaskChecked = true;
+    } catch (error) {
+      record({ type: "guidance_rejected", id, error: error.message });
+      response.writeHead(400).end(error.message);
+      return;
+    }
+  }
   const target = new URL(upstream.href.replace(/\/$/, "") + "/chat/completions");
   const headers = { ...request.headers, host: target.host };
   delete headers.connection;
   const transport = target.protocol === "https:" ? https : http;
   const forwarded = transport.request(target, { method: "POST", headers }, (reply) => {
-    record({ type: "response", id, status: reply.statusCode });
+    record({ type: "response", id, status: reply.statusCode, ...(contract ? { content_type: reply.headers["content-type"], content_encoding: reply.headers["content-encoding"] } : {}) });
+    const responseChunks = [];
+    if (contract) {
+      reply.on("data", (chunk) => responseChunks.push(chunk));
+      reply.on("close", () => writeFileSync(join(responsesDirectory, `${id}.raw`), Buffer.concat(responseChunks)));
+    }
     response.writeHead(reply.statusCode, reply.headers);
     reply.pipe(response);
     reply.on("end", () => record({ type: "response_end", id }));

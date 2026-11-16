@@ -6,6 +6,12 @@
 
 ## Caller/callee tool experiment
 
+The [fresh-session explicit guidance diagnostic](docs/caller-callee-fresh-guidance-20261116.md)
+uses `experiment_phase=fresh-guidance-e2e`: actual on-disk AGENTS.md edits, matching
+MCP instructions delivered through a benchmark adapter, one no-model OpenCode
+contract check and five new Xarray answering sessions. The recorder verifies each
+first answering request before forwarding it without modifying its JSON body.
+
 The [oracle capability and one-decision replay protocol](docs/caller-callee-oracle-replay-20261116.md)
 uses manual phases `oracle-capability` and `branch-replay`. It makes 34 retrieval-only
 MCP queries on three pinned repositories, then 20 one-decision GLM requests from one

@@ -1,6 +1,6 @@
 // Benchmark-only MCP adapter. Both candidates receive the same search controls.
 import http from "node:http";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
@@ -30,7 +30,7 @@ function messages(text, contentType) {
   try { return [JSON.parse(text)]; } catch { return []; }
 }
 
-export async function startProxy(upstreamUrl, logPath) {
+export async function startProxy(upstreamUrl, logPath, { instructions } = {}) {
   const upstream = new URL(upstreamUrl);
   if (upstream.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(upstream.hostname)) {
     throw new Error("Fixed search proxy requires a loopback HTTP MCP upstream");
@@ -78,9 +78,15 @@ export async function startProxy(upstreamUrl, logPath) {
         let body = Buffer.concat(parts).toString();
         const contentType = String(reply.headers["content-type"] || "");
         const parsed = messages(body, contentType);
-        if (rpc?.method === "tools/list") {
+        if (rpc?.method === "tools/list" || (instructions !== undefined && ["initialize", "server/discover"].includes(rpc?.method))) {
           const rewrite = (value) => {
             if (value.result?.tools) value.result.tools = value.result.tools.map(constrainTool);
+            if (instructions !== undefined && typeof value.result?.instructions === "string") {
+              record({ type: "instructions_override", method: rpc.method,
+                original_sha256: createHash("sha256").update(value.result.instructions).digest("hex"),
+                effective_sha256: createHash("sha256").update(instructions).digest("hex") });
+              value.result.instructions = instructions;
+            }
             return value;
           };
           if (contentType.includes("text/event-stream")) {
@@ -131,8 +137,8 @@ export async function startProxy(upstreamUrl, logPath) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const [upstream, log, closed] = process.argv.slice(2);
-  const proxy = await startProxy(upstream, log);
+  const [upstream, log, closed, instructionsFile] = process.argv.slice(2);
+  const proxy = await startProxy(upstream, log, instructionsFile ? { instructions: readFileSync(instructionsFile, "utf8") } : {});
   process.stdout.write(JSON.stringify({ url: proxy.url, policy: SEARCH_POLICY }) + "\n");
   process.once("SIGTERM", async () => { await proxy.close(); writeFileSync(closed, "closed\n"); });
 }

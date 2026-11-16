@@ -40,7 +40,7 @@ on:
         description: Smoke, full, frozen diagnostics, or a small guidance revision comparison
         default: smoke
         type: choice
-        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision, guidance-fixed-search, oracle-capability, branch-replay, branch-execute]
+        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision, guidance-fixed-search, oracle-capability, branch-replay, branch-execute, fresh-guidance-e2e]
       diagnostic_capability_run:
         description: Completed oracle-capability run required for branch-replay
         default: ""
@@ -307,7 +307,7 @@ jobs:
           path: ${{ runner.temp }}/tool-preflight/
 
   package-candidate:
-    if: ${{ inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' }}
+    if: ${{ inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' && inputs.experiment_phase != 'fresh-guidance-e2e' }}
     name: Build selected Rust candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -741,7 +741,7 @@ jobs:
           retention-days: 90
 
   relationship-diagnostic:
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute' || inputs.experiment_phase == 'fresh-guidance-e2e') }}
     name: Relationship diagnostic / ${{ matrix.task }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
@@ -845,6 +845,17 @@ jobs:
           python -m zg_bench.relationship_diagnostic --stage replay
           --task xarray-32 --output "$RUNNER_TEMP/diagnostic"
           --source "$RUNNER_TEMP/source-trial" --capability "$RUNNER_TEMP/capability"
+      - name: Install pinned OpenCode for fresh sessions
+        if: inputs.experiment_phase == 'fresh-guidance-e2e'
+        run: npm install --global opencode-ai@1.18.4
+      - name: Verify new guidance loading and run five fresh sessions
+        if: inputs.experiment_phase == 'fresh-guidance-e2e'
+        env:
+          DIAGNOSTIC_CANDIDATE: ${{ steps.rust-candidate.outputs.commit }}
+          PYTHONPATH: benchmarks/swe-qa-bench
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        run: >-
+          python -m zg_bench.fresh_guidance_e2e --output "$RUNNER_TEMP/diagnostic"
       - if: always() && steps.authorize.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
