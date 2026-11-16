@@ -40,9 +40,13 @@ on:
         description: Smoke, full, frozen diagnostics, or a small guidance revision comparison
         default: smoke
         type: choice
-        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision, guidance-fixed-search, oracle-capability, branch-replay]
+        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision, guidance-fixed-search, oracle-capability, branch-replay, branch-execute]
       diagnostic_capability_run:
         description: Completed oracle-capability run required for branch-replay
+        default: ""
+        type: string
+      diagnostic_replay_run:
+        description: Completed branch-replay run for retrying saved read-only actions without model calls
         default: ""
         type: string
       task_set:
@@ -303,7 +307,7 @@ jobs:
           path: ${{ runner.temp }}/tool-preflight/
 
   package-candidate:
-    if: ${{ inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' }}
+    if: ${{ inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' }}
     name: Build selected Rust candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -737,7 +741,7 @@ jobs:
           retention-days: 90
 
   relationship-diagnostic:
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute') }}
     name: Relationship diagnostic / ${{ matrix.task }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
@@ -757,12 +761,17 @@ jobs:
           CANDIDATE: ${{ inputs.candidate_ref }}
           PHASE: ${{ inputs.experiment_phase }}
           CAPABILITY_RUN: ${{ inputs.diagnostic_capability_run }}
+          REPLAY_RUN: ${{ inputs.diagnostic_replay_run }}
         run: |
           set -euo pipefail
           test "$CANDIDATE" = 85cb58345dac16ac62d85ae99365869cebcc8304
           if [[ "$PHASE" == branch-replay ]]; then
             [[ "$CAPABILITY_RUN" =~ ^[0-9]+$ ]]
             gh api "repos/$BENCH_REPOSITORY/actions/runs/$CAPABILITY_RUN" --jq '.conclusion' | grep -qx success
+          fi
+          if [[ "$PHASE" == branch-execute ]]; then
+            [[ "$REPLAY_RUN" =~ ^[0-9]+$ ]]
+            gh api "repos/$BENCH_REPOSITORY/actions/runs/$REPLAY_RUN" --jq '.conclusion' | grep -qx success
           fi
       - uses: actions/checkout@v6
         with:
@@ -783,6 +792,8 @@ jobs:
       - name: Install diagnostic runtime
         run: |
           npm install --global "$RUNNER_TEMP/rust-package-cache/candidate.tgz" @zvec/bindings-linux-x64@0.5.0 --omit=optional --no-audit --no-fund
+          sudo apt-get update -qq
+          sudo apt-get install -y ripgrep
           sudo mkdir -p /app
           sudo chown "$USER" /app
       - if: inputs.experiment_phase == 'branch-replay'
@@ -807,6 +818,23 @@ jobs:
         run: >-
           python -m zg_bench.relationship_diagnostic --stage capability
           --task '${{ matrix.task }}' --output "$RUNNER_TEMP/diagnostic"
+      - if: inputs.experiment_phase == 'branch-execute'
+        uses: actions/download-artifact@v8
+        with:
+          name: zg-diagnostic-branch-replay-xarray-32-${{ inputs.diagnostic_replay_run }}
+          run-id: ${{ inputs.diagnostic_replay_run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/replay-evidence
+      - name: Execute saved read-only actions without model calls
+        if: inputs.experiment_phase == 'branch-execute'
+        env:
+          DIAGNOSTIC_CANDIDATE: ${{ steps.rust-candidate.outputs.commit }}
+          DIAGNOSTIC_REPLAY_RUN: ${{ inputs.diagnostic_replay_run }}
+          PYTHONPATH: benchmarks/swe-qa-bench
+        run: >-
+          python -m zg_bench.relationship_diagnostic --stage execute
+          --task xarray-32 --output "$RUNNER_TEMP/diagnostic"
+          --source "$RUNNER_TEMP/replay-evidence"
       - name: Replay one next decision per arm and repetition
         if: inputs.experiment_phase == 'branch-replay'
         env:

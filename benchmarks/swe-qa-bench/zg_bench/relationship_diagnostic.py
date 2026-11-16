@@ -197,6 +197,7 @@ def execute_readonly(name, arguments, root, mcp):
         if path != root and root not in path.parents:
             raise ValueError("Read-only executor path escapes /app")
         return path
+    head_limit = None
     if name == "read":
         path = checked_path(arguments["filePath"])
         start = arguments.get("offset", 1)
@@ -215,7 +216,13 @@ def execute_readonly(name, arguments, root, mcp):
         if "|" in parts:
             pos = parts.index("|")
             tail = parts[pos+1:]
-            if tail != ["head"] and not (len(tail) == 3 and tail[:2] == ["head", "-n"] and tail[2].isdigit()):
+            if tail == ["head"]:
+                head_limit = 10
+            elif len(tail) == 3 and tail[:2] == ["head", "-n"] and tail[2].isdigit():
+                head_limit = int(tail[2])
+            elif len(tail) == 2 and tail[0] == "head" and tail[1].startswith("-") and tail[1][1:].isdigit():
+                head_limit = int(tail[1][1:])
+            else:
                 return {"not_executed": "Unsupported pipeline", "arguments": arguments}
             parts = parts[:pos]
         if not parts or parts[0] != "rg" or any(x in parts for x in [";", "&&", "||", ">", ">>", "&"]) or any(x.startswith(("--pre", "--hostname-bin")) for x in parts):
@@ -227,7 +234,27 @@ def execute_readonly(name, arguments, root, mcp):
     else:
         return {"not_executed": "Outside read-only one-step diagnostic", "arguments": arguments}
     result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=30)
-    return {"command": command, "returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+    stdout = result.stdout if head_limit is None else "".join(result.stdout.splitlines(keepends=True)[:head_limit])
+    return {"command": command, "head_limit": head_limit, "returncode": result.returncode, "stdout": stdout, "stderr": result.stderr}
+
+
+def execute_saved(source, root, output, mcp):
+    """Retry only saved read-only actions, preserving original failures and model responses."""
+    frozen = json.loads(next(source.glob("**/frozen-branch.json")).read_text())
+    if frozen["body_sha256"] != BODY_SHA:
+        raise ValueError("Saved actions are not from the frozen branch")
+    paths = sorted(source.glob("**/replay/*/completion.json"))
+    if len(paths) != 20:
+        raise ValueError("Expected all twenty original model decisions")
+    for path in paths:
+        request = path.with_name("request.json").read_bytes()
+        metadata = json.loads(path.with_name("metadata.json").read_text())
+        if digest(request) != metadata["request_sha256"]:
+            raise ValueError("Saved request checksum differs")
+        execution = []
+        for call in json.loads(path.read_text())["tool_calls"]:
+            execution.append({"call": call, "result": execute_readonly(call["function"]["name"], json.loads(call["function"]["arguments"]), root, mcp)})
+        save(output / "re-executed" / path.parent.name / "tool-execution.json", {"model_requests": 0, "source_run": os.environ.get("DIAGNOSTIC_REPLAY_RUN"), "request_sha256": digest(request), "completion_sha256": digest(path.read_bytes()), "execution": execution})
 
 
 def parse_completion(raw):
@@ -318,7 +345,7 @@ def replay(args, root, output, mcp):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=["capability", "replay"], required=True)
+    parser.add_argument("--stage", choices=["capability", "replay", "execute"], required=True)
     parser.add_argument("--task", choices=list(ANCHORS), required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source", type=Path)
@@ -328,6 +355,8 @@ def main():
         raise ValueError("Diagnostic requires frozen Rust candidate")
     if args.stage == "replay" and (args.task != "xarray-32" or args.source is None or args.capability is None):
         raise ValueError("Replay requires frozen Xarray source and preceding capability artifacts")
+    if args.stage == "execute" and (args.task != "xarray-32" or args.source is None):
+        raise ValueError("Execution requires saved Xarray decisions")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     root = Path("/app")
@@ -341,8 +370,10 @@ def main():
                     result = mcp.call("tools/call", {"name": "zvec_grep_" + direction, "arguments": parameters})
                     results.append({"direction": direction, "arguments": parameters, "result": result})
                     save(output / "capability.json", results)
-        else:
+        elif args.stage == "replay":
             replay(args, root, output, mcp)
+        else:
+            execute_saved(args.source, root, output, mcp)
     finally:
         run(["zg", "--server", "off", "--home", str(output / "daemon")], cwd=root, output=output / "server-off.json")
 

@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
+from unittest.mock import patch
 
 from zg_bench.relationship_diagnostic import definitions, encoded, execute_readonly, parse_completion, replay_body
 
@@ -51,3 +53,11 @@ class RelationshipDiagnosticTests(unittest.TestCase):
             execute_readonly("read", {"filePath": "/etc/passwd"}, root, None)
         with self.assertRaises(ValueError):
             execute_readonly("zvec_grep_zvec_grep_callees", {"root": "/other"}, root, None)
+
+    def test_readonly_head_forms_execute_the_saved_rg_arguments(self):
+        stdout = "".join(f"{i}\n" for i in range(25))
+        for suffix, limit in [("head", 10), ("head -20", 20), ("head -n 20", 20)]:
+            with patch("zg_bench.relationship_diagnostic.subprocess.run", return_value=subprocess.CompletedProcess([], 0, stdout, "")) as run:
+                value = execute_readonly("bash", {"command": f'rg -n "def update|def other" /app/a.py | {suffix}'}, Path("/app"), None)
+                self.assertEqual(run.call_args.args[0], ["rg", "-n", "def update|def other", "/app/a.py"])
+                self.assertEqual(len(value["stdout"].splitlines()), limit)

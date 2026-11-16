@@ -46,3 +46,9 @@ tool_choice=auto、stream=true 都保持原始值。不强制 API tool_choice，
 执行：在隔离评测分支运行现有 SWE-QA Bench workflow，phase=oracle-capability，固定 candidate；
 完成并审查结果后再 phase=branch-replay，`diagnostic_capability_run` 指向前者成功的 run。
 回放作业验证前阶段仓库/候选/embedding/binding/ignore 身份相同。
+
+执行记录：首轮单步重放 20/20 HTTP 200，但 runner 缺少 ripgrep 导致 18 个动作执行失败，
+另 2 个动作使用 `head -20`，被受限执行器记录为不支持。原始模型决策及错误全部保留。
+补充 `branch-execute` 阶段只下载已保存的 20 个 completion、核对请求摘要、
+在同版本 /app 源码执行这些只读动作；不提供模型密钥，也不产生额外模型请求。
+执行器增加 `head -20` 支持并保留原生匹配参数；这些修复不影响已经取得的工具选择数据。
