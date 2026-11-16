@@ -38,6 +38,11 @@ descriptions or schemas. OpenCode's installed guidance uses the same body with
 host tool names. Parameter details live in tool descriptions and schemas.
 Historical reports and frozen surfaces still describe their recorded candidates.
 
+The [small direct guidance revision comparison](docs/caller-callee-guidance-revision-20261116.md)
+uses `experiment_phase=guidance-revision`: the three locked QA20 diagnostic tasks,
+two repetitions, and the relationships/agent arms. Candidate-specific surface
+hashes are verified before model trials. Historical diagnostic fixtures stay fixed.
+
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
 the same Claude Code agent, Claude Opus 5 model, task prompt, repository commit,

@@ -37,10 +37,10 @@ on:
         type: choice
         options: [legacy, relationships, search, agent]
       experiment_phase:
-        description: Smoke, full, prior diagnostics, or the eight upstream relationship questions
+        description: Smoke, full, frozen diagnostics, or a small guidance revision comparison
         default: smoke
         type: choice
-        options: [smoke, full, diagnostic, guidance-contrast, upstream-8]
+        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision]
       task_set:
         description: Frozen task set (qa20 keeps the 20-task lock; caller-callee uses the targeted diagnostic set)
         default: qa20
@@ -177,6 +177,10 @@ jobs:
           GUIDANCE_VARIANT: ${{ inputs.guidance_variant || 'direct' }}
         run: |
           set -euo pipefail
+          if [[ "$EXPERIMENT_PHASE" == guidance-revision && ( "$TASK_SET" != qa20 || "$GUIDANCE_VARIANT" != direct || ( "$EXPERIMENT_GROUP" != relationships && "$EXPERIMENT_GROUP" != agent ) ) ]]; then
+            echo "::error::Guidance revision requires QA20, direct, and the relationships or agent arm."
+            exit 1
+          fi
           if [[ "$GUIDANCE_VARIANT" == flow && ( "$EXPERIMENT_GROUP" == legacy || "$EXPERIMENT_PHASE" == diagnostic ) ]]; then
             echo "::error::The flow guidance variant requires an experiment; the prior diagnostic freezes direct guidance."
             exit 1
@@ -205,7 +209,7 @@ jobs:
           elif [[ "$EXPERIMENT_GROUP" != legacy ]]; then
             case "$EXPERIMENT_PHASE" in
               smoke) SCOPE=requests-1 ;;
-              diagnostic) SCOPE=diagnostic-3 ;;
+              diagnostic|guidance-revision) SCOPE=diagnostic-3 ;;
               full) SCOPE=all-full ;;
             esac
           fi
@@ -274,11 +278,17 @@ jobs:
         if: ${{ inputs.experiment_group && inputs.experiment_group != 'legacy' }}
         env:
           ZVEC_GREP_GUIDANCE_VARIANT: ${{ inputs.guidance_variant || 'direct' }}
+          EXPERIMENT_PHASE: ${{ inputs.experiment_phase }}
+          CANDIDATE_COMMIT: ${{ needs.package-candidate.outputs.candidate-commit }}
         run: |
+          revision_args=()
+          if [[ "$EXPERIMENT_PHASE" == guidance-revision ]]; then
+            revision_args=(--revision-candidate "$CANDIDATE_COMMIT")
+          fi
           npm install --prefix "$RUNNER_TEMP/installed-candidate" "$RUNNER_TEMP/package/candidate.tgz"
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.local_tool_preflight \
             --binary "$RUNNER_TEMP/installed-candidate/node_modules/.bin/zg" \
-            --output "$RUNNER_TEMP/tool-preflight"
+            --output "$RUNNER_TEMP/tool-preflight" "${revision_args[@]}"
       - name: Preserve tool preflight evidence
         if: always() && steps.authorize.outcome == 'success' && inputs.experiment_group && inputs.experiment_group != 'legacy'
         uses: actions/upload-artifact@v7
@@ -627,7 +637,7 @@ jobs:
           test '${{ inputs.embedding }}' = local
           case "$EXPERIMENT_PHASE" in
             smoke) trials=1 ;;
-            diagnostic|guidance-contrast|upstream-8) trials=2 ;;
+            diagnostic|guidance-contrast|upstream-8|guidance-revision) trials=2 ;;
             full) trials=5 ;;
           esac
           runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"

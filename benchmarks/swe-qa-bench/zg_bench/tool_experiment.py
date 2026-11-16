@@ -28,7 +28,7 @@ TASK_SETS = {
     "qa20": {
         "selection": "selection.json",
         "references": "references.json",
-        "scopes": {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3"},
+        "scopes": {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3", "guidance-revision": "diagnostic-3"},
     },
     "caller-callee": {
         "selection": "selection-caller-callee.json",
@@ -49,6 +49,14 @@ def experiment_tasks(task_set: str, phase: str) -> list[str]:
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
+
+
+def validate_revision_surface(candidate: str, group: str, surface: dict) -> None:
+    """Bind this comparison to predeclared candidate-specific live surfaces."""
+    frozen = load_object(ROOT / "fixtures/caller-callee-guidance-revision-v1.json", label="guidance revision")
+    expected = frozen["candidates"].get(candidate, {}).get("groups", {}).get(group)
+    if expected is None or surface["sha256"] != expected:
+        raise ValueError("installed guidance differs from frozen revision candidate")
 
 
 def audit_calls(calls: list[dict]) -> dict:
@@ -101,6 +109,8 @@ def collect(args: argparse.Namespace) -> None:
         trial["audit"] = audit_calls(audit["calls"])
         trial["calls"] = audit["calls"]
         trial["surface"] = load_object(directory / "agent/tool-surface.json", label="live tool surface")
+        if args.phase == "guidance-revision":
+            validate_revision_surface(args.candidate, args.group, trial["surface"])
         if args.phase == "diagnostic":
             frozen = load_object(ROOT / "fixtures/caller-callee-guidance-v2.json", label="diagnostic guidance")
             if trial["surface"] != frozen["groups"][args.group]:
@@ -132,7 +142,7 @@ def collect(args: argparse.Namespace) -> None:
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
-        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v2"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
+        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v2", "guidance-revision": "caller-callee-guidance-revision-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
         "task_set": args.task_set,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),
@@ -214,7 +224,9 @@ def aggregate(args: argparse.Namespace) -> None:
     expected_tasks = experiment_tasks(args.task_set, args.phase)
     if args.phase in ("guidance-contrast", "upstream-8") and args.group not in ("all", "relationships"):
         raise ValueError("guidance contrast requires the relationships arm")
-    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-contrast": ("relationships",), "upstream-8": ("relationships",)}.get(args.phase, GROUPS)
+    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-revision": ("relationships", "agent"), "guidance-contrast": ("relationships",), "upstream-8": ("relationships",)}.get(args.phase, GROUPS)
+    if args.phase == "guidance-revision" and args.group not in ("all", "relationships", "agent"):
+        raise ValueError("guidance revision requires relationships or agent")
     groups = phase_groups if args.group == "all" else (args.group,)
     reports = []
     for path in sorted(args.reports.rglob("task-report.json")):
@@ -243,8 +255,12 @@ def aggregate(args: argparse.Namespace) -> None:
             raise ValueError("unsupported guidance variant in experiment report")
         if len(report["trials"]) != report["expected_trials"] or not report["graph_index"]:
             raise ValueError("incomplete trials or graph configuration")
-        if args.phase in ("guidance-contrast", "upstream-8") and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
+        if args.phase in ("guidance-contrast", "upstream-8", "guidance-revision") and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
             raise ValueError("guidance contrast requires two trials and actual request evidence")
+        if args.phase == "guidance-revision":
+            if report.get("guidance_variant") != "direct":
+                raise ValueError("guidance revision requires direct")
+            validate_revision_surface(report["candidate"], report["group"], {"sha256": report["surface_sha256"]})
         previous = surfaces.setdefault(report["group"], report["surface_sha256"])
         if previous != report["surface_sha256"]:
             raise ValueError("tool instructions differ across tasks in one arm")
@@ -277,7 +293,7 @@ def main() -> None:
     summary.add_argument("--reports", type=Path, required=True)
     summary.add_argument("--group", choices=(*GROUPS, "all"), required=True)
     for command in (task, summary):
-        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast", "upstream-8"), required=True)
+        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast", "upstream-8", "guidance-revision"), required=True)
         command.add_argument("--task-set", choices=tuple(TASK_SETS), default="qa20")
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

@@ -69,6 +69,11 @@ smoke/full 实验。运行前探针会核对实际 MCP instructions 和 AGENTS.m
 OpenCode 安装指导沿用同一正文，仅转换宿主工具名；参数细节放在工具描述和
 schema。历史报告及冻结工具配置仍对应各自记录的候选版本。
 
+[direct 新旧指导小规模对照](docs/caller-callee-guidance-revision-20261116.md)
+使用 `experiment_phase=guidance-revision`：固定 QA20 诊断三题、每题两次，
+仅运行 relationships/agent 两组。模型执行前按候选 SHA 校验冻结的实际指导与
+工具定义指纹；历史 diagnostic 的 prompt 校验保持不变。
+
 完整会话树用量沿用 opencode-session-tree-v1。实验额外导出
 `agent/tool-calls.json`：主会话及递归子代理调用的标识、时间、参数、输出和
 错误。普通非实验运行继续不导出这些内容。审计按工具记录尝试、成功、失败、

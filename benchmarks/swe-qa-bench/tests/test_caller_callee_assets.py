@@ -241,6 +241,12 @@ class CallerCalleeWorkflowTests(unittest.TestCase):
         workflow = yaml.load((ROOT.parents[1] / ".github/workflows/swe-qa-bench.yml").read_text(), Loader=yaml.BaseLoader)
         matrix = next(step for step in workflow["jobs"]["validate"]["steps"] if step.get("id") == "task-matrix")
         for task_set, group, phase, variant, valid in (
+            ("qa20", "relationships", "guidance-revision", "direct", True),
+            ("qa20", "agent", "guidance-revision", "direct", True),
+            ("qa20", "agent", "guidance-revision", "flow", False),
+            ("qa20", "search", "guidance-revision", "direct", False),
+            ("qa20", "legacy", "guidance-revision", "direct", False),
+            ("caller-callee", "relationships", "guidance-revision", "direct", False),
             ("qa20", "agent", "diagnostic", "flow", False),
             ("qa20", "legacy", "smoke", "flow", False),
             ("qa20", "agent", "diagnostic", "direct", True),

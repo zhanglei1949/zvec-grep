@@ -12,6 +12,7 @@ def main() -> None:
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--opencode", type=Path, help="also run one development-only model session per group")
+    parser.add_argument("--revision-candidate", help="verify the frozen guidance revision before model trials")
     args = parser.parse_args()
     binary = args.binary.resolve()
     output = args.output.resolve()
@@ -34,6 +35,9 @@ def main() -> None:
             (root / "probe-stderr.log").write_text(evidence.stderr)
             (root / "surface.json").write_text(evidence.stdout)
             evidence.check_returncode()
+            if args.revision_candidate and group in ("relationships", "agent"):
+                from zg_bench.tool_experiment import validate_revision_surface
+                validate_revision_surface(args.revision_candidate, group, json.loads(evidence.stdout))
             print(json.dumps({"group": group, "verified": True, "evidence": str(root / "surface.json")}))
             if args.opencode is not None:
                 from zg_bench.engines.opencode.config import build_opencode_config

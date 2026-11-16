@@ -1,0 +1,21 @@
+{
+  "version": "caller-callee-guidance-revision-v1",
+  "guidance_variant": "direct",
+  "surface_hash": "SHA-256 of Node JSON.stringify({instructions, tools, guidance}) from the live MCP probe",
+  "candidates": {
+    "7edcbd0eec239783ce1510d1b31521e9157153ee": {
+      "label": "old",
+      "groups": {
+        "relationships": "b5195588a190c48bafbd34b6b5c345cde7c7d9cab54de5cfce40ae10e65573e4",
+        "agent": "8e653d31e85d0ab3399ffe5eefde05a9f1d3b809410050e339aa864014861387"
+      }
+    },
+    "d33509a65508b66eaa55de37d8b089c1f948a109": {
+      "label": "new",
+      "groups": {
+        "relationships": "e7abf2ab9b63d3b007b1efafc755016c55340a3a5b340d26e681ec6b491b12b1",
+        "agent": "0a22ad679ab3672f60fbde4dc47286aee89a3ed3d5dc2d7fefb852f2e54e6f61"
+      }
+    }
+  }
+}
