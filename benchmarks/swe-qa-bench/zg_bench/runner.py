@@ -600,11 +600,14 @@ def build_harbor_command(
     mcp_toolset: str | None = None,
     record_model_requests: bool = False,
     guidance_variant: str | None = None,
+    fixed_search: bool = False,
 ) -> list[str]:
     if profile not in PROFILES:
         raise ValueError(f"unsupported profile: {profile}")
     if record_model_requests and (profile != "zvec-grep" or agent != "opencode" or mcp_toolset is None):
         raise ValueError("request recording requires an OpenCode tool experiment")
+    if fixed_search and (profile != "zvec-grep" or agent != "opencode" or mcp_toolset is None):
+        raise ValueError("fixed search requires an OpenCode tool experiment")
     if guidance_variant not in (None, "direct", "flow"):
         raise ValueError("unsupported guidance variant")
     if guidance_variant is not None and (profile != "zvec-grep" or agent != "opencode" or mcp_toolset is None):
@@ -662,6 +665,8 @@ def build_harbor_command(
                 agent_kwargs.append(f"guidance_variant={guidance_variant}")
         if record_model_requests:
             agent_kwargs.append("record_model_requests=true")
+        if fixed_search:
+            agent_kwargs.append("fixed_search=true")
         agent_kwargs.extend(
             [
                 f"zvec_grep_package={zvec_grep_package}",

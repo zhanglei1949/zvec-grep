@@ -50,6 +50,8 @@ class BenchmarkArgumentParser(argparse.ArgumentParser):
             self.error("--record-model-requests requires --mcp-toolset")
         if getattr(parsed, "guidance_variant", None) is not None and parsed.mcp_toolset is None:
             self.error("--guidance-variant requires --mcp-toolset")
+        if getattr(parsed, "fixed_search", False) and parsed.mcp_toolset is None:
+            self.error("--fixed-search requires --mcp-toolset")
         if parsed.command not in {"doctor", "run"}:
             return parsed
 
@@ -129,6 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--mcp-toolset", choices=("agent", "search", "relationships"))
     run.add_argument("--record-model-requests", action="store_true")
     run.add_argument("--guidance-variant", choices=("direct", "flow"))
+    run.add_argument("--fixed-search", action="store_true", help="lock MCP search to preview=short, limit=20 and audit execution")
     run.add_argument(
         "suite",
         help="built-in suite name or YAML path; use 'zg-bench list suites'",
@@ -301,6 +304,7 @@ def main(argv: list[str] | None = None) -> int:
                     mcp_toolset=args.mcp_toolset,
                     record_model_requests=args.record_model_requests,
                     guidance_variant=args.guidance_variant,
+                    fixed_search=args.fixed_search,
                 ),
             )
             for profile, job_name in run_specs
@@ -382,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
                 mcp_toolset=args.mcp_toolset,
                 record_model_requests=args.record_model_requests,
                 guidance_variant=args.guidance_variant,
+                fixed_search=args.fixed_search,
             )
             profile_return_code = execute(
                 command,

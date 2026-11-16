@@ -1,0 +1,32 @@
+{
+  "version": "caller-callee-fixed-search-v1",
+  "guidance_variant": "direct",
+  "search_policy": {
+    "preview": "short",
+    "limit": 20
+  },
+  "candidates": {
+    "d33509a65508b66eaa55de37d8b089c1f948a109": {
+      "label": "old",
+      "raw_groups": {
+        "relationships": "e7abf2ab9b63d3b007b1efafc755016c55340a3a5b340d26e681ec6b491b12b1",
+        "agent": "0a22ad679ab3672f60fbde4dc47286aee89a3ed3d5dc2d7fefb852f2e54e6f61"
+      },
+      "groups": {
+        "relationships": "e7abf2ab9b63d3b007b1efafc755016c55340a3a5b340d26e681ec6b491b12b1",
+        "agent": "d31e1392f35d3a998fe8d5b8642d5b8fe12da58ccf65fef18ce7d8d7d7cc2d39"
+      }
+    },
+    "85cb58345dac16ac62d85ae99365869cebcc8304": {
+      "label": "new",
+      "raw_groups": {
+        "relationships": "bc185cf9ef377293c777a4c11467d2b5230d6f3008a1b2f822e3a2f0a04fa5b5",
+        "agent": "892ea68d7f985de8b230134c57ca4eb782607883294fa279a3bd7f8352995907"
+      },
+      "groups": {
+        "relationships": "bc185cf9ef377293c777a4c11467d2b5230d6f3008a1b2f822e3a2f0a04fa5b5",
+        "agent": "c4a21a07852f317d0c0f71133765288719cabb5a077f41f34d9a9b1df9ba362e"
+      }
+    }
+  }
+}

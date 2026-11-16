@@ -43,6 +43,13 @@ uses `experiment_phase=guidance-revision`: the three locked QA20 diagnostic task
 two repetitions, and the relationships/agent arms. Candidate-specific surface
 hashes are verified before model trials. Historical diagnostic fixtures stay fixed.
 
+The [fixed-search direct comparison](docs/caller-callee-fixed-search-20261116.md)
+uses `experiment_phase=guidance-fixed-search` with the same three tasks, two trials
+and two arms per candidate. A benchmark-only MCP adapter locks actual search
+execution to `preview=short, limit=20`, advertises those constants, and preserves
+both requested and executed arguments. Guidance and relationship-tool descriptions
+remain candidate-specific; historical cohorts and fixtures are unchanged.
+
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
 the same Claude Code agent, Claude Opus 5 model, task prompt, repository commit,

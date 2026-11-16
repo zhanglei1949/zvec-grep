@@ -48,6 +48,7 @@ class ZvecGrepMixin:
         mcp_toolset: str | None = None,
         graph_index: bool = False,
         guidance_variant: str | None = None,
+        fixed_search: bool = False,
         zvec_grep_package_sha256: str | None = None,
         extra_env: dict[str, str] | None = None,
         **kwargs: Any,
@@ -118,6 +119,9 @@ class ZvecGrepMixin:
         if guidance_variant not in (None, "direct", "flow"):
             raise ValueError("unsupported guidance variant")
         self._guidance_variant = guidance_variant
+        if not isinstance(fixed_search, bool) or (fixed_search and (mcp_target != "opencode" or mcp_toolset is None)):
+            raise ValueError("fixed_search requires an OpenCode MCP experiment")
+        self._fixed_search = fixed_search
         self._zvec_grep_package_sha256 = zvec_grep_package_sha256
         self._api_key_source = api_key_source
         self._embedding_api_key = api_key
@@ -577,14 +581,41 @@ class ZvecGrepMixin:
         if self._mcp_toolset is not None:
             probe_source = Path(__file__).resolve().parents[1].joinpath("mcp_probe.mjs")
             await environment.upload_file(probe_source, "/tmp/zg-bench-mcp-probe.mjs")
+            probe_url = "http://127.0.0.1:7999/mcp"
+            if self._fixed_search:
+                await self.exec_as_agent(environment, command=f"{_NVM_INIT} node /tmp/zg-bench-mcp-probe.mjs {probe_url} {self._mcp_toolset} > /logs/agent/tool-surface.raw.json", **install_kwargs)
+                await environment.upload_file(Path(__file__).resolve().parents[1] / "fixed_search_proxy.mjs", "/tmp/zg-fixed-search-proxy.mjs")
+                ready = await self.exec_as_agent(environment, command=(
+                    f"set -e; {_NVM_INIT} nohup node /tmp/zg-fixed-search-proxy.mjs {probe_url} "
+                    "/logs/agent/mcp-execution.jsonl /logs/agent/mcp-proxy.closed "
+                    "> /logs/agent/mcp-proxy.json 2> /logs/agent/mcp-proxy.stderr < /dev/null & "
+                    "echo $! > /logs/agent/mcp-proxy.pid; "
+                    "for i in $(seq 1 50); do test -s /logs/agent/mcp-proxy.json && break; sleep 0.1; done; "
+                    "test -s /logs/agent/mcp-proxy.json; cat /logs/agent/mcp-proxy.json"
+                ), cwd=workdir)
+                control = json.loads(ready.stdout)
+                probe_url = control["url"]
+                self._opencode_config["mcp"]["zvec_grep"]["url"] = probe_url
+                metadata["fixed_search"] = control["policy"]
             await self.exec_as_agent(
                 environment,
-                command=f"{_NVM_INIT} node /tmp/zg-bench-mcp-probe.mjs http://127.0.0.1:7999/mcp {self._mcp_toolset} > /logs/agent/tool-surface.json",
+                command=f"{_NVM_INIT} node /tmp/zg-bench-mcp-probe.mjs {probe_url} {self._mcp_toolset} > /logs/agent/tool-surface.json",
                 **install_kwargs,
             )
             metadata["mcp_toolset"] = self._mcp_toolset
             metadata["graph_index"] = self._graph_index
             metadata["guidance_variant"] = self._guidance_variant or "direct"
+
+    async def run(self, instruction, environment, context):
+        try:
+            await super().run(instruction, environment, context)
+        finally:
+            if self._fixed_search:
+                await self.exec_as_agent(environment, command=(
+                    'set -e; kill -TERM "$(cat /logs/agent/mcp-proxy.pid)"; '
+                    "for i in $(seq 1 50); do test -s /logs/agent/mcp-proxy.closed && break; sleep 0.1; done; "
+                    "test -s /logs/agent/mcp-proxy.closed"
+                ), timeout_sec=20)
 
     def _mcp_install_environment(self) -> dict[str, str] | None:
         """Return target-specific environment for `zg --install`."""

@@ -13,6 +13,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--opencode", type=Path, help="also run one development-only model session per group")
     parser.add_argument("--revision-candidate", help="verify the frozen guidance revision before model trials")
+    parser.add_argument("--fixed-search-candidate", help="verify raw and fixed-search surfaces before model trials")
     args = parser.parse_args()
     binary = args.binary.resolve()
     output = args.output.resolve()
@@ -38,6 +39,24 @@ def main() -> None:
             if args.revision_candidate and group in ("relationships", "agent"):
                 from zg_bench.tool_experiment import validate_revision_surface
                 validate_revision_surface(args.revision_candidate, group, json.loads(evidence.stdout))
+            if args.fixed_search_candidate and group in ("relationships", "agent"):
+                from zg_bench.tool_experiment import validate_fixed_surface
+                validate_fixed_surface(args.fixed_search_candidate, group, json.loads(evidence.stdout), raw=True)
+                proxy = subprocess.Popen(["node", str(Path(__file__).with_name("fixed_search_proxy.mjs")), env["ZVEC_GREP_SERVER_URL"], str(root / "mcp-execution.jsonl"), str(root / "mcp-proxy.closed")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                fixed = None
+                try:
+                    control = json.loads(proxy.stdout.readline())
+                    fixed = subprocess.run(["node", str(probe), control["url"], group, str(fixture)], env=env, capture_output=True, text=True)
+                    (root / "surface.fixed.json").write_text(fixed.stdout)
+                    (root / "probe-fixed-stderr.log").write_text(fixed.stderr)
+                    fixed.check_returncode()
+                    validate_fixed_surface(args.fixed_search_candidate, group, json.loads(fixed.stdout))
+                finally:
+                    proxy.terminate()
+                    _, proxy_stderr = proxy.communicate(timeout=15)
+                    (root / "mcp-proxy.stderr").write_text(proxy_stderr)
+                    if proxy.returncode != 0 and fixed is not None and fixed.returncode == 0:
+                        raise RuntimeError("fixed search preflight proxy failed to close")
             print(json.dumps({"group": group, "verified": True, "evidence": str(root / "surface.json")}))
             if args.opencode is not None:
                 from zg_bench.engines.opencode.config import build_opencode_config

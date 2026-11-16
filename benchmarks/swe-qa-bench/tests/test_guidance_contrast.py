@@ -18,7 +18,7 @@ class GuidanceContrastTests(unittest.TestCase):
     def test_every_experiment_phase_records_actual_requests(self):
         workflow = yaml.load((ROOT.parents[1] / ".github/workflows/swe-qa-bench.yml").read_text(), Loader=yaml.BaseLoader)
         step = next(s for s in workflow["jobs"]["experiment-task"]["steps"] if s.get("name") == "Run one experiment arm and judge its trials")
-        for phase, trials in (("smoke", 1), ("full", 5), ("diagnostic", 2), ("guidance-contrast", 2), ("upstream-8", 2), ("guidance-revision", 2)):
+        for phase, trials in (("smoke", 1), ("full", 5), ("diagnostic", 2), ("guidance-contrast", 2), ("upstream-8", 2), ("guidance-revision", 2), ("guidance-fixed-search", 2)):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temp:
                 capture = Path(temp) / "commands.jsonl"
                 env = {**os.environ, "GLM_API_KEY": "fake-key", "SWE_QA_MODEL": "glm-5.2",
@@ -31,6 +31,7 @@ class GuidanceContrastTests(unittest.TestCase):
                 subprocess.run(["bash", "-c", stub + script], env=env, check=True, capture_output=True)
                 command = json.loads(capture.read_text().splitlines()[0])
                 self.assertIn("--record-model-requests", command)
+                self.assertEqual('--fixed-search' in command, phase == 'guidance-fixed-search')
                 self.assertEqual(command[command.index("--n-attempts") + 1], str(trials))
 
     def test_frozen_variants_only_change_the_positioning_sentence(self):

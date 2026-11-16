@@ -28,7 +28,7 @@ TASK_SETS = {
     "qa20": {
         "selection": "selection.json",
         "references": "references.json",
-        "scopes": {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3", "guidance-revision": "diagnostic-3"},
+        "scopes": {"smoke": "requests-1", "full": "all-full", "diagnostic": "diagnostic-3", "guidance-revision": "diagnostic-3", "guidance-fixed-search": "diagnostic-3"},
     },
     "caller-callee": {
         "selection": "selection-caller-callee.json",
@@ -57,6 +57,38 @@ def validate_revision_surface(candidate: str, group: str, surface: dict) -> None
     expected = frozen["candidates"].get(candidate, {}).get("groups", {}).get(group)
     if expected is None or surface["sha256"] != expected:
         raise ValueError("installed guidance differs from frozen revision candidate")
+
+
+def validate_fixed_surface(candidate: str, group: str, surface: dict, *, raw: bool = False) -> None:
+    frozen = load_object(ROOT / "fixtures/caller-callee-fixed-search-v1.json", label="fixed search guidance")
+    expected = frozen["candidates"].get(candidate, {}).get("raw_groups" if raw else "groups", {}).get(group)
+    if expected is None or surface["sha256"] != expected:
+        raise ValueError("installed guidance differs from frozen fixed-search candidate")
+
+
+def audit_fixed_search(path: Path) -> dict:
+    events = [json.loads(line) for line in path.read_text().splitlines()]
+    if not events or events[0].get("type") != "started" or events[-1].get("type") != "closed":
+        raise ValueError("MCP execution recorder did not complete")
+    policy = {"preview": "short", "limit": 20}
+    if events[0].get("policy") != policy:
+        raise ValueError("unexpected fixed search policy")
+    calls = [event for event in events if event["type"] == "call"]
+    results = {event["sequence"]: event for event in events if event["type"] == "result"}
+    if len(results) != len(calls) or any(event["sequence"] not in results for event in calls):
+        raise ValueError("incomplete MCP execution results")
+    for event in calls:
+        requested, effective = event["requested_arguments"], event["effective_arguments"]
+        if event["name"] == "zvec_grep_search":
+            if effective != {**requested, **policy}:
+                raise ValueError("executed search parameters differ from fixed policy")
+        elif requested != effective:
+            raise ValueError("non-search MCP arguments were changed")
+    return {"policy": policy, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "calls": calls, "results": list(results.values()),
+            "search_calls": sum(e["name"] == "zvec_grep_search" for e in calls),
+            "normalized_search_calls": sum(e["name"] == "zvec_grep_search" and bool(e["normalized_fields"]) for e in calls),
+            "transport_errors": [e for e in events if e["type"] in ("upstream_error", "response_error")]}
 
 
 def audit_calls(calls: list[dict]) -> dict:
@@ -109,6 +141,10 @@ def collect(args: argparse.Namespace) -> None:
         trial["audit"] = audit_calls(audit["calls"])
         trial["calls"] = audit["calls"]
         trial["surface"] = load_object(directory / "agent/tool-surface.json", label="live tool surface")
+        if args.phase == "guidance-fixed-search":
+            validate_fixed_surface(args.candidate, args.group, trial["surface"])
+            validate_fixed_surface(args.candidate, args.group, load_object(directory / "agent/tool-surface.raw.json", label="raw tool surface"), raw=True)
+            trial["mcp_execution"] = audit_fixed_search(directory / "agent/mcp-execution.jsonl")
         if args.phase == "guidance-revision":
             validate_revision_surface(args.candidate, args.group, trial["surface"])
         if args.phase == "diagnostic":
@@ -142,7 +178,7 @@ def collect(args: argparse.Namespace) -> None:
     if len(surfaces) != 1:
         raise ValueError("tool instructions changed between trials")
     report = {
-        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v2", "guidance-revision": "caller-callee-guidance-revision-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
+        "protocol": {"diagnostic": "caller-callee-context-diagnostic-v1", "guidance-contrast": "caller-callee-guidance-contrast-v1", "upstream-8": "caller-callee-upstream-8-v2", "guidance-revision": "caller-callee-guidance-revision-v1", "guidance-fixed-search": "caller-callee-fixed-search-v1"}.get(args.phase, "caller-callee-e2e-v2"), "group": args.group, "phase": args.phase,
         "task_set": args.task_set,
         "candidate": args.candidate, "harness": args.harness,
         "model": "custom-openai/glm-5.2", "endpoint_sha256": hashlib.sha256(runtime.configuration.base_url.encode()).hexdigest(),
@@ -224,8 +260,8 @@ def aggregate(args: argparse.Namespace) -> None:
     expected_tasks = experiment_tasks(args.task_set, args.phase)
     if args.phase in ("guidance-contrast", "upstream-8") and args.group not in ("all", "relationships"):
         raise ValueError("guidance contrast requires the relationships arm")
-    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-revision": ("relationships", "agent"), "guidance-contrast": ("relationships",), "upstream-8": ("relationships",)}.get(args.phase, GROUPS)
-    if args.phase == "guidance-revision" and args.group not in ("all", "relationships", "agent"):
+    phase_groups = {"diagnostic": ("relationships", "agent"), "guidance-revision": ("relationships", "agent"), "guidance-fixed-search": ("relationships", "agent"), "guidance-contrast": ("relationships",), "upstream-8": ("relationships",)}.get(args.phase, GROUPS)
+    if args.phase in ("guidance-revision", "guidance-fixed-search") and args.group not in ("all", "relationships", "agent"):
         raise ValueError("guidance revision requires relationships or agent")
     groups = phase_groups if args.group == "all" else (args.group,)
     reports = []
@@ -255,12 +291,16 @@ def aggregate(args: argparse.Namespace) -> None:
             raise ValueError("unsupported guidance variant in experiment report")
         if len(report["trials"]) != report["expected_trials"] or not report["graph_index"]:
             raise ValueError("incomplete trials or graph configuration")
-        if args.phase in ("guidance-contrast", "upstream-8", "guidance-revision") and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
+        if args.phase in ("guidance-contrast", "upstream-8", "guidance-revision", "guidance-fixed-search") and (report["expected_trials"] != 2 or any("model_requests" not in t for t in report["trials"])):
             raise ValueError("guidance contrast requires two trials and actual request evidence")
         if args.phase == "guidance-revision":
             if report.get("guidance_variant") != "direct":
                 raise ValueError("guidance revision requires direct")
             validate_revision_surface(report["candidate"], report["group"], {"sha256": report["surface_sha256"]})
+        if args.phase == "guidance-fixed-search":
+            if report.get("guidance_variant") != "direct" or any(t.get("mcp_execution", {}).get("policy") != {"preview": "short", "limit": 20} for t in report["trials"]):
+                raise ValueError("fixed search comparison requires direct and complete execution evidence")
+            validate_fixed_surface(report["candidate"], report["group"], {"sha256": report["surface_sha256"]})
         previous = surfaces.setdefault(report["group"], report["surface_sha256"])
         if previous != report["surface_sha256"]:
             raise ValueError("tool instructions differ across tasks in one arm")
@@ -293,7 +333,7 @@ def main() -> None:
     summary.add_argument("--reports", type=Path, required=True)
     summary.add_argument("--group", choices=(*GROUPS, "all"), required=True)
     for command in (task, summary):
-        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast", "upstream-8", "guidance-revision"), required=True)
+        command.add_argument("--phase", choices=("smoke", "full", "diagnostic", "guidance-contrast", "upstream-8", "guidance-revision", "guidance-fixed-search"), required=True)
         command.add_argument("--task-set", choices=tuple(TASK_SETS), default="qa20")
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

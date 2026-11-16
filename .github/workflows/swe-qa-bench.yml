@@ -40,7 +40,7 @@ on:
         description: Smoke, full, frozen diagnostics, or a small guidance revision comparison
         default: smoke
         type: choice
-        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision]
+        options: [smoke, full, diagnostic, guidance-contrast, upstream-8, guidance-revision, guidance-fixed-search]
       task_set:
         description: Frozen task set (qa20 keeps the 20-task lock; caller-callee uses the targeted diagnostic set)
         default: qa20
@@ -177,7 +177,7 @@ jobs:
           GUIDANCE_VARIANT: ${{ inputs.guidance_variant || 'direct' }}
         run: |
           set -euo pipefail
-          if [[ "$EXPERIMENT_PHASE" == guidance-revision && ( "$TASK_SET" != qa20 || "$GUIDANCE_VARIANT" != direct || ( "$EXPERIMENT_GROUP" != relationships && "$EXPERIMENT_GROUP" != agent ) ) ]]; then
+          if [[ ( "$EXPERIMENT_PHASE" == guidance-revision || "$EXPERIMENT_PHASE" == guidance-fixed-search ) && ( "$TASK_SET" != qa20 || "$GUIDANCE_VARIANT" != direct || ( "$EXPERIMENT_GROUP" != relationships && "$EXPERIMENT_GROUP" != agent ) ) ]]; then
             echo "::error::Guidance revision requires QA20, direct, and the relationships or agent arm."
             exit 1
           fi
@@ -209,7 +209,7 @@ jobs:
           elif [[ "$EXPERIMENT_GROUP" != legacy ]]; then
             case "$EXPERIMENT_PHASE" in
               smoke) SCOPE=requests-1 ;;
-              diagnostic|guidance-revision) SCOPE=diagnostic-3 ;;
+              diagnostic|guidance-revision|guidance-fixed-search) SCOPE=diagnostic-3 ;;
               full) SCOPE=all-full ;;
             esac
           fi
@@ -284,6 +284,8 @@ jobs:
           revision_args=()
           if [[ "$EXPERIMENT_PHASE" == guidance-revision ]]; then
             revision_args=(--revision-candidate "$CANDIDATE_COMMIT")
+          elif [[ "$EXPERIMENT_PHASE" == guidance-fixed-search ]]; then
+            revision_args=(--fixed-search-candidate "$CANDIDATE_COMMIT")
           fi
           npm install --prefix "$RUNNER_TEMP/installed-candidate" "$RUNNER_TEMP/package/candidate.tgz"
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.local_tool_preflight \
@@ -637,16 +639,19 @@ jobs:
           test '${{ inputs.embedding }}' = local
           case "$EXPERIMENT_PHASE" in
             smoke) trials=1 ;;
-            diagnostic|guidance-contrast|upstream-8|guidance-revision) trials=2 ;;
+            diagnostic|guidance-contrast|upstream-8|guidance-revision|guidance-fixed-search) trials=2 ;;
             full) trials=5 ;;
           esac
           runs_dir="$RUNNER_TEMP/experiment-runs/$TASK_NAME"
           suite=swe-qa-bench
           if [[ "$TASK_SET" == caller-callee ]]; then suite=caller-callee; fi
+          search_args=()
+          if [[ "$EXPERIMENT_PHASE" == guidance-fixed-search ]]; then search_args=(--fixed-search); fi
           uv run --project benchmarks/swe-qa-bench zg-bench run "$suite" \
             --tier full --task "$TASK_NAME" --agent opencode --model custom-openai/glm-5.2 \
             --profile zvec-grep --mcp-toolset "$EXPERIMENT_GROUP" --record-model-requests \
             --guidance-variant "$GUIDANCE_VARIANT" \
+            ${search_args[@]+"${search_args[@]}"} \
             --n-attempts "$trials" --max-retries 2 \
             --embedding-model local/potion-code-16m-v2 \
             --zvec-grep-package "$RUNNER_TEMP/package/candidate.tgz" \
