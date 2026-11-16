@@ -4,14 +4,24 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from jsonschema import Draft202012Validator
 
-from zg_bench.fresh_guidance_e2e import matching_guidance
-from zg_bench.relationship_diagnostic import DIRECTIVE, READY
+from zg_bench.fresh_guidance_e2e import DIRECTIVE, JSON_EXAMPLE, PARAMETERS, PARAMETER_CLAUSE, matching_guidance
+from zg_bench.relationship_diagnostic import DIRECTIVE as LEGACY_DIRECTIVE, READY
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class FreshGuidanceTests(unittest.TestCase):
+    def test_json_example_is_schema_valid_and_only_replaces_the_parameter_clause(self):
+        frozen = json.loads((ROOT / "fixtures/caller-callee-guidance-v2.json").read_text())["groups"]["relationships"]
+        arguments = json.loads(DIRECTIVE.split("```json\n", 1)[1].split("\n```", 1)[0])
+        self.assertEqual(arguments, PARAMETERS)
+        self.assertEqual(arguments["globs"], "xarray/core/coordinates.py")
+        schema = next(t["inputSchema"] for t in frozen["tools"] if t["name"] == "zvec_grep_callees")
+        Draft202012Validator(schema).validate(arguments)
+        self.assertEqual(DIRECTIVE.replace(JSON_EXAMPLE, PARAMETER_CLAUSE), LEGACY_DIRECTIVE)
+
     def test_directive_is_inside_agents_block_and_matches_mcp(self):
         frozen = json.loads((ROOT / "fixtures/caller-callee-guidance-v2.json").read_text())["groups"]["relationships"]
         agents, instructions = matching_guidance(frozen)

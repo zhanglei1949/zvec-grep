@@ -12,6 +12,11 @@ MCP instructions delivered through a benchmark adapter, one no-model OpenCode
 contract check and five new Xarray answering sessions. The recorder verifies each
 first answering request before forwarding it without modifying its JSON body.
 
+The [complete JSON example follow-up](docs/caller-callee-fresh-json-20261116.md)
+reuses that phase and changes only the directive's parameter rendering, retaining
+`globs`. It compares five new sessions with frozen run `43843188341`; earlier
+records and the legacy replay directive remain unchanged.
+
 The [oracle capability and one-decision replay protocol](docs/caller-callee-oracle-replay-20261116.md)
 uses manual phases `oracle-capability` and `branch-replay`. It makes 34 retrieval-only
 MCP queries on three pinned repositories, then 20 one-decision GLM requests from one

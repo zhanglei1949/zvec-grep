@@ -10,13 +10,17 @@ import subprocess
 import threading
 import time
 
-from .relationship_diagnostic import CANDIDATE, DIRECTIVE, READY, digest, prepare, run, save
+from .relationship_diagnostic import CANDIDATE, DIRECTIVE as LEGACY_DIRECTIVE, READY, digest, prepare, run, save
 from .engines.registry import resolve_opencode_model
 from .engines.opencode.config import build_opencode_config
 from .agents.opencode_usage import CALL_AUDIT_SQL, session_tool_calls, summarize_session_usage
 
 ROOT = Path(__file__).parent
 END = "<!-- ZVEC_GREP_END -->"
+PARAMETER_CLAUSE = "root=/app, symbol=Coordinates.update, globs=xarray/core/coordinates.py and limit=20"
+PARAMETERS = {"root": "/app", "symbol": "Coordinates.update", "globs": "xarray/core/coordinates.py", "limit": 20}
+JSON_EXAMPLE = "\n```json\n" + json.dumps(PARAMETERS, indent=2) + "\n```\n"
+DIRECTIVE = LEGACY_DIRECTIVE.replace(PARAMETER_CLAUSE, JSON_EXAMPLE)
 
 
 def guidance_body(text):
@@ -173,6 +177,7 @@ def main():
         base = json.loads((output / "surface.json").read_text())
         question = json.loads((output / "manifest.json").read_text())["source"]["question"]
         save(output / "protocol.json", {"kind": "fresh OpenCode instruction compliance E2E", "real_trials": 5, "contract_only_sessions": 1,
+             "directive_format": "complete JSON example, globs retained", "comparison_run": "43843188341",
              "guidance_file": "per-trial config/opencode/AGENTS.md", "mcp_override": "initialize instructions only; tool metadata and relationship arguments unchanged",
              "api_tool_choice": "auto", "question": question, "provided_target": "Coordinates.update", "judge_calls": 0, "retry_on_choice": False})
         with mock_model() as upstream:
