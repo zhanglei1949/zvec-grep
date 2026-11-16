@@ -16,6 +16,7 @@ from .collect import collect_pair
 from .judge import judge_pairs
 from .selection import CI_SCOPES, matrix_outputs
 from .validation import validate_assets
+from .validation_cc import validate_caller_callee_assets
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -31,6 +32,13 @@ def _parser() -> argparse.ArgumentParser:
     validate.add_argument("--selection", type=Path, required=True)
     validate.add_argument("--references", type=Path, required=True)
     validate.add_argument("--dataset", type=Path, required=True)
+
+    validate_cc = commands.add_parser(
+        "validate-cc", help="validate the caller/callee diagnostic task set"
+    )
+    validate_cc.add_argument("--selection", type=Path, required=True)
+    validate_cc.add_argument("--references", type=Path, required=True)
+    validate_cc.add_argument("--dataset", type=Path, required=True)
 
     matrix = commands.add_parser("matrix", help="select the locked CI task scope")
     matrix.add_argument("--selection", type=Path, required=True)
@@ -69,6 +77,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "validate":
             result = validate_assets(
+                selection_path=args.selection,
+                references_path=args.references,
+                dataset_path=args.dataset,
+            )
+            print(json.dumps(result, ensure_ascii=False))
+        elif args.command == "validate-cc":
+            result = validate_caller_callee_assets(
                 selection_path=args.selection,
                 references_path=args.references,
                 dataset_path=args.dataset,

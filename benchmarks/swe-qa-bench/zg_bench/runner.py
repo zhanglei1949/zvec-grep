@@ -597,9 +597,18 @@ def build_harbor_command(
     zvec_grep_package_sha256: str | None = None,
     embedding_model: str = ZVEC_GREP_EMBEDDING,
     embedding_endpoint: str | None = ZVEC_GREP_EMBEDDING_ENDPOINT,
+    mcp_toolset: str | None = None,
+    record_model_requests: bool = False,
+    guidance_variant: str | None = None,
 ) -> list[str]:
     if profile not in PROFILES:
         raise ValueError(f"unsupported profile: {profile}")
+    if record_model_requests and (profile != "zvec-grep" or agent != "opencode" or mcp_toolset is None):
+        raise ValueError("request recording requires an OpenCode tool experiment")
+    if guidance_variant not in (None, "direct", "flow"):
+        raise ValueError("unsupported guidance variant")
+    if guidance_variant is not None and (profile != "zvec-grep" or agent != "opencode" or mcp_toolset is None):
+        raise ValueError("guidance variant requires an OpenCode MCP tool experiment")
     if (
         isinstance(n_attempts, bool)
         or not isinstance(n_attempts, int)
@@ -635,7 +644,7 @@ def build_harbor_command(
         if support.opencode is not None:
             provider = resolve_opencode_model(model).configuration
             harbor_model = provider.harbor_model
-            opencode_config = build_opencode_config(provider, profile=profile)
+            opencode_config = build_opencode_config(provider, profile=profile, tool_experiment=mcp_toolset is not None)
             agent_kwargs.append(
                 "opencode_config=" + json.dumps(opencode_config, separators=(",", ":"))
             )
@@ -647,6 +656,12 @@ def build_harbor_command(
                 "the zvec-grep profile currently supports --agent " f"{supported}"
             )
         harbor_agent = _ZVEC_AGENT_IMPORT_PATHS[agent]
+        if mcp_toolset is not None:
+            agent_kwargs.extend([f"mcp_toolset={mcp_toolset}", "graph_index=true", "collect_tool_calls=true"])
+            if guidance_variant is not None:
+                agent_kwargs.append(f"guidance_variant={guidance_variant}")
+        if record_model_requests:
+            agent_kwargs.append("record_model_requests=true")
         agent_kwargs.extend(
             [
                 f"zvec_grep_package={zvec_grep_package}",

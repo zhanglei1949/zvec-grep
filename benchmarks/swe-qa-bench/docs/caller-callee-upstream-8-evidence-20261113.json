@@ -1,0 +1,4391 @@
+{
+  "candidate": "bfe5a0acefed7f1a4f46161a3c5da9fd3fdaec54",
+  "harness": "426d339a62e9d81b0af9ef4810b563108bdf60fd",
+  "verified_trials": 32,
+  "total_http_requests": 201,
+  "tool_bearing_requests": 169,
+  "context_issue_requests": 0,
+  "package_sha256": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+  "task_reports": [
+    {
+      "variant": "direct",
+      "task": "conan-17",
+      "sha256": "f12d429537e691b9f8196be0f6c9631d8f319c5d63bb0fc0146b5f3f8df46c31",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "django-42",
+      "sha256": "d4684e39dc6c2e75db7856421e464a57316c8364f96816a6e06f33bcbc06610d",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "flask-43",
+      "sha256": "b60218b146f34b78a7d2b66f383a9794b036dbf4390fc091bb53ec33d103771a",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-45",
+      "sha256": "81094ca4459e02531efb3058ad44f8df7df43df928c30ce0ef333653faf8f64d",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "reflex-46",
+      "sha256": "b17b40c9551734188c5630ba93c60d4ed54d6add0293bfe90ad0642cf9449111",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "requests-45",
+      "sha256": "ae9e83f80e0b3e1d2f00830bf1892427ebac77792380e6a5b66620e39b9cdb29",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "scikit-learn-39",
+      "sha256": "523b898e0271043bf18c6a2eec9df6f0d96cdddf62ed4d9c89c61641a45b5e65",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-37",
+      "sha256": "f44804e5083bce9fac9b6ef7018c7412287e0df935d3caf99d03e9fd8a93791f",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386788153/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "conan-17",
+      "sha256": "d83d504f5f1c137783f9b7fd07a76b73a3796a6ad3eb93e028498c14cbed3139",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "django-42",
+      "sha256": "61e3f22355fc17a9591f17ec81a7c8e80dc2d70a8c3d404793bc354198bc2fb2",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "flask-43",
+      "sha256": "0ca92724958963dc17d60124396a07adf27a701a54d262208494c30387907edd",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-45",
+      "sha256": "6239e0c63621d5976cb229332affbe48b33f6a1af8203666e25ce77f28ab6c24",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "reflex-46",
+      "sha256": "1fb69bd9283a9cfd8d4e19f9c60e18bd18670711f1715149dfb71f3c272f2121",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "requests-45",
+      "sha256": "59292d1f8f08b6ce61ed0bf7182e332cb9d65749ab1a7d147067e3a9568a0ffb",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "scikit-learn-39",
+      "sha256": "7543d00b9af4ba861861b38fb081b29b82d771726a24f1bafe9e9f8094695249",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-37",
+      "sha256": "de4aa09ce0a9545a021e5ce073289c76f308a51bf6c26a86a5cf589f3730dbc5",
+      "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43386815338/attempts/1"
+    }
+  ],
+  "pairs": [
+    {
+      "task": "reflex-46",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "9e16e2031521caaed3b26e4a367e3cb4c904ed4eb08647a0e31ebc691bb9df0e",
+        "9e16e2031521caaed3b26e4a367e3cb4c904ed4eb08647a0e31ebc691bb9df0e",
+        "9e16e2031521caaed3b26e4a367e3cb4c904ed4eb08647a0e31ebc691bb9df0e",
+        "9e16e2031521caaed3b26e4a367e3cb4c904ed4eb08647a0e31ebc691bb9df0e"
+      ]
+    },
+    {
+      "task": "scikit-learn-39",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "63017229b857b8e29c342326a5ba633c5105ce751808d1fd2acd8748a4ac692f",
+        "63017229b857b8e29c342326a5ba633c5105ce751808d1fd2acd8748a4ac692f",
+        "63017229b857b8e29c342326a5ba633c5105ce751808d1fd2acd8748a4ac692f",
+        "63017229b857b8e29c342326a5ba633c5105ce751808d1fd2acd8748a4ac692f"
+      ]
+    },
+    {
+      "task": "sympy-37",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "8088cc8decd2bf853680874a5b61e5267cabfa4775561b13d12e754ece2000c3",
+        "8088cc8decd2bf853680874a5b61e5267cabfa4775561b13d12e754ece2000c3",
+        "8088cc8decd2bf853680874a5b61e5267cabfa4775561b13d12e754ece2000c3",
+        "8088cc8decd2bf853680874a5b61e5267cabfa4775561b13d12e754ece2000c3"
+      ]
+    },
+    {
+      "task": "django-42",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "929a9b9253161dfb538472b765cd3e02f03fdbab4c49d822f1582090f6fa5629",
+        "929a9b9253161dfb538472b765cd3e02f03fdbab4c49d822f1582090f6fa5629",
+        "929a9b9253161dfb538472b765cd3e02f03fdbab4c49d822f1582090f6fa5629",
+        "929a9b9253161dfb538472b765cd3e02f03fdbab4c49d822f1582090f6fa5629"
+      ]
+    },
+    {
+      "task": "conan-17",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "7f77e23a9a7c1fe2d48ff544e1669dabb1cb3936f0647e4c5c5aaf70c3d99537",
+        "7f77e23a9a7c1fe2d48ff544e1669dabb1cb3936f0647e4c5c5aaf70c3d99537",
+        "7f77e23a9a7c1fe2d48ff544e1669dabb1cb3936f0647e4c5c5aaf70c3d99537",
+        "7f77e23a9a7c1fe2d48ff544e1669dabb1cb3936f0647e4c5c5aaf70c3d99537"
+      ]
+    },
+    {
+      "task": "flask-43",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "be54a151bcc2c4ab8f25913d7ea86bc0c70cbac5d0201058c0839c4fad3392ce",
+        "be54a151bcc2c4ab8f25913d7ea86bc0c70cbac5d0201058c0839c4fad3392ce",
+        "be54a151bcc2c4ab8f25913d7ea86bc0c70cbac5d0201058c0839c4fad3392ce",
+        "be54a151bcc2c4ab8f25913d7ea86bc0c70cbac5d0201058c0839c4fad3392ce"
+      ]
+    },
+    {
+      "task": "requests-45",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "aeb687083202eb9b0b3bdb61b57c0ed3e8309d5c5e42a2bb0653a72be0a778a7",
+        "aeb687083202eb9b0b3bdb61b57c0ed3e8309d5c5e42a2bb0653a72be0a778a7",
+        "aeb687083202eb9b0b3bdb61b57c0ed3e8309d5c5e42a2bb0653a72be0a778a7",
+        "aeb687083202eb9b0b3bdb61b57c0ed3e8309d5c5e42a2bb0653a72be0a778a7"
+      ]
+    },
+    {
+      "task": "matplotlib-45",
+      "within_direct_equal": true,
+      "within_flow_equal": true,
+      "all_four_equal_after_guidance_normalization": true,
+      "first_body_normalized_sha256": [
+        "adb49d8daea9225137b4de92e1b5a75a6c49fe77a63516eb34bb3eb52356de82",
+        "adb49d8daea9225137b4de92e1b5a75a6c49fe77a63516eb34bb3eb52356de82",
+        "adb49d8daea9225137b4de92e1b5a75a6c49fe77a63516eb34bb3eb52356de82",
+        "adb49d8daea9225137b4de92e1b5a75a6c49fe77a63516eb34bb3eb52356de82"
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "variant": "direct",
+      "scenario": "all",
+      "trials": 16,
+      "used_trials": 3,
+      "tools": {
+        "callers": {
+          "attempted": 3,
+          "succeeded": 3,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 88.5625,
+      "input_tokens": 65887.375,
+      "output_tokens": 738.3125,
+      "tool_calls": 6.625,
+      "agent_seconds": 22.907119245624997
+    },
+    {
+      "variant": "direct",
+      "scenario": "main",
+      "trials": 12,
+      "used_trials": 3,
+      "tools": {
+        "callers": {
+          "attempted": 3,
+          "succeeded": 3,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 84.75,
+      "input_tokens": 75020.08333333333,
+      "output_tokens": 847.9166666666666,
+      "tool_calls": 7.416666666666667,
+      "agent_seconds": 24.929855875166666
+    },
+    {
+      "variant": "direct",
+      "scenario": "control",
+      "trials": 2,
+      "used_trials": 0,
+      "tools": {
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 100,
+      "input_tokens": 39415,
+      "output_tokens": 467,
+      "tool_calls": 4,
+      "agent_seconds": 18.039125851999994
+    },
+    {
+      "variant": "direct",
+      "scenario": "stress",
+      "trials": 2,
+      "used_trials": 0,
+      "tools": {
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 100,
+      "input_tokens": 37563.5,
+      "output_tokens": 352,
+      "tool_calls": 4.5,
+      "agent_seconds": 15.638692862
+    },
+    {
+      "variant": "flow",
+      "scenario": "all",
+      "trials": 16,
+      "used_trials": 3,
+      "tools": {
+        "callers": {
+          "attempted": 3,
+          "succeeded": 3,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 89.625,
+      "input_tokens": 56281.9375,
+      "output_tokens": 721.5625,
+      "tool_calls": 5.625,
+      "agent_seconds": 21.3333469486875
+    },
+    {
+      "variant": "flow",
+      "scenario": "main",
+      "trials": 12,
+      "used_trials": 3,
+      "tools": {
+        "callers": {
+          "attempted": 3,
+          "succeeded": 3,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 86.5,
+      "input_tokens": 63621.083333333336,
+      "output_tokens": 849.4166666666666,
+      "tool_calls": 6.416666666666667,
+      "agent_seconds": 23.271432832666665
+    },
+    {
+      "variant": "flow",
+      "scenario": "control",
+      "trials": 2,
+      "used_trials": 0,
+      "tools": {
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 100,
+      "input_tokens": 39456,
+      "output_tokens": 369,
+      "tool_calls": 3.5,
+      "agent_seconds": 18.82237260200001
+    },
+    {
+      "variant": "flow",
+      "scenario": "stress",
+      "trials": 2,
+      "used_trials": 0,
+      "tools": {
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "empty": 0,
+          "unknown": 0,
+          "empty_unknown": 0
+        }
+      },
+      "judge": 98,
+      "input_tokens": 29073,
+      "output_tokens": 307,
+      "tool_calls": 3,
+      "agent_seconds": 12.215805991499998
+    }
+  ],
+  "protocol": "caller-callee-upstream-8-v2",
+  "runs": {
+    "direct": 43386788153,
+    "flow": 43386815338
+  },
+  "missing_trials": 0,
+  "failed_trials": 0,
+  "retry_attempts": 0,
+  "actual_tool_names": [
+    "bash",
+    "edit",
+    "glob",
+    "grep",
+    "read",
+    "skill",
+    "task",
+    "todowrite",
+    "write",
+    "zvec_grep_zvec_grep_callees",
+    "zvec_grep_zvec_grep_callers"
+  ],
+  "actual_child_sessions": 0,
+  "auxiliary_title_requests": 32,
+  "tool_choice": "auto",
+  "judge_requests_in_http_capture": false,
+  "upstream": "https://llm-67x4s810wr6kl2i4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+  "request_parameters": [
+    {
+      "model": "glm-5.2",
+      "temperature": 0,
+      "seed": 42,
+      "enable_thinking": true,
+      "reasoning_effort": "high",
+      "max_tokens": 32000,
+      "tool_choice": null,
+      "response_format_present": false
+    },
+    {
+      "model": "glm-5.2",
+      "temperature": 0,
+      "seed": 42,
+      "enable_thinking": true,
+      "reasoning_effort": "high",
+      "max_tokens": 32000,
+      "tool_choice": "auto",
+      "response_format_present": false
+    }
+  ],
+  "index_identities": {
+    "52f43d98fe44ab92d01317110488d0670c3e9e64": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "52f43d98fe44ab92d01317110488d0670c3e9e64",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "14fc2e97036fc9d7acb55ada4f16f1aa3bdc5ec7": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "14fc2e97036fc9d7acb55ada4f16f1aa3bdc5ec7",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "a5e1f6086e92d5cc0a23f85685d03d85b89a8395": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "fe0f946dc0c240c6c1e513318c21db407e191c78": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "fe0f946dc0c240c6c1e513318c21db407e191c78",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "46e939b5525d9c72b677340985582b04b128478a": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "adb1ae76d798e822984d4e312c90c6ca8f01a3df": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "adb1ae76d798e822984d4e312c90c6ca8f01a3df",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    },
+    "3c817ed8ab551d71e36907ce869afe5e4ca789ff": {
+      "binding_package": "@zvec/bindings-linux-x64@0.5.0",
+      "embedding_model": "local/potion-code-16m-v2",
+      "format_version": 1,
+      "graph_index": true,
+      "index_ignore_sha256": "c2b720c90c315d1f8b446b977d0df4a9784f1e05ac2707ee6f2ca5723b43a17a",
+      "platform": "linux/amd64",
+      "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+      "workdir": "/app",
+      "zvec_grep_package": "8b67777ef3780f9cf6a95fd6c3a4c18e904aba2300b0cbbf9ce9c7418685e082",
+      "zvec_grep_version": "0.3.0"
+    }
+  },
+  "trial_inventory": [
+    {
+      "variant": "direct",
+      "task": "conan-17",
+      "scenario": "control",
+      "trial": "conan-17__xqXXm4t",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-conan-17-43386788153-1/conan-17/experiment-relationships-zvec-grep/conan-17__xqXXm4t/agent/model-requests.jsonl",
+      "raw_sha256": "c4b1035d59042db544812d11cc056fef403ab95a2a03a97e275569502ff2086a",
+      "native_calls": {
+        "grep": 3,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 39502,
+      "output_tokens": 498,
+      "tool_calls": 4,
+      "agent_seconds": 18.642119207000004,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "c4b1035d59042db544812d11cc056fef403ab95a2a03a97e275569502ff2086a",
+        "tool-calls.json": "af9d9dec41635e04cf02561c6ba883b88d4b4157f0a1e00af3fa4498fbb27790",
+        "session-usage.json": "baad91948a58e83334bc2b24474c76a133d1ba8c752b6947e16ea33d5a4be506",
+        "trajectory.json": "bb958b8c3fe2d66f9ee7911ab958c940664f8333f0874f0cec9fe6bca007a8a0",
+        "zvec-grep-setup.json": "94aa95f357aeb4a4c8bba50db4097d19129ade938217c287476e34ba6132c880",
+        "result.json": "66860833ffbb43a60d8b1883ea03ba586aa038e1bd7b2f93c7351645faa04c8a"
+      },
+      "index": {
+        "repo_commit": "52f43d98fe44ab92d01317110488d0670c3e9e64",
+        "duration_seconds": 19.485,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "conan-17",
+      "scenario": "control",
+      "trial": "conan-17__iw4jNaB",
+      "repeat": 2,
+      "judge": 100,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-conan-17-43386788153-1/conan-17/experiment-relationships-zvec-grep/conan-17__iw4jNaB/agent/model-requests.jsonl",
+      "raw_sha256": "28ae1413c3130f8e4f37be4fb6d99c7652c6c13c20e50b06f660ed73f4738d22",
+      "native_calls": {
+        "grep": 3,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 39328,
+      "output_tokens": 436,
+      "tool_calls": 4,
+      "agent_seconds": 17.436132496999985,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "28ae1413c3130f8e4f37be4fb6d99c7652c6c13c20e50b06f660ed73f4738d22",
+        "tool-calls.json": "c81af85e9e889097ce289e2189a1f61214e8098225eb7b4a612495566f0a7a3e",
+        "session-usage.json": "d1176a280742a834ab6ec2cf5015e2857efcfd9d256da557de169c7d0e025c05",
+        "trajectory.json": "ae53d58323f2ddafa1be9a46270e2c3681d045c695a6258cc15e9e8f1fa30b10",
+        "zvec-grep-setup.json": "737844544c9371176a964bf1a21ba21829626dff6c55d77d416fa646bc5edd62",
+        "result.json": "fe925f8839df40a7cac8be1174428a931b44610a4293e9cb1d26550dc0541cfb"
+      },
+      "index": {
+        "repo_commit": "52f43d98fe44ab92d01317110488d0670c3e9e64",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "django-42",
+      "scenario": "main",
+      "trial": "django-42__dCcLnhr",
+      "repeat": 1,
+      "judge": 96,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-django-42-43386788153-1/django-42/experiment-relationships-zvec-grep/django-42__dCcLnhr/agent/model-requests.jsonl",
+      "raw_sha256": "2c26bd44e0bf0167a9e2f1a07cf4ac5ab3af7a3a62757dfae137560a7c82be19",
+      "native_calls": {
+        "grep": 3,
+        "read": 2
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 41929,
+      "output_tokens": 466,
+      "tool_calls": 5,
+      "agent_seconds": 16.556150022000004,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "2c26bd44e0bf0167a9e2f1a07cf4ac5ab3af7a3a62757dfae137560a7c82be19",
+        "tool-calls.json": "925a260776f2eec91c08db0e791d576b5073b17a3d3333538e1bd6f4a042c755",
+        "session-usage.json": "5633e83d1e6a44b94812417836fe062be771f6b189d7e084879f5d35c59720c2",
+        "trajectory.json": "8e4928185e8d79eb21d8b3ae74694ec97cf1fd8e0f2f1b1e21d9650496e4e512",
+        "zvec-grep-setup.json": "4173e03aa31bc8b856baaee375714f3d5975c1c050b8ab00799e08c967e91c78",
+        "result.json": "2f1409b340e81f341a685a842329890015c8f993c9cbc8b984a929e1e92e3bc9"
+      },
+      "index": {
+        "repo_commit": "14fc2e97036fc9d7acb55ada4f16f1aa3bdc5ec7",
+        "duration_seconds": 70.97,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "django-42",
+      "scenario": "main",
+      "trial": "django-42__AyXG2mm",
+      "repeat": 2,
+      "judge": 87,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-django-42-43386788153-1/django-42/experiment-relationships-zvec-grep/django-42__AyXG2mm/agent/model-requests.jsonl",
+      "raw_sha256": "8bfc6a4746ced4112114076548dca49fece6f4190505439aef97c033f699569c",
+      "native_calls": {
+        "grep": 2,
+        "read": 3
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 45576,
+      "output_tokens": 373,
+      "tool_calls": 5,
+      "agent_seconds": 16.741835960999996,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "8bfc6a4746ced4112114076548dca49fece6f4190505439aef97c033f699569c",
+        "tool-calls.json": "485745353bc1e0faa68cdd5cbb6a99871c942d5d60e903912856ac18aedb244f",
+        "session-usage.json": "38541fd32d7989170cbff054a86f5d1e3609d3a704f10864aa0f8b7c57e47700",
+        "trajectory.json": "6f639f2ecee00bc7fb3708fe5facb6aa81beceedd1d0838832382c60630c205f",
+        "zvec-grep-setup.json": "b11c592fe6891c8db6d510f952267e609f0e26d48c09eb3ab575f184431136d3",
+        "result.json": "071c695bffdd3e8bc57edfc508832213c92cbf808d5c0a8c7ec8b68d2e4aea0c"
+      },
+      "index": {
+        "repo_commit": "14fc2e97036fc9d7acb55ada4f16f1aa3bdc5ec7",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "flask-43",
+      "scenario": "stress",
+      "trial": "flask-43__JVC4NiQ",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-flask-43-43386788153-1/flask-43/experiment-relationships-zvec-grep/flask-43__JVC4NiQ/agent/model-requests.jsonl",
+      "raw_sha256": "e571a15cf4a3145b63ee05b40d2cc8fb96d17850a27f828caf2a405a38cb5993",
+      "native_calls": {
+        "grep": 3,
+        "read": 3
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 46200,
+      "output_tokens": 457,
+      "tool_calls": 6,
+      "agent_seconds": 19.815450166999995,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "e571a15cf4a3145b63ee05b40d2cc8fb96d17850a27f828caf2a405a38cb5993",
+        "tool-calls.json": "f99eb2cb8b156dfaa43054e1efccddb69dd6283a3016d5ad74eed8b30e67013d",
+        "session-usage.json": "a29e78e4fd7e880a466885f8a4fd9321c4c0d1589b7dd109d684312ead23ce2d",
+        "trajectory.json": "48cf4523eb0a5e8f67deac017348df6765bdaa6ec2be5fa924842001294ed664",
+        "zvec-grep-setup.json": "3496896063eb8b9ba70c1c82ee337e980041e270723ba39a8029d8db3177e475",
+        "result.json": "ee636961fcd92d3b511752907eb19b139935bf66eb23e2b2a7c6d9c19526c20f"
+      },
+      "index": {
+        "repo_commit": "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642",
+        "duration_seconds": 4.102,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "flask-43",
+      "scenario": "stress",
+      "trial": "flask-43__9DYNmqD",
+      "repeat": 2,
+      "judge": 100,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-flask-43-43386788153-1/flask-43/experiment-relationships-zvec-grep/flask-43__9DYNmqD/agent/model-requests.jsonl",
+      "raw_sha256": "3b25ae9154f7acf1ea29716f5b99bb628daa4e2e96fafb916b04f562f41cc914",
+      "native_calls": {
+        "grep": 2,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 28927,
+      "output_tokens": 247,
+      "tool_calls": 3,
+      "agent_seconds": 11.461935557000004,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "3b25ae9154f7acf1ea29716f5b99bb628daa4e2e96fafb916b04f562f41cc914",
+        "tool-calls.json": "58d6efdda36678257e12f463ee9a7b42bd4e04afa05dca4cf8ec814f16dd2053",
+        "session-usage.json": "9d715a961af6bbac3b3f9fb4f0e6f81b8206bde98de6a159b7f3f2976e4ed941",
+        "trajectory.json": "373d62826c93cc476ad25ea00819862938b4391d7a780f688c2a786cdeaacf40",
+        "zvec-grep-setup.json": "92892fccc695e1e1ed73c3dd3372d92eb1d5c66de0f3d12ca10e52d805180d72",
+        "result.json": "3eae47808854fcdd9724ab39bc6aee200fcf3e9b1447d95b10c8561ff07ef303"
+      },
+      "index": {
+        "repo_commit": "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-45",
+      "scenario": "main",
+      "trial": "matplotlib-45__ZnZ9n75",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 13,
+      "tool_bearing_requests": 12,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43386788153-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__ZnZ9n75/agent/model-requests.jsonl",
+      "raw_sha256": "21fd4775672c3224cc88c4d778bd82985e89e5342270374a3067978ddaf5eb2f",
+      "native_calls": {
+        "bash": 3,
+        "grep": 6,
+        "read": 10
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 177810,
+      "output_tokens": 2341,
+      "tool_calls": 19,
+      "agent_seconds": 49.71127937199999,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "21fd4775672c3224cc88c4d778bd82985e89e5342270374a3067978ddaf5eb2f",
+        "tool-calls.json": "356f62a044867466d07b2a1232e9c9104e073fc6213ea1df08224517e6cf277a",
+        "session-usage.json": "859429b9c2289761e179d9f26fc746f602072120ad32e62c2bec68338abffce3",
+        "trajectory.json": "929fd4a53a972dbbec61e1dca69fe29fc7a29a21404e92a1961ff29791e4b399",
+        "zvec-grep-setup.json": "92a668dbd89aa032058e94220f66a6ca16e3795753b37beff3837591291eba2d",
+        "result.json": "c674979270a44afdaea4784fc6a1702b9feade083e2407329aa29db62b5ef7e9"
+      },
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 33.498,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "matplotlib-45",
+      "scenario": "main",
+      "trial": "matplotlib-45__vuj5jr6",
+      "repeat": 2,
+      "judge": 99,
+      "http_requests": 18,
+      "tool_bearing_requests": 17,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43386788153-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__vuj5jr6/agent/model-requests.jsonl",
+      "raw_sha256": "3bad745c3d6cf0102c93805c002b2c03e9f92d1f6414d8ff986d5628fd813cae",
+      "native_calls": {
+        "bash": 7,
+        "grep": 4,
+        "read": 10
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 256555,
+      "output_tokens": 2655,
+      "tool_calls": 21,
+      "agent_seconds": 65.97640649299998,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "3bad745c3d6cf0102c93805c002b2c03e9f92d1f6414d8ff986d5628fd813cae",
+        "tool-calls.json": "1a88b352b579992f9b502188b16796e389766c498fea2941fde5582288dd1072",
+        "session-usage.json": "e8a92b4444990ce6ee4dcfc4a991b216497acad3fc014ab6673b2c3601c0d834",
+        "trajectory.json": "785fe8bed34212a0a6911e4bf11c02a733e69559c98c4afeaafb71ceb3ec61f9",
+        "zvec-grep-setup.json": "34ff00ab15dae143924889711b76e0a769b3ff09b2dddc77a85968dcd6a9c387",
+        "result.json": "0990abc4d4ade0cbec67e6be13f69ce02cbb867fcbf83174ce6d7d9024688221"
+      },
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "reflex-46",
+      "scenario": "main",
+      "trial": "reflex-46__UgjDfRz",
+      "repeat": 1,
+      "judge": 82,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-reflex-46-43386788153-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__UgjDfRz/agent/model-requests.jsonl",
+      "raw_sha256": "d3e0d0d216d159c748fcd426f7a74bf66095b3ac2d062deb2513b99c8c23d2d1",
+      "native_calls": {
+        "bash": 1,
+        "grep": 2
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 27627,
+      "output_tokens": 277,
+      "tool_calls": 3,
+      "agent_seconds": 14.330527317,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "d3e0d0d216d159c748fcd426f7a74bf66095b3ac2d062deb2513b99c8c23d2d1",
+        "tool-calls.json": "2b87cbb4f74853f3e5a6ce4aec6c39bb93b6d824712d4b29ee632f6aafab030f",
+        "session-usage.json": "ddf51ca52b14f07b1e0c259ab599d09e09911112b406e76a7b947f448be3cb46",
+        "trajectory.json": "b29a8f1c7da43434513a3affa3d423253ee001411ce7dbf36c1222b0b7592d74",
+        "zvec-grep-setup.json": "fa95bca370bd4a733b746247083258be864279cda85dfd612181b323f74a616d",
+        "result.json": "36e1b3d59f9bcb4e8887132fd828d4139aa91cf766a832a0b8652f12464d752b"
+      },
+      "index": {
+        "repo_commit": "fe0f946dc0c240c6c1e513318c21db407e191c78",
+        "duration_seconds": 9.277,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "reflex-46",
+      "scenario": "main",
+      "trial": "reflex-46__GD53HtU",
+      "repeat": 2,
+      "judge": 74,
+      "http_requests": 3,
+      "tool_bearing_requests": 2,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-reflex-46-43386788153-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__GD53HtU/agent/model-requests.jsonl",
+      "raw_sha256": "f9c0bbaed095bd0a135babf12c764e7231fd12935d097dd8a433955e6a3208ce",
+      "native_calls": {
+        "grep": 2
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 21142,
+      "output_tokens": 165,
+      "tool_calls": 2,
+      "agent_seconds": 10.419598624000004,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "f9c0bbaed095bd0a135babf12c764e7231fd12935d097dd8a433955e6a3208ce",
+        "tool-calls.json": "85e5b908c36f473a1f316dac3ccf7d955f60c1b842bcbf44727e1c0cd15907c2",
+        "session-usage.json": "0f768d191d6725cda65a00f78853a2c1e6bb768520f59eaa166fc78641e8e18d",
+        "trajectory.json": "21f5e745c66b24dcfd7a4c9986eee331bb9c5a39d84bb06cb01d5f33a55f2196",
+        "zvec-grep-setup.json": "de57510177ee2e52ec944a1af1736a5ce05cb7b6a016f9500465a5da652c2671",
+        "result.json": "a6076c12bee080db39b3b968d3bf6f067fb30c9c6ca6cd8b125ba6c0a5d4f3ee"
+      },
+      "index": {
+        "repo_commit": "fe0f946dc0c240c6c1e513318c21db407e191c78",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "requests-45",
+      "scenario": "main",
+      "trial": "requests-45__gJo99yq",
+      "repeat": 1,
+      "judge": 92,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-requests-45-43386788153-1/requests-45/experiment-relationships-zvec-grep/requests-45__gJo99yq/agent/model-requests.jsonl",
+      "raw_sha256": "9cf91de13a68a4372aa10fa3a5d71cc58f0162ca2bd88623687550ec9230d724",
+      "native_calls": {
+        "grep": 1,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d3e00c4b001x0UutyTXvYu37k",
+          "call_id": "call_2884c34d634f4cabb237941a",
+          "session_id": "ses_e2c202433ffeRFIfvY35ywkjzK",
+          "message_id": "msg_1d3e003c6001f49J5u7vf2Z9Yz",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects"
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794556038339,
+          "finished_at": 1794556038933
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 46809,
+      "output_tokens": 588,
+      "tool_calls": 7,
+      "agent_seconds": 23.389712124,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "9cf91de13a68a4372aa10fa3a5d71cc58f0162ca2bd88623687550ec9230d724",
+        "tool-calls.json": "88406ec5689b3e6bb325e5646d7694fc76e96a4f37a99cf9ffc828b86885fa0e",
+        "session-usage.json": "1a6054e232dcee689147cd0716c552c4373f329bcc71c2a4838b705b4e5172bf",
+        "trajectory.json": "16ff22008be49bb9d6fa6060bee683578a7d07cc5e47afdd44a0c5e9e370b72c",
+        "zvec-grep-setup.json": "be3b288332e9db7d65400a829e104a8e34e5cb7b1a392279f130e096fff18480",
+        "result.json": "f3be04c5275725eb2501ffa499cb117f5aaee15a0ac292dc802340a53edd7311"
+      },
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 3.046,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "requests-45",
+      "scenario": "main",
+      "trial": "requests-45__ZPLAUiU",
+      "repeat": 2,
+      "judge": 90,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-requests-45-43386788153-1/requests-45/experiment-relationships-zvec-grep/requests-45__ZPLAUiU/agent/model-requests.jsonl",
+      "raw_sha256": "c62c125e760875b5ed4e554c8ea1caf6d9985ddc4799c9f561eba21ce6403e1b",
+      "native_calls": {
+        "grep": 2,
+        "read": 3
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d3e09f16001Ud32ZfKRrgYolZ",
+          "call_id": "call_dc159ca46b6342039b3c8dad",
+          "session_id": "ses_e2c1f8425ffeqHTWBH8qKm5MP8",
+          "message_id": "msg_1d3e098ab001bRKGz45TybjYSD",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects"
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794556075962,
+          "finished_at": 1794556076581
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 46765,
+      "output_tokens": 636,
+      "tool_calls": 6,
+      "agent_seconds": 20.401504219999996,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "c62c125e760875b5ed4e554c8ea1caf6d9985ddc4799c9f561eba21ce6403e1b",
+        "tool-calls.json": "5cf7fc29febfadcbc4c8146d41c2db1b12933a3db99ff4328d78df485f954c0e",
+        "session-usage.json": "3b7bb98efa3830f7abe3074e689b954a705339d44e3396d925520709cedb5a72",
+        "trajectory.json": "3bddcc349be518e58440265576e01ff5e1c7bee29f9b19a6bf26aabb0de03c5f",
+        "zvec-grep-setup.json": "a2df21b50e3b45a551525315824c010f18d6c2084880af96829081bbdb91e306",
+        "result.json": "f9b6093ea7d2bd7e01a4f8a1885e234700c03f017083e6828e0e530097630c82"
+      },
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "scikit-learn-39",
+      "scenario": "main",
+      "trial": "scikit-learn-39__pPgKM8c",
+      "repeat": 1,
+      "judge": 95,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43386788153-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__pPgKM8c/agent/model-requests.jsonl",
+      "raw_sha256": "2f02eda2fd92d998f772fce4cc728c566f0a6c880e5705904c5f62ea1eb9e739",
+      "native_calls": {
+        "grep": 1,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 26955,
+      "output_tokens": 436,
+      "tool_calls": 2,
+      "agent_seconds": 15.018841232999996,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "2f02eda2fd92d998f772fce4cc728c566f0a6c880e5705904c5f62ea1eb9e739",
+        "tool-calls.json": "209e4d20247d68d274e122caf12f1b1b4480ccad86de13727199bff78a1988e3",
+        "session-usage.json": "d701a25af881aec6636b0f9d16a3b732288a2e0621889b38743ae8637e0b6a79",
+        "trajectory.json": "42ea9cedd410deb411c7de86d7d9762e6f7b6e042b3e99bb402ceb48eefb9824",
+        "zvec-grep-setup.json": "20ff560e122de556e8e6601b34d25a347282dfac6e4c3b193a904804104ac422",
+        "result.json": "74a9f743c17664756455f5666fd4bb1f3e492fa679ed49ddc81ccc2fe28b823f"
+      },
+      "index": {
+        "repo_commit": "adb1ae76d798e822984d4e312c90c6ca8f01a3df",
+        "duration_seconds": 41.908,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "scikit-learn-39",
+      "scenario": "main",
+      "trial": "scikit-learn-39__4vaN2Np",
+      "repeat": 2,
+      "judge": 76,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43386788153-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__4vaN2Np/agent/model-requests.jsonl",
+      "raw_sha256": "aab73f287cbf22daa78e668d077a335b40e9262b3d81fbd02d20c2b71942f0f7",
+      "native_calls": {
+        "grep": 1,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 26955,
+      "output_tokens": 338,
+      "tool_calls": 2,
+      "agent_seconds": 13.278039418000015,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "aab73f287cbf22daa78e668d077a335b40e9262b3d81fbd02d20c2b71942f0f7",
+        "tool-calls.json": "c3746b53dc2cb6dc4ee59f0f02943ac4817a8b12d6501381042176cd2406deac",
+        "session-usage.json": "c40dda1de6cedffd507863e123ba428c82fc91ba5c105f907d7750986463aaa9",
+        "trajectory.json": "297c7b9b923f8b4e0c909a4989e812ec10a2e85e86917bb876eae95ce7c96e2d",
+        "zvec-grep-setup.json": "334ca8d54295817dff13d5b3427d7093886557bc6d5e080cd95a91de9cd47ca4",
+        "result.json": "13547d15999ad86a1a15b0472de8006b03ee80df08a7c783b52eae483240ab41"
+      },
+      "index": {
+        "repo_commit": "adb1ae76d798e822984d4e312c90c6ca8f01a3df",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-37",
+      "scenario": "main",
+      "trial": "sympy-37__zZdxYrU",
+      "repeat": 1,
+      "judge": 86,
+      "http_requests": 8,
+      "tool_bearing_requests": 7,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-sympy-37-43386788153-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__zZdxYrU/agent/model-requests.jsonl",
+      "raw_sha256": "c7ddc93059618a6221c54a18eb5ceba6ea13ed2430d7a1215d9fd3575e49ca33",
+      "native_calls": {
+        "grep": 4,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d3dae3ca001cJ30pJa5FIpgzB",
+          "call_id": "call_7890fd2bfaef4a279d82cd93",
+          "session_id": "ses_e2c255f2affeApBzqA8StE0Vj4",
+          "message_id": "msg_1d3dad472001wJrhIOnfaJMe2V",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_get_func_order"
+          },
+          "output": "_get_func_order  sympy/solvers/ode/systems.py:28\n  Callers:\n    canonical_odes  sympy/solvers/ode/systems.py:1009\n      call at sympy/solvers/ode/systems.py:1069:13\n    _classify_linear_system  sympy/solvers/ode/systems.py:1324\n      call at sympy/solvers/ode/systems.py:1413:13\n",
+          "error": null,
+          "started_at": 1794555700253,
+          "finished_at": 1794555700871
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 95834,
+      "output_tokens": 1172,
+      "tool_calls": 10,
+      "agent_seconds": 28.980476235000015,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "c7ddc93059618a6221c54a18eb5ceba6ea13ed2430d7a1215d9fd3575e49ca33",
+        "tool-calls.json": "b79810d96ae63c03c0530eb4479efb8fe2b8c8a6461ef2dd537332272ee0840a",
+        "session-usage.json": "7362f171190c1f09d56c3bcca37fd534f2ee655db82977b11c78a91d7f68deb3",
+        "trajectory.json": "e36483f2c24b8a9964290de44b46a450627150b8004a8982fa711882b585e1b6",
+        "zvec-grep-setup.json": "bed1ec9a53a90671aacddce3fe676b662ecb0b82da61762488e083cb19496b27",
+        "result.json": "d72ef6ef57b5480ec5862a138cac0d8e193f988ce771e482d341de1b4e175084"
+      },
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 82.834,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "direct",
+      "task": "sympy-37",
+      "scenario": "main",
+      "trial": "sympy-37__zpe2wAb",
+      "repeat": 2,
+      "judge": 40,
+      "http_requests": 8,
+      "tool_bearing_requests": 7,
+      "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-sympy-37-43386788153-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__zpe2wAb/agent/model-requests.jsonl",
+      "raw_sha256": "9ef857f8e44905486d8fdfe80ac35d987bbb373f6197b2ba31398bc428375c62",
+      "native_calls": {
+        "grep": 4,
+        "read": 3
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 86284,
+      "output_tokens": 728,
+      "tool_calls": 7,
+      "agent_seconds": 24.353899482999996,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "9ef857f8e44905486d8fdfe80ac35d987bbb373f6197b2ba31398bc428375c62",
+        "tool-calls.json": "118b7dd2313066e71f9b9d1d69e5cfa7469e44d523282e90db8fbb2de9e84912",
+        "session-usage.json": "d1bfcf2d4d18324da14559984c048c15129b383739e43889f7faf3b3696ea99e",
+        "trajectory.json": "99c6b6f417e70cace56de8a2a4b79b076311228570733dbc27731b672ed383ed",
+        "zvec-grep-setup.json": "94712e9829302eaf71b3ccea5db96eac02ee9d4baead8111f84f4d394e0dea97",
+        "result.json": "b1674076b2e8dc437511d23f465b6aaf04850df197db6ea279facf786da3a287"
+      },
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "conan-17",
+      "scenario": "control",
+      "trial": "conan-17__vU7jdRb",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-conan-17-43386815338-1/conan-17/experiment-relationships-zvec-grep/conan-17__vU7jdRb/agent/model-requests.jsonl",
+      "raw_sha256": "6b0b24790d6adfddac4529c35896d154153f1bef4b3bc9b4ae43d139ef585c3f",
+      "native_calls": {
+        "grep": 3,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 39482,
+      "output_tokens": 360,
+      "tool_calls": 4,
+      "agent_seconds": 17.247241496000008,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "6b0b24790d6adfddac4529c35896d154153f1bef4b3bc9b4ae43d139ef585c3f",
+        "tool-calls.json": "74ed4ac7626f897d2d469507b9384ca062e83d2d69fe58b701cb95f11e8fc1ac",
+        "session-usage.json": "9649cc435972211dc180af963c3ee30fccaa37268b6bc757e1788c96d927b98b",
+        "trajectory.json": "9dc71f491036472c9fe4431eef3493673b198798bdba50cbcba68bda472f1d63",
+        "zvec-grep-setup.json": "1d7d171b3cc7201a2ebc0e4beb46d89e91b86f09ab26316ad5ac9b6c7cabfa10",
+        "result.json": "3bf2a317be6a70afb668f2c2f24fb49cefae1bcd2d44afff627a7c7b47c295a7"
+      },
+      "index": {
+        "repo_commit": "52f43d98fe44ab92d01317110488d0670c3e9e64",
+        "duration_seconds": 20.229,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "conan-17",
+      "scenario": "control",
+      "trial": "conan-17__6KFtLbn",
+      "repeat": 2,
+      "judge": 100,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-conan-17-43386815338-1/conan-17/experiment-relationships-zvec-grep/conan-17__6KFtLbn/agent/model-requests.jsonl",
+      "raw_sha256": "9e96cd89d9d8b4091b845f7d1c51cb0c84d10c6cdd1773995c27ff5a99435c31",
+      "native_calls": {
+        "grep": 2,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 39430,
+      "output_tokens": 378,
+      "tool_calls": 3,
+      "agent_seconds": 20.397503708000013,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "9e96cd89d9d8b4091b845f7d1c51cb0c84d10c6cdd1773995c27ff5a99435c31",
+        "tool-calls.json": "6d69dee1be336fc7c4605ad055052017022ab3be119001a7023a8a14d57c1767",
+        "session-usage.json": "e294a195885e40e1d3074f21a395c79fb1d2e6a8ec21dad509b1937eb147c1ab",
+        "trajectory.json": "4b45c38f9b43a2fb9326245277a1b6ad81ada59ce865b0a96859a65a59323df1",
+        "zvec-grep-setup.json": "498ec6e8bfa6065f6a420816a0f7b0d229fb784d08ba22c3166d54ebb99a9534",
+        "result.json": "ac2c072399e69e6badd8b6f4ec0d4de630f8f96746ca21d751b871e13d80214b"
+      },
+      "index": {
+        "repo_commit": "52f43d98fe44ab92d01317110488d0670c3e9e64",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "django-42",
+      "scenario": "main",
+      "trial": "django-42__HbfLvBV",
+      "repeat": 1,
+      "judge": 93,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-django-42-43386815338-1/django-42/experiment-relationships-zvec-grep/django-42__HbfLvBV/agent/model-requests.jsonl",
+      "raw_sha256": "455ea04bf9444b9517ddabb6482f23ddff3df28dc0128416cd8ac9a1e7be3b2e",
+      "native_calls": {
+        "grep": 2,
+        "read": 2
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 33093,
+      "output_tokens": 331,
+      "tool_calls": 4,
+      "agent_seconds": 15.453278752,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "455ea04bf9444b9517ddabb6482f23ddff3df28dc0128416cd8ac9a1e7be3b2e",
+        "tool-calls.json": "69dd4f87983d04039a3e4eeda332fedd0616b6643ef7008778df746b82500d2e",
+        "session-usage.json": "02e1ad37893797e94a902d5bf2d2872fed5faa1abb245b174a34204deafa33a8",
+        "trajectory.json": "b2905ecb1f481fd89ebc3d9993ec2147807e13474c94cd9366330ee76ae42a48",
+        "zvec-grep-setup.json": "701ee0cff9da1cb7e6f39cd5afd8c612e50ccc3346c0c0cb9af9b5c2adc38d84",
+        "result.json": "8adb658b210dd21efecb05dda8b88c2efcc707e571d193034cdb59cdcf8fc088"
+      },
+      "index": {
+        "repo_commit": "14fc2e97036fc9d7acb55ada4f16f1aa3bdc5ec7",
+        "duration_seconds": 56.956,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "django-42",
+      "scenario": "main",
+      "trial": "django-42__dMBUiWX",
+      "repeat": 2,
+      "judge": 92,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-django-42-43386815338-1/django-42/experiment-relationships-zvec-grep/django-42__dMBUiWX/agent/model-requests.jsonl",
+      "raw_sha256": "e7607388ebf8b439e4e27304a274be8ff413a8a9ce33771e8a0c2e1702e612c1",
+      "native_calls": {
+        "grep": 2,
+        "read": 2
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 30158,
+      "output_tokens": 309,
+      "tool_calls": 4,
+      "agent_seconds": 18.02411964300001,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "e7607388ebf8b439e4e27304a274be8ff413a8a9ce33771e8a0c2e1702e612c1",
+        "tool-calls.json": "bcd41d8001a031c7215b96123248de7ae0ebd0b5a0f6cd7392a6f5669219b594",
+        "session-usage.json": "76841285d2dea6a77a2fca2faf7dbf7235781739acb1d23e83ce38e662fbb17d",
+        "trajectory.json": "7e11535f30b6c892cbce235516ecdace99b27cefe651f1b69806e6e6250f554a",
+        "zvec-grep-setup.json": "a3f84fa08cdefaa00d83b02c6bf969ecf816cfb678de84155a5079e4f364eb33",
+        "result.json": "96c37bdaa0acfad231f4fb4ec73a94b41391033d2915512e718f6148425204ae"
+      },
+      "index": {
+        "repo_commit": "14fc2e97036fc9d7acb55ada4f16f1aa3bdc5ec7",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "flask-43",
+      "scenario": "stress",
+      "trial": "flask-43__8VLaHF3",
+      "repeat": 1,
+      "judge": 96,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-flask-43-43386815338-1/flask-43/experiment-relationships-zvec-grep/flask-43__8VLaHF3/agent/model-requests.jsonl",
+      "raw_sha256": "8409c457c23c499fce77f3e934c4ca184eb3174050bcf66f91b50c25c4b22baf",
+      "native_calls": {
+        "grep": 2,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 29073,
+      "output_tokens": 322,
+      "tool_calls": 3,
+      "agent_seconds": 12.628588571000009,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "8409c457c23c499fce77f3e934c4ca184eb3174050bcf66f91b50c25c4b22baf",
+        "tool-calls.json": "db338fa7e30d58e907395fb27863d5444e7b9498e1c7e0b2c3530fe84878f738",
+        "session-usage.json": "02eb11972ddb1b03e26de9106f7c339019716055be11270dff63f88f46a33f72",
+        "trajectory.json": "a464141c7499e4a5f3a39be5b461967efbc706a54cd9f180b841d9572a357d28",
+        "zvec-grep-setup.json": "f9d9abfe8f5b71173cbea17a5ca733c212dac7455d0bbdd1b2930fc8c484b770",
+        "result.json": "03c653d22931501e2688e6e6396775f3d6a9327b454da54cdce98dc88d8e650d"
+      },
+      "index": {
+        "repo_commit": "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642",
+        "duration_seconds": 4.02,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "flask-43",
+      "scenario": "stress",
+      "trial": "flask-43__np6e2Yv",
+      "repeat": 2,
+      "judge": 100,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-flask-43-43386815338-1/flask-43/experiment-relationships-zvec-grep/flask-43__np6e2Yv/agent/model-requests.jsonl",
+      "raw_sha256": "27ad89e42160723fab85e47042078508bbb6161683a829ebb6540fed834d0186",
+      "native_calls": {
+        "grep": 2,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 29073,
+      "output_tokens": 292,
+      "tool_calls": 3,
+      "agent_seconds": 11.80302341199999,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "27ad89e42160723fab85e47042078508bbb6161683a829ebb6540fed834d0186",
+        "tool-calls.json": "d4c858d3124d3fbadf7b95fa4b1ff1f2e1773b792e50bbf03405d19b364bd16c",
+        "session-usage.json": "eddc476e817d064f7f954793daf083ad18ec1318574ae3291380230ec9a17946",
+        "trajectory.json": "ad84cb4f5d24592a1b04f3d4331f02dd5f98588da9baefce061714bc21a4dbf3",
+        "zvec-grep-setup.json": "ce1307b55d2fdedb7be39aeaf51ed81265ed3cae8d3ad8a03cd07cd0db4e80c1",
+        "result.json": "332e6870faab7a8c0707d8cb9eb13ffb7bd30577bcc62a10c56f940f196a2ec9"
+      },
+      "index": {
+        "repo_commit": "85c5d93cbd049c4bd0679c36fd1ddcae8c37b642",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-45",
+      "scenario": "main",
+      "trial": "matplotlib-45__LNUVaTL",
+      "repeat": 1,
+      "judge": 100,
+      "http_requests": 13,
+      "tool_bearing_requests": 12,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43386815338-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__LNUVaTL/agent/model-requests.jsonl",
+      "raw_sha256": "c346c33cd61518ad0ab3e4a92a63eca2e3dd2b1e92693047de6bff76bf06be4c",
+      "native_calls": {
+        "bash": 1,
+        "grep": 7,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 159179,
+      "output_tokens": 2185,
+      "tool_calls": 13,
+      "agent_seconds": 47.52233377399998,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "c346c33cd61518ad0ab3e4a92a63eca2e3dd2b1e92693047de6bff76bf06be4c",
+        "tool-calls.json": "587305d3d99ed0a3b8e82d0871d4a31d5b7fd6352a71f377f136c77578f6bba2",
+        "session-usage.json": "7df9efe8211cd577a3de601ae08e403ddad50dad90246b9580ef6b9e13c191c9",
+        "trajectory.json": "eba65f707b052450636327cc28ad8e30a27130902f6e63355e1086558f8a8aba",
+        "zvec-grep-setup.json": "e1409315ad2b4f43fc01d1d04a2d024cf95767193022f07051a9743cffb9907b",
+        "result.json": "cf5d6e1c940d1b5ba7f932ac181a2ffd006df7a2cefc917ab6250f095128af49"
+      },
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 42.427,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "matplotlib-45",
+      "scenario": "main",
+      "trial": "matplotlib-45__ZudYtvX",
+      "repeat": 2,
+      "judge": 95,
+      "http_requests": 10,
+      "tool_bearing_requests": 9,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43386815338-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__ZudYtvX/agent/model-requests.jsonl",
+      "raw_sha256": "1f9a472f4afbd5d78c641717349f0610349be8a7064af64450ae5937cf7492d0",
+      "native_calls": {
+        "bash": 1,
+        "grep": 5,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 119383,
+      "output_tokens": 2024,
+      "tool_calls": 11,
+      "agent_seconds": 40.506489136999974,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "1f9a472f4afbd5d78c641717349f0610349be8a7064af64450ae5937cf7492d0",
+        "tool-calls.json": "945aa2cd6c1e95f6d970530bad902845e3e573fd69a1efcb1a6093a8166745d7",
+        "session-usage.json": "01271087e06a620af2d6b5779af4c42503bb5ec905c6bdd0ac575e1c289c5c7d",
+        "trajectory.json": "b96acfd83d401b8cacedd2b89852ff26fdbadca65a0b932cbada1c6fcfa83aa6",
+        "zvec-grep-setup.json": "94d1806bcc69e089fcbc1f05023f64828334dfeb134129519e18e036831b78dd",
+        "result.json": "20010b8a4aec455ad53b1cfb208da667ad522c5d71ee60a01a062b375c9e028c"
+      },
+      "index": {
+        "repo_commit": "a5e1f6086e92d5cc0a23f85685d03d85b89a8395",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "reflex-46",
+      "scenario": "main",
+      "trial": "reflex-46__myq9iDm",
+      "repeat": 1,
+      "judge": 79,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-reflex-46-43386815338-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__myq9iDm/agent/model-requests.jsonl",
+      "raw_sha256": "bfeb5f5417fbf50aa45ebebe01579e3b7fa1ca681c3bb173bf2174c6b9e5ca73",
+      "native_calls": {
+        "bash": 1,
+        "grep": 2,
+        "read": 2
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 39432,
+      "output_tokens": 437,
+      "tool_calls": 5,
+      "agent_seconds": 14.457114189999995,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "bfeb5f5417fbf50aa45ebebe01579e3b7fa1ca681c3bb173bf2174c6b9e5ca73",
+        "tool-calls.json": "172b19839bf7f1724b2d0edf349ec1e24ef61d2bf455c182357fed7e54116be2",
+        "session-usage.json": "7481a07c2813ac320e3860d359bfcedb09e3d48d198a72bcfb7374790ee5daef",
+        "trajectory.json": "bda1d1699d9f41f267832c004cd7fb39a4beeb07463702298ae55625b5b994bd",
+        "zvec-grep-setup.json": "e7d08dfe30a46324d81f3edaec6e025744a85deb43d39d49c8ae5d683800d51f",
+        "result.json": "0dd1b0ea842cbc351bf00f9b1bc04ccf197f436afebdd924daaad9b661b5843d"
+      },
+      "index": {
+        "repo_commit": "fe0f946dc0c240c6c1e513318c21db407e191c78",
+        "duration_seconds": 11.651,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "reflex-46",
+      "scenario": "main",
+      "trial": "reflex-46__peoedb9",
+      "repeat": 2,
+      "judge": 74,
+      "http_requests": 5,
+      "tool_bearing_requests": 4,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-reflex-46-43386815338-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__peoedb9/agent/model-requests.jsonl",
+      "raw_sha256": "09ddf931ebe154cfb3ca20e2c5dbdaa70ec31ed2a186e1a2cf58ee832c06e0db",
+      "native_calls": {
+        "bash": 1,
+        "grep": 2,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 40394,
+      "output_tokens": 394,
+      "tool_calls": 4,
+      "agent_seconds": 14.036698108000012,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "09ddf931ebe154cfb3ca20e2c5dbdaa70ec31ed2a186e1a2cf58ee832c06e0db",
+        "tool-calls.json": "819736d0e5fdf23c3d9865275a8315673dc20e2444d39a9d9ae8438f1a386f08",
+        "session-usage.json": "991eca6d050edafe20b3a44d6d8ea5a3fbf17db1a1b87bad39f109ec39f5f2ba",
+        "trajectory.json": "c611f3cbacf072463a6571027ae111694bda190004ca2281dbb8966040ded6f3",
+        "zvec-grep-setup.json": "69993c0da43b34e05d9c7650b31ebab57ef5eaca30124317312ef8300735859a",
+        "result.json": "1b5b0edbcbd615dbcab68a54c467e037b0ef9e7d2e1973aca74eaffc2f8bd458"
+      },
+      "index": {
+        "repo_commit": "fe0f946dc0c240c6c1e513318c21db407e191c78",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "requests-45",
+      "scenario": "main",
+      "trial": "requests-45__vN7N2ja",
+      "repeat": 1,
+      "judge": 90,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-requests-45-43386815338-1/requests-45/experiment-relationships-zvec-grep/requests-45__vN7N2ja/agent/model-requests.jsonl",
+      "raw_sha256": "17a3c548321f6c7664c0f812b09b85db13e982f21c4c769a562dbf558ca1e496",
+      "native_calls": {
+        "grep": 1,
+        "read": 4
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d3e0cb1b001TtXHgqvRDgWU68",
+          "call_id": "call_d6ca76baf47942a1903eeb9b",
+          "session_id": "ses_e2c1f5280ffehHn7q2694zRAL4",
+          "message_id": "msg_1d3e0c411001MtqtB952r47GG5",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects"
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794556087191,
+          "finished_at": 1794556087617
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 46594,
+      "output_tokens": 596,
+      "tool_calls": 6,
+      "agent_seconds": 17.493617031,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "17a3c548321f6c7664c0f812b09b85db13e982f21c4c769a562dbf558ca1e496",
+        "tool-calls.json": "245726d24b2ff44d5b125d3f5d91d1a3d285de8cccbd5c469afc5305ff10b280",
+        "session-usage.json": "e55aa143d50bac9b0969a2e9aed0f9ef50afe55e6a6a50ea851973786283d11c",
+        "trajectory.json": "a4ec4e5cc5dcb0f4cb63a06aa18b052cae1dd5511a36d96358b835ec8e42b305",
+        "zvec-grep-setup.json": "d28aca038eb23325f638b853df843862f054e571b9a3d2579e29d5db35ef4652",
+        "result.json": "910e48b272763727f97a78f261f097a492576d6570cebd5a7a389f34843c4e4a"
+      },
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 2.895,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "requests-45",
+      "scenario": "main",
+      "trial": "requests-45__QjjfFYM",
+      "repeat": 2,
+      "judge": 93,
+      "http_requests": 6,
+      "tool_bearing_requests": 5,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-requests-45-43386815338-1/requests-45/experiment-relationships-zvec-grep/requests-45__QjjfFYM/agent/model-requests.jsonl",
+      "raw_sha256": "5e8579d1890e56b059be03ec29d9854f7f423a506b23a2ade2b5fe5506641f8a",
+      "native_calls": {
+        "grep": 1,
+        "read": 4
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d3e152db001cio3QZI6LN1rx2",
+          "call_id": "call_90967e6a821b42a0a91f4aaa",
+          "session_id": "ses_e2c1ecbbdffexo65lDQYcvlR7e",
+          "message_id": "msg_1d3e14aaa001T9VBB9K0eMpk77",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "resolve_redirects"
+          },
+          "output": "SessionRedirectMixin::resolve_redirects  src/requests/sessions.py:159\n  Callers:\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:723:19\n    Session::send  src/requests/sessions.py:673\n      call at src/requests/sessions.py:740:21\n    test_requests_are_updated_each_time  tests/test_requests.py:2595\n      call at tests/test_requests.py:2601:26\n",
+          "error": null,
+          "started_at": 1794556121943,
+          "finished_at": 1794556122371
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 46529,
+      "output_tokens": 547,
+      "tool_calls": 6,
+      "agent_seconds": 17.967757633,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "5e8579d1890e56b059be03ec29d9854f7f423a506b23a2ade2b5fe5506641f8a",
+        "tool-calls.json": "7dacc62137565397eb4a7ca8c9496a23e7019a1f14f31f2fcee98311fb1d4da8",
+        "session-usage.json": "b254ec8d5521a1715bdba22aed625b7a79e0a2944cae8e638861b87757a0b4dc",
+        "trajectory.json": "267bf1f82f0a073217e461724236664f1c37e08aa97465dd84a6e81fc7752ab5",
+        "zvec-grep-setup.json": "ec62962b404373a7199f9bb82776f179d5932c849758095916354aac63c5178c",
+        "result.json": "91de23162ffc26efa687012cf724b41884332c0016df2ad555374cfe59f130ee"
+      },
+      "index": {
+        "repo_commit": "46e939b5525d9c72b677340985582b04b128478a",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "scikit-learn-39",
+      "scenario": "main",
+      "trial": "scikit-learn-39__bRtHTRv",
+      "repeat": 1,
+      "judge": 87,
+      "http_requests": 8,
+      "tool_bearing_requests": 7,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43386815338-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__bRtHTRv/agent/model-requests.jsonl",
+      "raw_sha256": "165981155b847b2d994fabe2f6939103a23f9df87a61203fbba57d8ee1f84539",
+      "native_calls": {
+        "grep": 2,
+        "read": 4
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 73190,
+      "output_tokens": 1058,
+      "tool_calls": 6,
+      "agent_seconds": 27.468150415000004,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "165981155b847b2d994fabe2f6939103a23f9df87a61203fbba57d8ee1f84539",
+        "tool-calls.json": "fb5193d492995be903f92441582b31a12604ff15c07b9ab54933d398210c9d7d",
+        "session-usage.json": "a7a21f2b16c287ecac4fc139c67b4450264b6242f5db0c538e1a1274395a9f82",
+        "trajectory.json": "247e978a651c4a46e0bf7792a813b134c0423d7e1737df7978ecff165a140483",
+        "zvec-grep-setup.json": "1e2e0868c4ec43df5c7154d13f010b485051c3b5499ab36ef70783e2fb0b4f2f",
+        "result.json": "672657c1e8222ef1384e6ded76d0f39e0d94bbde55264889a2bfee3106bc6def"
+      },
+      "index": {
+        "repo_commit": "adb1ae76d798e822984d4e312c90c6ca8f01a3df",
+        "duration_seconds": 38.025,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "scikit-learn-39",
+      "scenario": "main",
+      "trial": "scikit-learn-39__oaY3JJ6",
+      "repeat": 2,
+      "judge": 93,
+      "http_requests": 4,
+      "tool_bearing_requests": 3,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43386815338-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__oaY3JJ6/agent/model-requests.jsonl",
+      "raw_sha256": "6d18c7a822823d9a6c9d2ff40a8bd300e6f50889756de654d2c3ae1bd0fdc901",
+      "native_calls": {
+        "grep": 1,
+        "read": 1
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 27972,
+      "output_tokens": 453,
+      "tool_calls": 2,
+      "agent_seconds": 16.219767065999996,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "6d18c7a822823d9a6c9d2ff40a8bd300e6f50889756de654d2c3ae1bd0fdc901",
+        "tool-calls.json": "606c3e76fe19f658228c457d02068e4e68625ec1ac579cbda6fdb21aa271ecb6",
+        "session-usage.json": "6cfb8155f5d781592e243fc242a00806e78cab9c59c72167052d3242a6229cd2",
+        "trajectory.json": "dd8defc07ebd3358a05cbdc75b9ca083e0e1da01e576094441ffd15831c0255f",
+        "zvec-grep-setup.json": "1388b83b97860a7fcef3772eadc8845fd68cc2a198902e16215f07791e393af5",
+        "result.json": "693dacc682082291b009708d43760e691373823faa767a0c5560952f7e44e26b"
+      },
+      "index": {
+        "repo_commit": "adb1ae76d798e822984d4e312c90c6ca8f01a3df",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-37",
+      "scenario": "main",
+      "trial": "sympy-37__5EQg8K9",
+      "repeat": 1,
+      "judge": 46,
+      "http_requests": 7,
+      "tool_bearing_requests": 6,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-sympy-37-43386815338-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__5EQg8K9/agent/model-requests.jsonl",
+      "raw_sha256": "e6efd4f836df0e7c3bb228c7eb70f7e08a007a23418de5d62a7026fad90abaea",
+      "native_calls": {
+        "grep": 2,
+        "bash": 1,
+        "read": 3
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 64809,
+      "output_tokens": 673,
+      "tool_calls": 6,
+      "agent_seconds": 21.799662144000003,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "e6efd4f836df0e7c3bb228c7eb70f7e08a007a23418de5d62a7026fad90abaea",
+        "tool-calls.json": "db8b7931b547c71f6a8874e36059a455dd0c3efb7ff06464ebf1652c06af192e",
+        "session-usage.json": "405bf3fc315f5a9e82c531add513bed1b684a251ca9600caa5af4be3c8181a23",
+        "trajectory.json": "97788fcb2ffc6d7a46b46e27f05fc40eff7dfe4643b0bd9ae61fa4bf98d1ff62",
+        "zvec-grep-setup.json": "c1a564d39588d39f65dafd61a5a6d222df57478bbb63d98df123578c04a6c8d3",
+        "result.json": "ee52d6707c5052b007abbff25e14273a4a085cbf386bf09777e6b41de16553cc"
+      },
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 65.087,
+        "seed_restored": false
+      }
+    },
+    {
+      "variant": "flow",
+      "task": "sympy-37",
+      "scenario": "main",
+      "trial": "sympy-37__mvgu4zH",
+      "repeat": 2,
+      "judge": 96,
+      "http_requests": 7,
+      "tool_bearing_requests": 6,
+      "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-sympy-37-43386815338-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__mvgu4zH/agent/model-requests.jsonl",
+      "raw_sha256": "970dc46c042196ee4eea545bb3a1cb8dc2658dbcd9144e7cf23774e47dd0b1f0",
+      "native_calls": {
+        "grep": 4,
+        "read": 5
+      },
+      "zg": {
+        "search": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callers": {
+          "attempted": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        },
+        "callees": {
+          "attempted": 0,
+          "succeeded": 0,
+          "failed": 0,
+          "unknown": 0,
+          "empty": 0,
+          "empty_unknown": 0
+        }
+      },
+      "relation_calls": [
+        {
+          "id": "prt_1d3dba509001xNK4OcJnO06vGF",
+          "call_id": "call_44e0de024ec14f0593f4a637",
+          "session_id": "ses_e2c249c84ffewYHgTApXhY4ZDy",
+          "message_id": "msg_1d3db979e001c1fFbPM7zqhZD6",
+          "name": "zvec_grep_zvec_grep_callers",
+          "status": "completed",
+          "child_session_id": null,
+          "input": {
+            "root": "/app",
+            "symbol": "_get_func_order"
+          },
+          "output": "_get_func_order  sympy/solvers/ode/systems.py:28\n  Callers:\n    canonical_odes  sympy/solvers/ode/systems.py:1009\n      call at sympy/solvers/ode/systems.py:1069:13\n    _classify_linear_system  sympy/solvers/ode/systems.py:1324\n      call at sympy/solvers/ode/systems.py:1413:13\n",
+          "error": null,
+          "started_at": 1794555749765,
+          "finished_at": 1794555750199
+        }
+      ],
+      "invalid_zg_attempts": [],
+      "shell_zg_call_ids": [],
+      "input_tokens": 82720,
+      "output_tokens": 1186,
+      "tool_calls": 10,
+      "agent_seconds": 28.30820609899999,
+      "cost_usd": null,
+      "context_issue_request_ids": [],
+      "actual_guidance_roles": [
+        "system"
+      ],
+      "actual_mcp_instruction_roles": [
+        "system"
+      ],
+      "all_descriptions_match": true,
+      "file_sha256": {
+        "model-requests.jsonl": "970dc46c042196ee4eea545bb3a1cb8dc2658dbcd9144e7cf23774e47dd0b1f0",
+        "tool-calls.json": "4b300f8b847db081835806b7e747aefd458668103b58329760df2c19cbfef131",
+        "session-usage.json": "586e1c9a9b0003afdcc964b38a33e6fd5b957c7b82096f16d35e0f87db737990",
+        "trajectory.json": "5a5924cc4837517fcef1851276f765ce0ac99919c2b580a438541e9aac769765",
+        "zvec-grep-setup.json": "66a0be62a4a7c10a8c46d724700f940ac83fef7655cc0a0ab01b27490fa65ccd",
+        "result.json": "e6c5f9bb910ef99fbb176be568704bc32616c26c651bc8667e5e1e00f764af35"
+      },
+      "index": {
+        "repo_commit": "3c817ed8ab551d71e36907ce869afe5e4ca789ff",
+        "duration_seconds": 0.0,
+        "seed_restored": true
+      }
+    }
+  ],
+  "v1_incomplete_separate": {
+    "candidate": "bfe5a0acefed7f1a4f46161a3c5da9fd3fdaec54",
+    "harness": "d570e8546f75278bc9e1af87182b105907544164",
+    "verified_trials": 28,
+    "total_http_requests": 175,
+    "tool_bearing_requests": 147,
+    "context_issue_requests": 0,
+    "task_reports": [
+      {
+        "variant": "direct",
+        "task": "conan-17",
+        "sha256": "c7baffde44a517106a0f614fad7bebc6216c24d0d370f952c449c76ea0fd8ee4",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "direct",
+        "task": "flask-43",
+        "sha256": "edd0bfefae940a83ebc9acba6b3361919761d9534c4c1d08af7e21f937bd8259",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "direct",
+        "task": "matplotlib-45",
+        "sha256": "51e2e8518469159206603c3feea75d180245bd35c890f8ae5c613158920312aa",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "direct",
+        "task": "reflex-46",
+        "sha256": "20d51d6310f1ed4b5640887ea0ed741395953bd58592e89c28b759d50bd8cce3",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "direct",
+        "task": "requests-45",
+        "sha256": "ae18b3f083d98f55a784e5b5f4ec90517a84b7974dd453a026d89e58efa6aad4",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "direct",
+        "task": "scikit-learn-39",
+        "sha256": "1e8663b01cf2378d18132428c00a109e5487ba7fd66a480635ff91468fca501c",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "direct",
+        "task": "sympy-37",
+        "sha256": "2e3ed9bddc2f425b968b5d369fefcde8a17f3668e18ddda07d2cdf80b9fd20e9",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384378065/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "conan-17",
+        "sha256": "ea90eada9b72e8f0b15a301c2b123607b6128fb536df96a372e5b835e3ccb870",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "flask-43",
+        "sha256": "a33cf2594e81bfbd95a609b086ca290cc7d50ad3474c498ab0a53f9a01fb882e",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "matplotlib-45",
+        "sha256": "30b431f2ec8648b6d502abd1b1688b0c787fc0ec87483dc723af9b82e532c07a",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "reflex-46",
+        "sha256": "ea28f887bb3f62c16913b65598a13247b55dad52ab66ec9e2c8c07f90d0bd33d",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "requests-45",
+        "sha256": "3acba4466e63dd9c0b37b9bc81347b2f19f2e0214936a35bbf18a4bd51f72832",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "scikit-learn-39",
+        "sha256": "4cd4efd7d79c9a0e660c256aa2cb1f9d9440c5ddc9df4e752b02ca6c526ee9d7",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      },
+      {
+        "variant": "flow",
+        "task": "sympy-37",
+        "sha256": "c672e0e07807a5181f60e6575e55f048e182f047a3810f7b05236b4edb53c57c",
+        "run_url": "https://github.com/zhanglei1949/zvec-grep/actions/runs/43384409264/attempts/1"
+      }
+    ],
+    "summary": [
+      {
+        "variant": "direct",
+        "scenario": "all",
+        "trials": 14,
+        "used_trials": 2,
+        "tools": {
+          "callers": {
+            "attempted": 2,
+            "succeeded": 2,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 87.57142857142857,
+        "input_tokens": 61625.142857142855,
+        "output_tokens": 706.7857142857143,
+        "tool_calls": 5.785714285714286,
+        "agent_seconds": 24.072964603499997
+      },
+      {
+        "variant": "direct",
+        "scenario": "main",
+        "trials": 10,
+        "used_trials": 2,
+        "tools": {
+          "callers": {
+            "attempted": 2,
+            "succeeded": 2,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 83.6,
+        "input_tokens": 70905.6,
+        "output_tokens": 834.2,
+        "tool_calls": 6.4,
+        "agent_seconds": 27.341572517499998
+      },
+      {
+        "variant": "direct",
+        "scenario": "control",
+        "trials": 2,
+        "used_trials": 0,
+        "tools": {
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 97,
+        "input_tokens": 39312.5,
+        "output_tokens": 451.5,
+        "tool_calls": 4,
+        "agent_seconds": 17.630647127499998
+      },
+      {
+        "variant": "direct",
+        "scenario": "stress",
+        "trials": 2,
+        "used_trials": 0,
+        "tools": {
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 98,
+        "input_tokens": 37535.5,
+        "output_tokens": 325,
+        "tool_calls": 4.5,
+        "agent_seconds": 14.172242509499995
+      },
+      {
+        "variant": "flow",
+        "scenario": "all",
+        "trials": 14,
+        "used_trials": 2,
+        "tools": {
+          "callers": {
+            "attempted": 5,
+            "succeeded": 5,
+            "failed": 0,
+            "empty": 1,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 88.71428571428571,
+        "input_tokens": 54054.07142857143,
+        "output_tokens": 691.3571428571429,
+        "tool_calls": 5.357142857142857,
+        "agent_seconds": 21.252561318714285
+      },
+      {
+        "variant": "flow",
+        "scenario": "main",
+        "trials": 10,
+        "used_trials": 2,
+        "tools": {
+          "callers": {
+            "attempted": 5,
+            "succeeded": 5,
+            "failed": 0,
+            "empty": 1,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 84.2,
+        "input_tokens": 61957.4,
+        "output_tokens": 829,
+        "tool_calls": 6.3,
+        "agent_seconds": 23.566526943799996
+      },
+      {
+        "variant": "flow",
+        "scenario": "control",
+        "trials": 2,
+        "used_trials": 0,
+        "tools": {
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 100,
+        "input_tokens": 39521.5,
+        "output_tokens": 368,
+        "tool_calls": 3,
+        "agent_seconds": 14.448737425500005
+      },
+      {
+        "variant": "flow",
+        "scenario": "stress",
+        "trials": 2,
+        "used_trials": 0,
+        "tools": {
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "empty": 0,
+            "unknown": 0,
+            "empty_unknown": 0
+          }
+        },
+        "judge": 100,
+        "input_tokens": 29070,
+        "output_tokens": 326.5,
+        "tool_calls": 3,
+        "agent_seconds": 16.48655708650001
+      }
+    ],
+    "runs": {
+      "direct": 43384378065,
+      "flow": 43384409264
+    },
+    "failed_before_agent": [
+      {
+        "variant": "direct",
+        "trial": "django-42__TSWFB9U",
+        "state": "index_setup_failed_before_agent",
+        "model_requests": null,
+        "tool_usage": null,
+        "result_file": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-django-42-43384378065-1/django-42/experiment-relationships-zvec-grep/django-42__TSWFB9U/result.json",
+        "result_sha256": "2598e6cf819a48278b1545e74a67e4144e53207d1a4ecb00d51f14c0b5c6886e",
+        "setup_file": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-django-42-43384378065-1/django-42/experiment-relationships-zvec-grep/django-42__TSWFB9U/agent/zvec-grep-setup.json",
+        "setup_sha256": "bc19e0b1472abb6a1157c32de7c62aff89db8648fe763095195cb25c0b2d8268"
+      },
+      {
+        "variant": "direct",
+        "trial": "django-42__dAmZhtR",
+        "state": "index_setup_failed_before_agent",
+        "model_requests": null,
+        "tool_usage": null,
+        "result_file": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-django-42-43384378065-1/django-42/experiment-relationships-zvec-grep/django-42__dAmZhtR/result.json",
+        "result_sha256": "3655174d8b49290d6c9390ec5bbf04f520a4a63faa40d3ed7861cd6d9ac44a84",
+        "setup_file": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-django-42-43384378065-1/django-42/experiment-relationships-zvec-grep/django-42__dAmZhtR/agent/zvec-grep-setup.json",
+        "setup_sha256": "335881876ed13a8fd9de1a4c44e575453853747b92a52ce89c67081966ad1cba"
+      },
+      {
+        "variant": "flow",
+        "trial": "django-42__sKjJ79w",
+        "state": "index_setup_failed_before_agent",
+        "model_requests": null,
+        "tool_usage": null,
+        "result_file": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-django-42-43384409264-1/django-42/experiment-relationships-zvec-grep/django-42__sKjJ79w/result.json",
+        "result_sha256": "37b943228d72524ba3007c073db79df9451a994b10aedbf698915d26788399b8",
+        "setup_file": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-django-42-43384409264-1/django-42/experiment-relationships-zvec-grep/django-42__sKjJ79w/agent/zvec-grep-setup.json",
+        "setup_sha256": "369cf4571c08851f6cf8f99631efc40ecdd75f92a8a46af85585180aedbf7685"
+      },
+      {
+        "variant": "flow",
+        "trial": "django-42__QqWH9tW",
+        "state": "index_setup_failed_before_agent",
+        "model_requests": null,
+        "tool_usage": null,
+        "result_file": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-django-42-43384409264-1/django-42/experiment-relationships-zvec-grep/django-42__QqWH9tW/result.json",
+        "result_sha256": "fa52b9445dfdb11cee639373707fb8ca6c3da7b745844b35d8a60f09c4878907",
+        "setup_file": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-django-42-43384409264-1/django-42/experiment-relationships-zvec-grep/django-42__QqWH9tW/agent/zvec-grep-setup.json",
+        "setup_sha256": "324e6a856c3692b68382efecba187606a4ce6efd676bcf8d702280de7e5f215d"
+      }
+    ],
+    "retry_attempts": 8,
+    "included_in_primary": false,
+    "completed_trials": [
+      {
+        "variant": "direct",
+        "task": "conan-17",
+        "trial": "conan-17__mMmk9Kn",
+        "judge": 94,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-conan-17-43384378065-1/conan-17/experiment-relationships-zvec-grep/conan-17__mMmk9Kn/agent/model-requests.jsonl",
+        "raw_sha256": "09c1024d58fd7a6b067ad1b9a6d8bf811ba831d2217069fa9aceb9dc2b1a0e26",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 39297,
+        "output_tokens": 484,
+        "agent_seconds": 18.002636562000003
+      },
+      {
+        "variant": "direct",
+        "task": "conan-17",
+        "trial": "conan-17__gkfREjo",
+        "judge": 100,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-conan-17-43384378065-1/conan-17/experiment-relationships-zvec-grep/conan-17__gkfREjo/agent/model-requests.jsonl",
+        "raw_sha256": "61cc4003433af4acafc50347f822b26afa24456dacc29433735e0d0174a93535",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 39328,
+        "output_tokens": 419,
+        "agent_seconds": 17.258657692999993
+      },
+      {
+        "variant": "direct",
+        "task": "flask-43",
+        "trial": "flask-43__KkSfebK",
+        "judge": 100,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-flask-43-43384378065-1/flask-43/experiment-relationships-zvec-grep/flask-43__KkSfebK/agent/model-requests.jsonl",
+        "raw_sha256": "43cfeb4316727b1ca10ae306e50ed1f3b3fc09135230189bea354ba0d277c9f2",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 28935,
+        "output_tokens": 277,
+        "agent_seconds": 12.096454417000002
+      },
+      {
+        "variant": "direct",
+        "task": "flask-43",
+        "trial": "flask-43__TxBLxPr",
+        "judge": 96,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-flask-43-43384378065-1/flask-43/experiment-relationships-zvec-grep/flask-43__TxBLxPr/agent/model-requests.jsonl",
+        "raw_sha256": "6c01b82e4e3663d23c645e34308bc4bec95983dc906aed5fdf85b65c84feae86",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 46136,
+        "output_tokens": 373,
+        "agent_seconds": 16.24803060199999
+      },
+      {
+        "variant": "direct",
+        "task": "matplotlib-45",
+        "trial": "matplotlib-45__V5k8DhG",
+        "judge": 98,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43384378065-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__V5k8DhG/agent/model-requests.jsonl",
+        "raw_sha256": "96d5277bf564d1025c5a1f5e96e9d98324008d7fa1d29fedb9560c9918678efc",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 140174,
+        "output_tokens": 1365,
+        "agent_seconds": 43.47054905599998
+      },
+      {
+        "variant": "direct",
+        "task": "matplotlib-45",
+        "trial": "matplotlib-45__cEAxYTs",
+        "judge": 100,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43384378065-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__cEAxYTs/agent/model-requests.jsonl",
+        "raw_sha256": "b1f2a220740af88a2741ceb5140fd7f80edbe8ad149213abc7b6135ba5881e39",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 156708,
+        "output_tokens": 1750,
+        "agent_seconds": 60.639559257999984
+      },
+      {
+        "variant": "direct",
+        "task": "reflex-46",
+        "trial": "reflex-46__LhtHFxR",
+        "judge": 76,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-reflex-46-43384378065-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__LhtHFxR/agent/model-requests.jsonl",
+        "raw_sha256": "40812de7be9d7b827696e0533d4e9452addd5575fe158bc452825dc714769451",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 46712,
+        "output_tokens": 353,
+        "agent_seconds": 14.651468744999994
+      },
+      {
+        "variant": "direct",
+        "task": "reflex-46",
+        "trial": "reflex-46__ZAYmisR",
+        "judge": 72,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-reflex-46-43384378065-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__ZAYmisR/agent/model-requests.jsonl",
+        "raw_sha256": "6b9b71737a65e1f6d6576c66d1031f933a47543e8d08440fbf40817853383e46",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 28731,
+        "output_tokens": 215,
+        "agent_seconds": 14.445850344999997
+      },
+      {
+        "variant": "direct",
+        "task": "requests-45",
+        "trial": "requests-45__xFCYzqy",
+        "judge": 98,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-requests-45-43384378065-1/requests-45/experiment-relationships-zvec-grep/requests-45__xFCYzqy/agent/model-requests.jsonl",
+        "raw_sha256": "b087e282f74debfc8894a6b56eee94fd2c58520b86d12272813851185205a6c9",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 46811,
+        "output_tokens": 617,
+        "agent_seconds": 21.30443961599999
+      },
+      {
+        "variant": "direct",
+        "task": "requests-45",
+        "trial": "requests-45__jKE7Kx2",
+        "judge": 89,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-requests-45-43384378065-1/requests-45/experiment-relationships-zvec-grep/requests-45__jKE7Kx2/agent/model-requests.jsonl",
+        "raw_sha256": "5124d7523e58a77041719a66d423a0161a482eb39076601ac33222817ff7f27a",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 47079,
+        "output_tokens": 564,
+        "agent_seconds": 20.536901839
+      },
+      {
+        "variant": "direct",
+        "task": "scikit-learn-39",
+        "trial": "scikit-learn-39__rR4ZFXQ",
+        "judge": 85,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43384378065-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__rR4ZFXQ/agent/model-requests.jsonl",
+        "raw_sha256": "abcb8c7d549d36d7856dfecfa73963cc02d04dd836e2dcdfedd67d4f3e120344",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 100026,
+        "output_tokens": 1196,
+        "agent_seconds": 35.32234753100002
+      },
+      {
+        "variant": "direct",
+        "task": "scikit-learn-39",
+        "trial": "scikit-learn-39__PnN7wj2",
+        "judge": 85,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43384378065-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__PnN7wj2/agent/model-requests.jsonl",
+        "raw_sha256": "464c30e23b9b9df7b122382b293d423c3235e31c9cde3ce7d65d0650d305ba1d",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 26955,
+        "output_tokens": 448,
+        "agent_seconds": 15.443076905999998
+      },
+      {
+        "variant": "direct",
+        "task": "sympy-37",
+        "trial": "sympy-37__UNSC4dL",
+        "judge": 94,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-sympy-37-43384378065-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__UNSC4dL/agent/model-requests.jsonl",
+        "raw_sha256": "057dbf089650ae18661d43f5ddfc1112c1eda1f0cc50b33988524187447f198e",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 46275,
+        "output_tokens": 1050,
+        "agent_seconds": 23.633064324000014
+      },
+      {
+        "variant": "direct",
+        "task": "sympy-37",
+        "trial": "sympy-37__dKiEJPs",
+        "judge": 39,
+        "raw_requests": "artifacts/direct/caller-callee-evidence-upstream-8-relationships-sympy-37-43384378065-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__dKiEJPs/agent/model-requests.jsonl",
+        "raw_sha256": "1150912db4e4f7c8cdea3f07426a5be03c442507d444a497ae4c2b138ff40141",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 69585,
+        "output_tokens": 784,
+        "agent_seconds": 23.968467554999993
+      },
+      {
+        "variant": "flow",
+        "task": "conan-17",
+        "trial": "conan-17__2WXnYCe",
+        "judge": 100,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-conan-17-43384409264-1/conan-17/experiment-relationships-zvec-grep/conan-17__2WXnYCe/agent/model-requests.jsonl",
+        "raw_sha256": "6941ba47309f58ebf769abdb424b6312fba0dd4fd1449e6858c5901a728a3a72",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 39430,
+        "output_tokens": 384,
+        "agent_seconds": 14.047847936999998
+      },
+      {
+        "variant": "flow",
+        "task": "conan-17",
+        "trial": "conan-17__pwfMjW5",
+        "judge": 100,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-conan-17-43384409264-1/conan-17/experiment-relationships-zvec-grep/conan-17__pwfMjW5/agent/model-requests.jsonl",
+        "raw_sha256": "77fcaf4dde9887c54eefebcb41a1068de628b8b458fcbf9a5ef5b4140e2e36e0",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 39613,
+        "output_tokens": 352,
+        "agent_seconds": 14.84962691400001
+      },
+      {
+        "variant": "flow",
+        "task": "flask-43",
+        "trial": "flask-43__MKj4Sfw",
+        "judge": 100,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-flask-43-43384409264-1/flask-43/experiment-relationships-zvec-grep/flask-43__MKj4Sfw/agent/model-requests.jsonl",
+        "raw_sha256": "695ad99da0bedf19453ee9861b17e1df41ac229c72ed981325d74ec0a19458d5",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 29073,
+        "output_tokens": 333,
+        "agent_seconds": 14.521213088000001
+      },
+      {
+        "variant": "flow",
+        "task": "flask-43",
+        "trial": "flask-43__NzPWZDh",
+        "judge": 100,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-flask-43-43384409264-1/flask-43/experiment-relationships-zvec-grep/flask-43__NzPWZDh/agent/model-requests.jsonl",
+        "raw_sha256": "3abeddee6259d25db888a1a0324b97e978b5409b107074ac281731cf2e5bcea6",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 29067,
+        "output_tokens": 320,
+        "agent_seconds": 18.451901085000017
+      },
+      {
+        "variant": "flow",
+        "task": "matplotlib-45",
+        "trial": "matplotlib-45__ykmq4y7",
+        "judge": 95,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43384409264-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__ykmq4y7/agent/model-requests.jsonl",
+        "raw_sha256": "2fa89e3eba2e993db6c3503661775a7413da12595b63fb98832b231d634aa427",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 149347,
+        "output_tokens": 1678,
+        "agent_seconds": 44.46432395399998
+      },
+      {
+        "variant": "flow",
+        "task": "matplotlib-45",
+        "trial": "matplotlib-45__6H5kZjo",
+        "judge": 95,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-matplotlib-45-43384409264-1/matplotlib-45/experiment-relationships-zvec-grep/matplotlib-45__6H5kZjo/agent/model-requests.jsonl",
+        "raw_sha256": "8ae4542d0063adbff7ab1ca55a7bf98af3080946eaad8715b86b975bf0413250",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 77452,
+        "output_tokens": 1956,
+        "agent_seconds": 37.63755938499999
+      },
+      {
+        "variant": "flow",
+        "task": "reflex-46",
+        "trial": "reflex-46__iDTGWJd",
+        "judge": 76,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-reflex-46-43384409264-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__iDTGWJd/agent/model-requests.jsonl",
+        "raw_sha256": "a893067f133838424588b75be353ed356b5a49a76c348e79d20137b69345d7d5",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 35869,
+        "output_tokens": 290,
+        "agent_seconds": 12.719601521000007
+      },
+      {
+        "variant": "flow",
+        "task": "reflex-46",
+        "trial": "reflex-46__JTKKif4",
+        "judge": 94,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-reflex-46-43384409264-1/reflex-46/experiment-relationships-zvec-grep/reflex-46__JTKKif4/agent/model-requests.jsonl",
+        "raw_sha256": "fb1fd6f689b62b4638e1d09dfb6ad5b938c67bd8103c969c9fd9ef523afda1c1",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 40738,
+        "output_tokens": 505,
+        "agent_seconds": 15.136696646
+      },
+      {
+        "variant": "flow",
+        "task": "requests-45",
+        "trial": "requests-45__XeJKdQc",
+        "judge": 83,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-requests-45-43384409264-1/requests-45/experiment-relationships-zvec-grep/requests-45__XeJKdQc/agent/model-requests.jsonl",
+        "raw_sha256": "7b5c7e31066094ebea8799d9d9c9b1d731abd12ac523147e33a4c2686a9ed6c4",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 4,
+            "succeeded": 4,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 1,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 68056,
+        "output_tokens": 698,
+        "agent_seconds": 25.817802669
+      },
+      {
+        "variant": "flow",
+        "task": "requests-45",
+        "trial": "requests-45__cURPBFt",
+        "judge": 90,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-requests-45-43384409264-1/requests-45/experiment-relationships-zvec-grep/requests-45__cURPBFt/agent/model-requests.jsonl",
+        "raw_sha256": "e19463876ecd7b0919fd5d4bd3e619e6a882197d658698681396a0f9a413b191",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 46721,
+        "output_tokens": 576,
+        "agent_seconds": 21.361248852999992
+      },
+      {
+        "variant": "flow",
+        "task": "scikit-learn-39",
+        "trial": "scikit-learn-39__pBYATbZ",
+        "judge": 94,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43384409264-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__pBYATbZ/agent/model-requests.jsonl",
+        "raw_sha256": "0fa24c5b143bfc17b827bb8d83ace42f02f4abcbb3f47b665a05959aeb632fc9",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 27974,
+        "output_tokens": 493,
+        "agent_seconds": 15.20577125599998
+      },
+      {
+        "variant": "flow",
+        "task": "scikit-learn-39",
+        "trial": "scikit-learn-39__d82hKnt",
+        "judge": 68,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-scikit-learn-39-43384409264-1/scikit-learn-39/experiment-relationships-zvec-grep/scikit-learn-39__d82hKnt/agent/model-requests.jsonl",
+        "raw_sha256": "84249f29091f2026c281021e9397bc678b827b1440d7062fa3f97efdb0562157",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 27988,
+        "output_tokens": 451,
+        "agent_seconds": 15.019940578999972
+      },
+      {
+        "variant": "flow",
+        "task": "sympy-37",
+        "trial": "sympy-37__UpQ3ScV",
+        "judge": 47,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-sympy-37-43384409264-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__UpQ3ScV/agent/model-requests.jsonl",
+        "raw_sha256": "57a77984acaf61ec8b5c1ff4a5d4464a9ff9201189020cc090407461d506687a",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 79368,
+        "output_tokens": 872,
+        "agent_seconds": 24.950334022000014
+      },
+      {
+        "variant": "flow",
+        "task": "sympy-37",
+        "trial": "sympy-37__S8T68Pg",
+        "judge": 100,
+        "raw_requests": "artifacts/flow/caller-callee-evidence-upstream-8-relationships-sympy-37-43384409264-1/sympy-37/experiment-relationships-zvec-grep/sympy-37__S8T68Pg/agent/model-requests.jsonl",
+        "raw_sha256": "0077ebfc209a1669dfcca37f8453ecdef03f56f400b545047f0d7fbf83ea7f8b",
+        "zg": {
+          "search": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callers": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          },
+          "callees": {
+            "attempted": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "unknown": 0,
+            "empty": 0,
+            "empty_unknown": 0
+          }
+        },
+        "input_tokens": 66061,
+        "output_tokens": 771,
+        "agent_seconds": 23.351990553000018
+      }
+    ]
+  }
+}

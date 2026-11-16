@@ -22,6 +22,36 @@ fn run_ok(command: &mut Command) -> String {
     String::from_utf8(output.stdout).expect("utf8 stdout")
 }
 
+#[test]
+fn opencode_experimental_guidance_requires_an_explicit_variant() {
+    for variant in [None, Some("unknown"), Some("direct"), Some("flow")] {
+        let temporary = TempDir::new().expect("temporary");
+        let config = temporary.path().join("opencode.json");
+        let mut command = zg();
+        command
+            .args(["--install", "--target", "opencode", "--yes"])
+            .env("OPENCODE_CONFIG", &config)
+            .env_remove("ZVEC_GREP_GUIDANCE_VARIANT");
+        if let Some(value) = variant {
+            command.env("ZVEC_GREP_GUIDANCE_VARIANT", value);
+        }
+        run_ok(&mut command);
+        let guidance = fs::read_to_string(temporary.path().join("AGENTS.md")).expect("guidance");
+        let experimental = matches!(variant, Some("direct" | "flow"));
+        assert_eq!(guidance.contains("no tool call is mandatory"), experimental);
+        assert_eq!(
+            guidance.contains("trace how control or data flows through call chains"),
+            variant == Some("flow")
+        );
+        if !experimental {
+            assert!(
+                guidance
+                    .contains("use `zvec_grep_zvec_grep_callers` or `zvec_grep_zvec_grep_callees`")
+            );
+        }
+    }
+}
+
 fn json(path: &Path) -> Value {
     serde_json::from_str(&fs::read_to_string(path).expect("read JSON")).expect("valid JSON")
 }

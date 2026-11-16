@@ -8,7 +8,7 @@ from ...settings import BENCHMARK_SEED, OPENCODE_OPENAI_COMPATIBLE_PACKAGE
 from ..registry import OpenCodeModel
 
 
-def build_opencode_config(model: OpenCodeModel, *, profile: str) -> dict[str, Any]:
+def build_opencode_config(model: OpenCodeModel, *, profile: str, tool_experiment: bool = False) -> dict[str, Any]:
     # Cover every built-in agent in pinned OpenCode, including delegated tasks
     # and compaction/title/summary requests. Explicit web denials also apply
     # when Harbor uses --auto/skip-permissions.
@@ -71,6 +71,12 @@ def build_opencode_config(model: OpenCodeModel, *, profile: str) -> dict[str, An
     config["agent"] = agent_config
     config["permission"] = dict(web_permissions)
     if profile == "zvec-grep":
+        # OpenCode's explore agent denies unknown tools by default. Explicitly
+        # allow this server's tools so delegated trials receive the same arm.
+        if tool_experiment:
+            config["permission"]["zvec_grep_*"] = "allow"
+            for agent in agent_config.values():
+                agent["permission"]["zvec_grep_*"] = "allow"
         # Harbor renders opencode.json again before execution. Preserve the
         # managed MCP entry installed by the zvec-grep adapter during setup.
         config["mcp"] = {

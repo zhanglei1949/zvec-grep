@@ -21,6 +21,7 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.config import AgentConfig
 
 from zg_bench import runner, settings
+from zg_bench.model_requests import audit_model_requests
 from zg_bench.agents.opencode import (
     ResilientOpenCode,
     resilient_nvm_node_install_snippet,
@@ -153,16 +154,19 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
         )
         suite = runner.load_suite("swe-qa-bench", tier="smoke")
         cases = (
-            ("custom-openai/glm-5.2", True),
-            ("custom-openai/qwen3.8-max", True),
-            ("aliyun-glm-5.2", True),
+            ("custom-openai/glm-5.2", True, None),
+            ("custom-openai/qwen3.8-max", True, None),
+            ("aliyun-glm-5.2", True, None),
             # Prove that neither provider defaults nor the fixture itself hide
             # web tools: removing the benchmark denies must expose both tools.
-            ("custom-openai/glm-5.2", False),
+            ("custom-openai/glm-5.2", False, None),
+            ("custom-openai/glm-5.2", True, "relationships"),
+            ("custom-openai/glm-5.2", True, "search"),
+            ("custom-openai/glm-5.2", True, "agent"),
         )
-        for model, disable_web_tools in cases:
+        for model, disable_web_tools, tool_group in cases:
             with (
-                self.subTest(model=model, disable_web_tools=disable_web_tools),
+                self.subTest(model=model, disable_web_tools=disable_web_tools, tool_group=tool_group),
                 tempfile.TemporaryDirectory() as temp_dir,
             ):
                 # macOS /var is a symlink to /private/var. Match the runtime's
@@ -303,6 +307,60 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                 server.daemon_threads = True
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
+                zg_tools = {"relationships": ("callers", "callees"), "search": ("search",), "agent": ("search", "callers", "callees")}.get(tool_group, ())
+                frozen_guidance = None
+                if tool_group is not None:
+                    frozen_guidance = json.loads((Path(__file__).resolve().parents[1] / "fixtures/caller-callee-guidance-v2.json").read_text())["groups"][tool_group]
+                    guidance_path = root / "config/opencode/AGENTS.md"
+                    guidance_path.parent.mkdir(parents=True)
+                    guidance_path.write_text(frozen_guidance["guidance"])
+                mcp_requests = []
+
+                class FakeMcp(BaseHTTPRequestHandler):
+                    # Match the real MCP endpoint's persistent HTTP transport.
+                    # HTTP/1.0 closes each socket immediately after responding.
+                    protocol_version = "HTTP/1.1"
+
+                    def log_message(self, *args):
+                        pass
+
+                    def do_GET(self):
+                        mcp_requests.append("GET")
+                        # Streamable HTTP clients probe the optional SSE stream.
+                        # 405 is the protocol response for a stateless server.
+                        self.send_response(405)
+                        self.send_header("Allow", "POST")
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+
+                    def do_POST(self):
+                        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                        mcp_requests.append(body["method"])
+                        if "id" not in body:
+                            self.send_response(202)
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                        if body["method"] == "initialize":
+                            result = {"protocolVersion": "2025-03-26", "capabilities": {"tools": {}}, "serverInfo": {"name": "fixture", "version": "1"}}
+                            if frozen_guidance is not None:
+                                result["instructions"] = frozen_guidance["instructions"]
+                        elif body["method"] == "tools/list":
+                            result = {"tools": frozen_guidance["tools"] if frozen_guidance is not None else []}
+                        else:
+                            result = {}
+                        payload = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": result}).encode()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(payload)))
+                        self.end_headers()
+                        self.wfile.write(payload)
+
+                mcp = ThreadingHTTPServer(("127.0.0.1", 0), FakeMcp)
+                mcp.daemon_threads = True
+                mcp_thread = threading.Thread(target=mcp.serve_forever, daemon=True)
+                mcp_thread.start()
+                recorder = None
                 try:
                     command = runner.build_harbor_command(
                         suite,
@@ -322,7 +380,16 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                     provider["options"]["baseURL"] = (
                         f"http://127.0.0.1:{server.server_port}/v1"
                     )
+                    if frozen_guidance is not None:
+                        recorder = subprocess.Popen(["node", str(Path(__file__).resolve().parents[1] / "zg_bench/model_request_recorder.mjs"), provider["options"]["baseURL"], str(root / "requests.jsonl"), str(root / "closed")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        ready = json.loads(recorder.stdout.readline())
+                        provider["options"]["baseURL"] = ready["baseURL"]
                     config.update(autoupdate=False, share="disabled", lsp=False)
+                    if tool_group is not None:
+                        arm_config = runner.build_opencode_config(runner.resolve_opencode_model(model).configuration, profile="zvec-grep", tool_experiment=True)
+                        config["permission"] = arm_config["permission"]
+                        config["agent"] = arm_config["agent"]
+                        config["mcp"] = {"zvec_grep": {"type": "remote", "url": f"http://127.0.0.1:{mcp.server_port}/mcp", "oauth": False, "enabled": True}}
                     if not disable_web_tools:
                         for permissions in (
                             config["permission"],
@@ -380,9 +447,12 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                         "XDG_CACHE_HOME": str(root / "cache"),
                         **agent.extra_env,
                     }
+                    if tool_group is not None:
+                        env.pop("OPENCODE_DISABLE_PROJECT_CONFIG")
                     result = subprocess.run(
                         [
                             binary,
+                            "--print-logs",
                             "--model",
                             command[command.index("--model") + 1],
                             "run", "--format", "json",
@@ -462,17 +532,51 @@ class OpenCodeSamplingContractTests(unittest.TestCase):
                         for message in replayed_assistants:
                             self.assertEqual(message.get("reasoning_content"), "fixture-reasoning")
                     for request in task_requests:
+                        if frozen_guidance is not None:
+                            messages = []
+                            for message in request["messages"]:
+                                content = message.get("content")
+                                if isinstance(content, str):
+                                    messages.append(content)
+                                elif isinstance(content, list):
+                                    messages.extend(part["text"] for part in content if part.get("type") == "text")
+                            self.assertIn(frozen_guidance["guidance"].strip(), "\n".join(messages))
+                            descriptions = {tool["function"]["name"]: tool["function"]["description"] for tool in request["tools"]}
+                            for tool in frozen_guidance["tools"]:
+                                self.assertEqual(descriptions["zvec_grep_" + tool["name"]], tool["description"])
                         tool_names = {
                             tool["function"]["name"] for tool in request["tools"]
                         }
                         self.assertTrue({"read", "grep", "glob"} <= tool_names)
+                        runtime_logs = "\n".join(path.read_text() for path in (root / "data/opencode/log").glob("*.log"))
+                        self.assertEqual({name for name in tool_names if name.startswith("zvec_grep_")}, {"zvec_grep_zvec_grep_" + name for name in zg_tools}, f"all tools: {sorted(tool_names)}; MCP requests: {mcp_requests}; OpenCode logs: {result.stderr}; runtime logs: {runtime_logs}")
                         for tool in ("webfetch", "websearch"):
                             self.assertEqual(
                                 tool in tool_names,
                                 not disable_web_tools,
                                 f"Unexpected {tool} availability: {sorted(tool_names)}",
                             )
+                    if recorder is not None:
+                        recorder.terminate()
+                        recorder.wait(timeout=10)
+                        self.assertEqual(recorder.returncode, 0, recorder.stderr.read())
+                        recorded = [json.loads(line) for line in (root / "requests.jsonl").read_text().splitlines()]
+                        captured = [event["body"] for event in recorded if event["type"] == "request"]
+                        self.assertCountEqual(captured, requests)
+                        self.assertNotIn(fixture_key, (root / "requests.jsonl").read_text())
+                        audit = audit_model_requests(root / "requests.jsonl", frozen_guidance, [])
+                        self.assertEqual(audit["context_issue_request_ids"], [])
+                        self.assertEqual(audit["tool_bearing_requests"], 6)
                 finally:
+                    if recorder is not None:
+                        if recorder.poll() is None:
+                            recorder.terminate()
+                            recorder.wait(timeout=10)
+                        recorder.stdout.close()
+                        recorder.stderr.close()
+                    mcp.shutdown()
+                    mcp.server_close()
+                    mcp_thread.join(timeout=5)
                     server.shutdown()
                     server.server_close()
                     thread.join(timeout=5)

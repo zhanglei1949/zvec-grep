@@ -1,0 +1,5 @@
+# Caller/callee suite index ignore policy.
+.zg-bench-index.ignore
+# Django mail fixture is a PNG image despite its .txt suffix.
+tests/mail/attachments/file_png.txt
+# Any other indexing failure remains fatal and visible in the task result.

@@ -1,0 +1,25 @@
+version = "1.0"
+
+[metadata]
+benchmark = "peng-weihan/SWE-QA-Bench"
+benchmark_revision = "c13deac7a0d99b0ca2e593e004c4739475785b08"
+task_id = "conan:17"
+source_index = 17
+index_base = 0
+role = "task"
+scenario = "control"
+category = "how"
+question_type = "how"
+provenance = "upstream"
+question_hash = "a5d4ce4e39466ff46441bf7679f839217ee7a90a9ae7a362b3c818ecd602b0ee"
+repository = "conan-io/conan"
+repository_commit = "52f43d98fe44ab92d01317110488d0670c3e9e64"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 1200.0

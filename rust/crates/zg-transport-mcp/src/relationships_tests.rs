@@ -10,6 +10,89 @@ fn root() -> String {
     std::env::temp_dir().to_string_lossy().into_owned()
 }
 
+#[tokio::test]
+async fn experiment_toolsets_hide_and_reject_disabled_tools() {
+    for (toolset, allowed, denied) in [
+        (
+            McpToolset::Search,
+            vec!["zvec_grep_search"],
+            "zvec_grep_callers",
+        ),
+        (
+            McpToolset::Relationships,
+            vec!["zvec_grep_callees", "zvec_grep_callers"],
+            "zvec_grep_search",
+        ),
+    ] {
+        let server = ZvecGrepMcpServer::build(Arc::new(ZvecGrep::new()), toolset, None);
+        assert_eq!(
+            server
+                .listed_tools()
+                .iter()
+                .map(|tool| tool.name.as_ref())
+                .collect::<Vec<_>>(),
+            allowed
+        );
+        let instructions = server.get_info().instructions.expect("guidance");
+        assert!(!instructions.contains(denied));
+        let (server_io, client_io) = tokio::io::duplex(8192);
+        let task = tokio::spawn(async move {
+            server
+                .serve(server_io)
+                .await
+                .expect("server")
+                .waiting()
+                .await
+        });
+        let client = ().serve(client_io).await.expect("client");
+        assert!(
+            client
+                .call_tool(
+                    CallToolRequestParams::new(denied).with_arguments(
+                        json!({"root": root(), "symbol": "leaf"})
+                            .as_object()
+                            .expect("arguments")
+                            .clone()
+                    )
+                )
+                .await
+                .is_err()
+        );
+        client.cancel().await.expect("cancel");
+        task.await.expect("join").expect("server stopped");
+    }
+}
+
+#[test]
+fn experimental_guidance_preserves_upstream_defaults_and_claude_instructions() {
+    let server = ZvecGrepMcpServer::build(Arc::new(ZvecGrep::new()), McpToolset::Agent, None);
+    assert_eq!(
+        server
+            .server_info_with_guidance(None, None)
+            .instructions
+            .as_deref(),
+        Some(super::AGENT_INSTRUCTIONS),
+    );
+    for flow in [false, true] {
+        assert_eq!(
+            server
+                .server_info_with_guidance(None, Some(flow))
+                .instructions,
+            Some(zg_cli::retrieval_guidance_variant(
+                zg_cli::McpToolset::Agent,
+                flow
+            )),
+        );
+        assert_eq!(
+            server
+                .server_info_with_guidance(Some("claude-code"), Some(flow))
+                .instructions
+                .as_deref(),
+            Some(super::CLAUDE_AGENT_INSTRUCTIONS),
+        );
+    }
+}
+
 #[test]
 fn relationship_inputs_preserve_engine_values_and_reject_unsafe_or_unknown_options() {
     let request = RelationshipInput {

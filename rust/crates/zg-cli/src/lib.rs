@@ -252,6 +252,96 @@ pub enum McpToolset {
     #[default]
     Agent,
     Full,
+    Search,
+    Relationships,
+}
+
+/// Retrieval guidance shared by MCP discovery and `OpenCode` installation.
+#[must_use]
+pub const fn retrieval_guidance(toolset: McpToolset) -> &'static str {
+    match toolset {
+        McpToolset::Relationships => {
+            "Use the current workspace as evidence. Available zg tools: zvec_grep_callers and zvec_grep_callees. Use native Grep or rg for conceptual discovery and unknown locations. For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites. A known symbol does not require a preceding discovery query. Use native Grep or rg when exact lookup alone is sufficient. Pass an absolute root visible to the daemon. Relationship queries require graph indexing and read persisted resolved calls without refreshing; empty results do not prove absence. Creating or rebuilding an index requires user authorization. Respect declined or cancelled index setup. Verify material gaps with focused source reads. Stop when evidence is sufficient. Choose tools according to the task; no tool call is mandatory."
+        }
+        McpToolset::Search => {
+            "Use the current workspace as evidence. Available zg tool: zvec_grep_search. Use search for conceptual discovery, unknown locations and synthesis of evidence across files; use native Grep or rg when exact lookup alone is sufficient. Pass an absolute root visible to the daemon. Creating or rebuilding an index requires user authorization. Respect declined or cancelled index setup. Treat sufficient returned snippets as already-read evidence; read source only to resolve material gaps. Use returned evidence without a status preflight. Stop when evidence is sufficient. Choose tools according to the task; no tool call is mandatory."
+        }
+        McpToolset::Agent | McpToolset::Full => {
+            "Use the current workspace as evidence. Available zg tools: zvec_grep_search, zvec_grep_callers and zvec_grep_callees. Use search for conceptual discovery, unknown locations and synthesis of evidence across files. For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites. A known symbol does not require a preceding discovery query. Use native Grep or rg when exact lookup alone is sufficient. Pass an absolute root visible to the daemon. Relationship queries require graph indexing and read persisted resolved calls without refreshing; empty results do not prove absence. Creating or rebuilding an index requires user authorization. Respect declined or cancelled index setup. Verify material gaps with focused source reads. Stop when evidence is sufficient. Choose tools according to the task; no tool call is mandatory."
+        }
+    }
+}
+
+/// Default caller/callee positioning sentence embedded in [`retrieval_guidance`].
+const DIRECT_RELATIONSHIP_GUIDANCE: &str = "For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites.";
+/// Experimental broadened positioning (guidance variant `flow`): extends
+/// caller/callee from direct call relationships to call-chain flow tracing.
+const FLOW_RELATIONSHIP_GUIDANCE: &str = "For a known symbol, use callers for incoming call sites or callees for outgoing call sites, including to trace how control or data flows through call chains, locate where a symbol is invoked, or enumerate what a symbol invokes.";
+
+/// Experimental instructions are enabled only by an explicit benchmark variant.
+/// Unset or unknown values retain the upstream integration defaults.
+#[must_use]
+pub fn guidance_experiment_from_env() -> Option<bool> {
+    std::env::var("ZVEC_GREP_GUIDANCE_VARIANT")
+        .ok()
+        .and_then(|value| {
+            if value.eq_ignore_ascii_case("direct") {
+                Some(false)
+            } else if value.eq_ignore_ascii_case("flow") {
+                Some(true)
+            } else {
+                None
+            }
+        })
+}
+
+/// Runtime retrieval guidance with an optional experimental relationship framing.
+///
+/// With `flow_relationships = false` the result is byte-identical to
+/// [`retrieval_guidance`], so callers that do not opt in keep the exact default.
+#[must_use]
+pub fn retrieval_guidance_variant(toolset: McpToolset, flow_relationships: bool) -> String {
+    let guidance = retrieval_guidance(toolset);
+    if flow_relationships {
+        guidance.replace(DIRECT_RELATIONSHIP_GUIDANCE, FLOW_RELATIONSHIP_GUIDANCE)
+    } else {
+        guidance.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod guidance_variant_tests {
+    use super::{McpToolset, retrieval_guidance, retrieval_guidance_variant};
+
+    #[test]
+    fn default_variant_is_byte_identical_to_const_guidance() {
+        for toolset in [
+            McpToolset::Agent,
+            McpToolset::Search,
+            McpToolset::Relationships,
+            McpToolset::Full,
+        ] {
+            assert_eq!(
+                retrieval_guidance_variant(toolset, false),
+                retrieval_guidance(toolset)
+            );
+        }
+    }
+
+    #[test]
+    fn flow_variant_broadens_relationship_framing_only() {
+        for toolset in [McpToolset::Agent, McpToolset::Relationships] {
+            let flow = retrieval_guidance_variant(toolset, true);
+            assert!(flow.contains("trace how control or data flows through call chains"));
+            assert!(!flow.contains("direct call relationships"));
+            assert!(flow.contains("no tool call is mandatory"));
+        }
+        // Search carries no relationship sentence, so flow leaves it unchanged.
+        assert_eq!(
+            retrieval_guidance_variant(McpToolset::Search, true),
+            retrieval_guidance(McpToolset::Search)
+        );
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
@@ -808,7 +898,7 @@ pub enum CliError {
     MissingServerAction,
     #[error("--stdio cannot be combined with a server action")]
     StdioWithServerAction,
-    #[error("ZVEC_GREP_MCP_TOOLSET must be agent or full")]
+    #[error("ZVEC_GREP_MCP_TOOLSET must be agent, full, search or relationships")]
     InvalidToolsetEnvironment,
     #[error("ZVEC_GREP_MODE must be direct, server, or auto")]
     InvalidModeEnvironment,

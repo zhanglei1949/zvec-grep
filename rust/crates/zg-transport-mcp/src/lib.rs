@@ -165,6 +165,8 @@ pub enum McpToolset {
     #[default]
     Agent,
     Full,
+    Search,
+    Relationships,
 }
 
 impl fmt::Display for McpToolset {
@@ -172,6 +174,8 @@ impl fmt::Display for McpToolset {
         formatter.write_str(match self {
             Self::Agent => "agent",
             Self::Full => "full",
+            Self::Search => "search",
+            Self::Relationships => "relationships",
         })
     }
 }
@@ -354,7 +358,12 @@ impl ZvecGrepMcpServer {
         Self::build_with_index_operations(engine, toolset, status, index_operations)
     }
 
-    fn build_with_index_operations(
+    /// Build a selected public tool surface using the daemon's index operations.
+    ///
+    /// # Panics
+    /// Panics if the statically declared relationship routes are missing.
+    #[must_use]
+    pub fn build_with_index_operations(
         engine: Arc<ZvecGrep>,
         toolset: McpToolset,
         status: Option<Arc<dyn ServerStatusProvider>>,
@@ -367,6 +376,23 @@ impl ZvecGrepMcpServer {
                 format!("{description} Accepts name, scope::name or scope.name; ::name selects top-level definitions. Queries matching more than {MAX_SYMBOL_MATCHES} indexed definitions fail; narrow the scope or use globs. limit counts call sites per definition (default 20, maximum {MAX_RELATIONSHIP_EDGES}); a truncation notice marks omitted sites. Exact misses may return suggestions without call sites. Returns readable text with one-based line and byte-column numbers. Requires graph indexing enabled with zg --index --graph (add --rebuild for an existing index). Reads persisted resolved calls without refreshing; empty results do not prove absence.").into()
             });
         }
+        if toolset != McpToolset::Full
+            && (toolset != McpToolset::Agent || zg_cli::guidance_experiment_from_env().is_some())
+        {
+            let search = router.map.get_mut(AGENT_TOOL_NAME).expect("search route");
+            search.attr.description = search.attr.description.as_ref().map(|description| {
+                description
+                    .replace(
+                        "semantic, relational, cross-file, or multi-hop evidence such as architecture, call chains",
+                        "conceptual and cross-file evidence such as architecture, source paths related to calls",
+                    )
+                    .replace(
+                        "Use it when exact lookup alone",
+                        "This retrieves source evidence, not an exact call graph. Use it when exact lookup alone",
+                    )
+                    .into()
+            });
+        }
         if toolset == McpToolset::Full {
             let search = router.map.get_mut(AGENT_TOOL_NAME).expect("search route");
             search.attr.description = search.attr.description.as_ref().map(|description| {
@@ -375,9 +401,16 @@ impl ZvecGrepMcpServer {
                     .into()
             });
         }
-        if toolset == McpToolset::Agent {
+        if toolset != McpToolset::Full {
             for name in FULL_TOOL_NAMES {
-                if !AGENT_TOOL_NAMES.contains(&name) {
+                let enabled = match toolset {
+                    McpToolset::Search => name == AGENT_TOOL_NAME,
+                    McpToolset::Relationships => {
+                        matches!(name, "zvec_grep_callers" | "zvec_grep_callees")
+                    }
+                    _ => AGENT_TOOL_NAMES.contains(&name),
+                };
+                if !enabled {
                     router.disable_route(name);
                 }
             }
@@ -421,18 +454,37 @@ impl ZvecGrepMcpServer {
     }
 
     fn server_info(&self, client_name: Option<&str>) -> ServerInfo {
+        self.server_info_with_guidance(client_name, zg_cli::guidance_experiment_from_env())
+    }
+
+    fn server_info_with_guidance(
+        &self,
+        client_name: Option<&str>,
+        experiment: Option<bool>,
+    ) -> ServerInfo {
         let instructions = match (client_name == Some("claude-code"), self.toolset) {
-            (true, McpToolset::Agent) => CLAUDE_AGENT_INSTRUCTIONS,
-            (true, McpToolset::Full) => CLAUDE_FULL_INSTRUCTIONS,
-            (_, McpToolset::Agent) => AGENT_INSTRUCTIONS,
-            (_, McpToolset::Full) => FULL_INSTRUCTIONS,
+            (true, McpToolset::Agent) => CLAUDE_AGENT_INSTRUCTIONS.to_owned(),
+            (true, McpToolset::Full) => CLAUDE_FULL_INSTRUCTIONS.to_owned(),
+            (_, McpToolset::Agent) => experiment.map_or_else(
+                || AGENT_INSTRUCTIONS.to_owned(),
+                |flow| zg_cli::retrieval_guidance_variant(zg_cli::McpToolset::Agent, flow),
+            ),
+            (_, McpToolset::Full) => FULL_INSTRUCTIONS.to_owned(),
+            (_, McpToolset::Search) => zg_cli::retrieval_guidance_variant(
+                zg_cli::McpToolset::Search,
+                experiment.unwrap_or(false),
+            ),
+            (_, McpToolset::Relationships) => zg_cli::retrieval_guidance_variant(
+                zg_cli::McpToolset::Relationships,
+                experiment.unwrap_or(false),
+            ),
         };
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(rmcp::model::Implementation::new(
                 "zvec-grep",
                 env!("CARGO_PKG_VERSION"),
             ))
-            .with_instructions(instructions.to_owned())
+            .with_instructions(instructions)
     }
 }
 

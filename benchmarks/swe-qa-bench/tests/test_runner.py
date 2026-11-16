@@ -483,6 +483,7 @@ class ClaudeMcpInstallTests(unittest.IsolatedAsyncioTestCase):
             return subprocess.CompletedProcess([], 0, stdout="", stderr="")
 
         agent.exec_as_agent = fake_exec  # type: ignore[method-assign]
+        agent._mcp_toolset = None
         await agent._setup_mcp(
             object(),
             "/workspace",

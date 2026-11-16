@@ -4,6 +4,41 @@
 
 # SWE-QA benchmark
 
+## Caller/callee tool experiment
+
+The [2026-11-12 full results and actual tool use](docs/caller-callee-e2e-results-20261112.md)
+cover all 300 audited trials, with Actions artifacts and reproduction parameters.
+
+The separate [request-context diagnostic](docs/caller-callee-context-diagnostic-20261113.md)
+uses `experiment_phase=diagnostic`: two arms, three fixed tasks and two trials each.
+It records actual outbound messages/tools without requiring tool use or rerunning the full suite.
+
+The manual workflow also accepts `experiment_group=relationships|search|agent`
+and `experiment_phase=smoke|full`. Each run executes one arm; dispatch all three
+against the same frozen candidate and harness commits for a concurrent comparison.
+Smoke runs requests:16 once per arm; full runs all 20 tasks five times per arm.
+Native tools remain available, tool use is voluntary, and reports retain every
+completed task without the legacy outlier filter. Recursive call evidence and
+the actual installed guidance are exported per trial. See the
+[versioned Chinese protocol](README_CN.md#callercallee-三组-e2e-实验v1)
+for preparation, audit semantics, artifacts and offline cross-run aggregation.
+
+The manual workflow accepts `task_set=caller-callee`: eleven upstream questions and five self-authored symbol-anchored probes. Inputs are locked in `selection-caller-callee.json`, `references-caller-callee.json`, and `datasets-caller-callee/`, validated by `python -m zg_bench.swe_qa validate-cc`. QA20 inputs stay unchanged. This task set requires an experiment arm and supports smoke (three tasks) and full (sixteen tasks). It reuses the selection-relative `smoke` and `all-full` matrix scopes. Collect and aggregate take `--task-set caller-callee`; reports from different task sets are never merged. This is a targeted diagnostic sample, so results do not establish overall SWE-QA gains.
+
+Caller/callee references are revision 3: the original eleven records are unchanged; three copied QA20 concepts and two source-verified outgoing-call probes are added. Candidate-specific observations remain in judge-excluded `verification_notes`. Compare every arm under the same reference revision; this edit does not rescore saved responses or change published results.
+
+The E2E index scans the pinned repository using the candidate's supported file types and the suite's ignore file, with graph indexing enabled; it is not restricted to Python. No file-size override is passed. In the current candidate source, the default code-file limit is 1MiB. The earlier Python-only/2MiB audit uses a different protocol. Freeze the candidate package, repository commit, embedding model and ignore-file digest across arms; see the [index protocol](docs/caller-callee-guidance-contrast-run.md#e2e-索引协议v1).
+
+Guidance comparisons opt into `guidance_variant=flow`; `direct` remains the default. Flow supports smoke/full, guidance-contrast and upstream-8 experiments, and the preflight probe checks both live MCP instructions and installed AGENTS.md. Vary the task set and guidance separately; see the [run guide](docs/caller-callee-guidance-contrast-run.md).
+
+After the upstream rebase, ordinary Agent/Full integrations retain upstream
+instructions and search descriptions. The benchmark explicitly sets
+`ZVEC_GREP_GUIDANCE_VARIANT=direct|flow` to enable its experimental Agent
+instructions, OpenCode guidance and search description. Search/Relationships
+toolsets remain dedicated experiment arms; Claude's client-specific instructions
+and the Full toolset retain upstream behavior. Historical reports and frozen
+surfaces still describe their recorded candidate versions.
+
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses
 the same Claude Code agent, Claude Opus 5 model, task prompt, repository commit,
@@ -15,6 +50,10 @@ environment, and limits for both profiles:
 
 Index construction is measured separately and is not included in agent wall
 time.
+
+The [24-trial relationships guidance contrast](docs/caller-callee-guidance-contrast-20261113.md) fixes six tasks and two repetitions per direct/flow variant. Select `experiment_phase=guidance-contrast`, `task_set=caller-callee`, `experiment_group=relationships`. All experiment phases now capture and audit actual outbound model requests; zero-call trials remain included.
+
+The separate [eight upstream relationship questions and completed results](docs/caller-callee-upstream-8-20261113.md) use `experiment_phase=upstream-8`, `task_set=caller-callee`, and `experiment_group=relationships`: eight fixed SWE-QA questions × two repetitions per direct/flow variant, 32 trials total. Questions, references, candidate and guidance are retained. The v2 index policy excludes a verified Django PNG attachment mislabeled as text; the initial incomplete cohort is preserved separately. The two diagnostics are reported separately.
 
 ## Benchmark definition
 
@@ -319,6 +358,7 @@ swe-qa-bench/
     settings.py            Version, endpoint and request constants
   suites/                  Runner suite configuration
   datasets/                Frozen Harbor tasks and environments
+  datasets-caller-callee/  Caller/callee diagnostic Harbor tasks (8+3)
   tests/                   CLI, accounting, report and provider-contract tests
 ```
 

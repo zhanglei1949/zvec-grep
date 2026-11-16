@@ -1,0 +1,25 @@
+version = "1.0"
+
+[metadata]
+benchmark = "peng-weihan/SWE-QA-Bench"
+benchmark_revision = "c13deac7a0d99b0ca2e593e004c4739475785b08"
+task_id = "scikit-learn:39"
+source_index = 39
+index_base = 0
+role = "task"
+scenario = "main"
+category = "where"
+question_type = "where"
+provenance = "upstream"
+question_hash = "67b9f3e4bf6e0b8ea539d60820bb107815b5c36b78abb7dd51d3b04846c2b36f"
+repository = "scikit-learn/scikit-learn"
+repository_commit = "adb1ae76d798e822984d4e312c90c6ca8f01a3df"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 1200.0

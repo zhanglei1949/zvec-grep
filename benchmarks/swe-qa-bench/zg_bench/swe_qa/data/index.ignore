@@ -3,3 +3,5 @@
 tests/regrtest_data/unicode/pep_bidirectional_utf_16_bom.txt
 tests/regrtest_data/unicode/pep_bidirectional_utf_32_bom.txt
 tests/mail/attachments/file_png.txt
+# Astropy FITS fixtures contain binary image/table data after ASCII headers.
+astropy/**/*.fits
