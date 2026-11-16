@@ -23,7 +23,8 @@ fn run_ok(command: &mut Command) -> String {
 }
 
 #[test]
-fn opencode_experimental_guidance_requires_an_explicit_variant() {
+fn opencode_default_and_direct_guidance_are_identical() {
+    let mut default_guidance = None;
     for variant in [None, Some("unknown"), Some("direct"), Some("flow")] {
         let temporary = TempDir::new().expect("temporary");
         let config = temporary.path().join("opencode.json");
@@ -37,18 +38,21 @@ fn opencode_experimental_guidance_requires_an_explicit_variant() {
         }
         run_ok(&mut command);
         let guidance = fs::read_to_string(temporary.path().join("AGENTS.md")).expect("guidance");
-        let experimental = matches!(variant, Some("direct" | "flow"));
-        assert_eq!(guidance.contains("no tool call is mandatory"), experimental);
+        assert!(guidance.contains("Available zg tools:"));
+        if variant.is_none() {
+            default_guidance = Some(guidance.clone());
+        } else if variant != Some("flow") {
+            assert_eq!(Some(&guidance), default_guidance.as_ref());
+        }
         assert_eq!(
             guidance.contains("trace how control or data flows through call chains"),
             variant == Some("flow")
         );
-        if !experimental {
-            assert!(
-                guidance
-                    .contains("use `zvec_grep_zvec_grep_callers` or `zvec_grep_zvec_grep_callees`")
-            );
-        }
+        assert!(
+            guidance.contains("prefer zvec_grep_zvec_grep_callers or zvec_grep_zvec_grep_callees")
+        );
+        assert!(guidance.contains("confirm its definition"));
+        assert!(guidance.contains("not code snippets"));
     }
 }
 
@@ -530,9 +534,7 @@ fn claude_opencode_and_cursor_match_the_typescript_shapes() {
     );
     let guidance =
         fs::read_to_string(temporary.path().join("AGENTS.md")).expect("OpenCode guidance");
-    assert!(
-        guidance.contains("use `zvec_grep_zvec_grep_callers` or `zvec_grep_zvec_grep_callees`")
-    );
+    assert!(guidance.contains("prefer zvec_grep_zvec_grep_callers or zvec_grep_zvec_grep_callees"));
     assert_eq!(
         json(&opencode)["mcp"]["zvec_grep"]["headers"]["Authorization"],
         "Bearer {env:TOKEN}"
@@ -581,8 +583,8 @@ fn claude_reinstall_without_a_server_keeps_the_full_guidance() {
         let installed = fs::read_to_string(&guidance).expect("installed guidance");
         assert_eq!(installed.matches("<!-- ZVEC_GREP_START -->").count(), 1);
         assert_eq!(installed.matches("<!-- ZVEC_GREP_END -->").count(), 1);
-        assert!(installed.contains("### Retrieval routing"));
-        assert!(installed.contains("requires an explicit user request or authorization"));
+        assert!(installed.contains(zg_cli::retrieval_guidance(zg_cli::McpToolset::Agent)));
+        assert!(installed.contains("Require explicit user authorization"));
         assert!(installed.starts_with("# Personal instructions\n"));
         assert!(installed.ends_with("\nKeep this note.\n"));
     }

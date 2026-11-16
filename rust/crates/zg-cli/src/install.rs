@@ -933,7 +933,12 @@ fn install_pi(options: &AgentOptions) -> Result<AgentInstallResult, InstallError
         &guidance,
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("mcp__zvec_grep__", false, pi_host_notes()),
+        &guidance_block(
+            options.toolset.unwrap_or_default(),
+            "mcp__zvec_grep__",
+            false,
+            pi_host_notes(),
+        ),
         true,
         None,
         None,
@@ -987,7 +992,7 @@ fn uninstall_pi() -> Result<(), InstallError> {
 }
 
 fn pi_host_notes() -> &'static str {
-    "\n### Pi host notes\n- MCP tools use their complete `mcp__zvec_grep__*` names. With direct exposure, call them directly; with codemode or deferred exposure, discover them using the host's available codemode or tool-search tools.\n- The default agent toolset offers search only. When the managed rg tool is unavailable, use the host's available shell tool for exact lookup.\n- Built-in MCP currently lacks form elicitation and the newer authorization continuation protocol. If remote embedding reports that form elicitation is unsupported, explain the workspace, provider/endpoint and transmitted data, and ask the user to run `zg --auth grant \"<absolute-root>\" --capability embedding --scope workspace` in their terminal. Use the same root as the failed call; retry the original call once after the user confirms the grant. Do not grant silently, do not substitute `--allow-remote`, and do not request credentials to resolve a data-authorization error.\n- If the user explicitly chooses local FTS, retry search once with the original text in `fts`, omit `query`, `queries`, and `vector`, set `autoUpdate` to `false` and `freshness` to `eventual`, and preserve root, filters and limits. If the user cancels or a decision is unavailable, stop without granting access.\n"
+    "\n### Pi host notes\n- MCP tools use their complete `mcp__zvec_grep__*` names. With direct exposure, call them directly; with codemode or deferred exposure, discover them using the host's available codemode or tool-search tools.\n- The default agent toolset offers search and caller/callee queries. When the managed rg tool is unavailable, use the host's available shell tool for exact lookup.\n- Built-in MCP currently lacks form elicitation and the newer authorization continuation protocol. If remote embedding reports that form elicitation is unsupported, explain the workspace, provider/endpoint and transmitted data, and ask the user to run `zg --auth grant \"<absolute-root>\" --capability embedding --scope workspace` in their terminal. Use the same root as the failed call; retry the original call once after the user confirms the grant. Do not grant silently, do not substitute `--allow-remote`, and do not request credentials to resolve a data-authorization error.\n- If the user explicitly chooses local FTS, retry search once with the original text in `fts`, omit `query`, `queries`, and `vector`, set `autoUpdate` to `false` and `freshness` to `eventual`, and preserve root, filters and limits. If the user cancels or a decision is unavailable, stop without granting access.\n"
 }
 
 fn install_codex(options: &AgentOptions) -> Result<(), InstallError> {
@@ -1007,7 +1012,7 @@ fn install_codex(options: &AgentOptions) -> Result<(), InstallError> {
         &guidance,
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("", false, ""),
+        &guidance_block(options.toolset.unwrap_or_default(), "", false, ""),
         true,
         None,
         None,
@@ -1079,7 +1084,12 @@ fn install_grok_into(
         guidance,
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("zvec_grep__", false, grok_host_notes()),
+        &guidance_block(
+            options.toolset.unwrap_or_default(),
+            "zvec_grep__",
+            false,
+            grok_host_notes(),
+        ),
         true,
         None,
         None,
@@ -1169,7 +1179,10 @@ fn install_claude(options: &AgentOptions) -> Result<(), InstallError> {
     let settings_path = directory.join("settings.json");
     update_claude_permission(&settings_path, true)?;
     // Keep the fallback available while startup may still reuse an older daemon.
-    write_claude_guidance(&directory.join("CLAUDE.md"), &guidance_block("", false, ""))
+    write_claude_guidance(
+        &directory.join("CLAUDE.md"),
+        &guidance_block(options.toolset.unwrap_or_default(), "", false, ""),
+    )
 }
 
 fn write_claude_guidance(path: &Path, block: &str) -> Result<(), InstallError> {
@@ -1333,7 +1346,12 @@ fn install_qwen(options: &AgentOptions) -> Result<(), InstallError> {
         &home.join("QWEN.md"),
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("mcp__zvec_grep__", false, ""),
+        &guidance_block(
+            options.toolset.unwrap_or_default(),
+            "mcp__zvec_grep__",
+            false,
+            "",
+        ),
         true,
         None,
         None,
@@ -1374,7 +1392,12 @@ fn install_qoder(options: &AgentOptions) -> Result<(), InstallError> {
         &home.join("AGENTS.md"),
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("mcp__zvec_grep__", true, ""),
+        &guidance_block(
+            options.toolset.unwrap_or_default(),
+            "mcp__zvec_grep__",
+            true,
+            "",
+        ),
         true,
         None,
         None,
@@ -1442,7 +1465,7 @@ fn install_copilot(options: &AgentOptions) -> Result<(), InstallError> {
         &copilot_cli_guidance_path(),
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("", false, ""),
+        &guidance_block(options.toolset.unwrap_or_default(), "", false, ""),
         true,
         None,
         None,
@@ -1560,7 +1583,7 @@ fn install_vscode(options: &AgentOptions) -> Result<AgentInstallResult, InstallE
         &guidance_path,
         GUIDANCE_START,
         GUIDANCE_END,
-        &guidance_block("", false, ""),
+        &guidance_block(options.toolset.unwrap_or_default(), "", false, ""),
         true,
         None,
         None,
@@ -1828,22 +1851,21 @@ fn grok_host_notes() -> &'static str {
 }
 
 fn opencode_guidance(toolset: McpToolset) -> String {
-    let experiment = crate::guidance_experiment_from_env();
-    if toolset == McpToolset::Full || (toolset == McpToolset::Agent && experiment.is_none()) {
-        return guidance_block("zvec_grep_", false, "");
-    }
-    let guidance = crate::retrieval_guidance_variant(toolset, experiment.unwrap_or(false))
-        .replace("zvec_grep_", "zvec_grep_zvec_grep_");
-    format!("{GUIDANCE_START}\n## zvec-grep\n{guidance}\n{GUIDANCE_END}")
+    guidance_block(toolset, "zvec_grep_", false, "")
 }
 
-fn guidance_block(prefix: &str, qoder_recovery: bool, host_notes: &str) -> String {
+fn guidance_block(
+    toolset: McpToolset,
+    prefix: &str,
+    qoder_recovery: bool,
+    host_notes: &str,
+) -> String {
     let search = format!("{prefix}zvec_grep_search");
-    let rg = format!("{prefix}zvec_grep_rg");
-    let incoming_calls = format!("{prefix}zvec_grep_callers");
-    let outgoing_calls = format!("{prefix}zvec_grep_callees");
-    let exact =
-        format!("`{rg}` when it is listed by the current host; otherwise native Grep or `rg`");
+    let guidance = crate::retrieval_guidance_variant(
+        toolset,
+        crate::guidance_experiment_from_env().unwrap_or(false),
+    )
+    .replace("zvec_grep_", &format!("{prefix}zvec_grep_"));
     let recovery = if qoder_recovery {
         format!(
             "\n\n### Qoder Remote Embedding authorization recovery\n- When `{search}` needs `remote_embedding_authorization` and the current Qoder host returns `code = 51500 message = method not found: No request handler configured` without showing an authorization form, returns `The connected MCP host does not support the Remote Embedding authorization interaction required by elicitation/create. The agent should use the current host's built-in user-question tool; for Qoder, the exact name is ask_user_question in Qoder IDE or AskUserQuestion in Qoder CLI/SDK. Ask the user to choose: allow Remote Embedding for this workspace, use local FTS only, or cancel. No user decision was received, and no remote data was sent.`, or reports that authorization was declined or cancelled without showing the user an authorization form, treat it as a Qoder client interaction limitation: the host lacks the server-to-client `elicitation/create` request handler. The outer MCP `tools/call` has already reached the registered MCP server and tool, so do not diagnose this error as a disconnected or missing MCP server or as a missing tool. Apply this recovery only to the Remote Embedding authorization path, not to arbitrary 51500 failures. Do not immediately fall back to broad file reads, do not treat it as a missing API credential, and do not grant access silently. If the user actually declined a displayed authorization form, respect that decision and do not ask again.\n- Use the current Qoder host's built-in user-question tool (`ask_user_question` in Qoder IDE or `AskUserQuestion` in Qoder CLI/SDK) to offer exactly these choices: allow Remote Embedding for this workspace, use local FTS only, or cancel. Explain that workspace approval may send query text and selected workspace content to the configured provider and endpoint and may incur provider charges.\n- Only after the user explicitly chooses workspace approval, run `zg --auth grant \"<absolute-root>\" --capability embedding --scope workspace`, substituting the same absolute root used by the failed search, and then retry the original search call once. Do not use `--allow-remote`; it applies only to one CLI command and does not authorize the MCP retry.\n- If the user chooses local FTS, retry `{search}` once with the original search text in `fts`, omit `query`, `queries`, and `vector`, set `autoUpdate` to `false` and `freshness` to `eventual`, and preserve `root`, filters, and limits. This route is lexical-only, does not refresh the remote-embedding index, and sends no query text or workspace content to a remote Embedding provider.\n- If the user cancels, the grant command fails, or interactive user input is unavailable, stop and report that no remote data was sent. Provider credentials and Remote Embedding data authorization are separate; never request or modify an API key merely to resolve this interaction error."
@@ -1851,9 +1873,7 @@ fn guidance_block(prefix: &str, qoder_recovery: bool, host_notes: &str) -> Strin
     } else {
         String::new()
     };
-    format!(
-        "{GUIDANCE_START}\n## zvec-grep\n{host_notes}\nChoose the evidence source before the retrieval mode.\n\n### Workspace evidence\n- Use the current workspace as the evidence source when the user asks about local material, prior context establishes it as relevant, or the question concerns how the current project works—even if the workspace is not mentioned explicitly.\n- A workspace may contain any mix of code, documents, configuration, and data.\n- Do not use workspace retrieval for unrelated open-world questions, current external facts, or web content that does not depend on local evidence.\n\n### Retrieval routing\n- When an exact word, phrase, name, date, identifier, filename, path, configuration key, error message, source fragment, literal, or regex is known and locating its occurrences is sufficient, use {exact}.\n- For workspaces indexed with graph support, use `{incoming_calls}` or `{outgoing_calls}` for known symbols. Empty results do not prove absence. Enable graph indexing only with user authorization: `zg --index --graph` (add `--rebuild` for an existing index).\n- Use `{search}` when wording or location is unknown, or when the answer requires semantic, conceptual, fuzzy, or paraphrase discovery; relationships, chronology, causality, architecture, or data or control flow; or comparison or synthesis across files, sections, or documents.\n- For a mixed task with exact anchors that still requires relationships or cross-file synthesis, call `{search}` with the concept and anchors, then use {exact} for focused follow-up.\n- When no sufficient exact anchor is available and the user asks whether conceptually related material exists locally, make at most one focused `{search}` probe using the question plus distinctive names, dates, or terms. This probe does not apply to exact quotations, configuration keys, filenames, regexes, or exhaustive occurrence requests. Continue only when results are relevant; otherwise stop and report that the indexed workspace did not establish the answer.\n- Before broad file reads or delegating workspace discovery, use the appropriate search route. Do not delegate solely to locate material, and stop when the evidence is sufficient.\n\n### Search evidence\n- Search results include bounded source snippets. Treat a sufficient snippet as already-read evidence, and read a cited file only when a required detail falls outside the snippet.\n\n### Freshness and index lifecycle\n- Pass a daemon-visible absolute `root` on every zvec-grep workspace call.\n- Read `freshness` and `background_refresh` from search results without a status preflight.\n- When results are `served_from_current_index`, use them when sufficient instead of waiting for the background refresh.\n- If the index is missing but exact or regex lookup can answer the task, use {exact}.\n- Creating, rebuilding, or dropping a persistent index requires an explicit user request or authorization; never do so silently.{recovery}\n{GUIDANCE_END}"
-    )
+    format!("{GUIDANCE_START}\n## zvec-grep\n{host_notes}{guidance}{recovery}\n{GUIDANCE_END}")
 }
 
 fn install_strict_json_server(
@@ -3395,21 +3415,19 @@ mod tests {
 
     #[test]
     fn grok_guidance_includes_host_notes_preamble() {
-        let block = guidance_block("zvec_grep__", false, grok_host_notes());
+        let block = guidance_block(McpToolset::Agent, "zvec_grep__", false, grok_host_notes());
         assert!(block.contains("### Grok Build host notes"));
         assert!(block.contains("zvec_grep__zvec_grep_search"));
         assert!(
-            block.contains("use `zvec_grep__zvec_grep_callers` or `zvec_grep__zvec_grep_callees`")
+            block.contains("prefer zvec_grep__zvec_grep_callers or zvec_grep__zvec_grep_callees")
         );
         assert!(block.contains("zg --auth grant"));
-        assert!(block.contains("Choose the evidence source before the retrieval mode."));
-        let plain = guidance_block("", false, "");
+        assert!(block.contains("Use zvec-grep for relevant workspace evidence"));
+        let plain = guidance_block(McpToolset::Agent, "", false, "");
         assert!(!plain.contains("Grok Build host notes"));
-        assert!(
-            plain.starts_with(
-                "<!-- ZVEC_GREP_START -->\n## zvec-grep\n\nChoose the evidence source"
-            )
-        );
+        assert!(plain.starts_with(
+            "<!-- ZVEC_GREP_START -->\n## zvec-grep\nUse zvec-grep for relevant workspace evidence"
+        ));
     }
 
     #[test]

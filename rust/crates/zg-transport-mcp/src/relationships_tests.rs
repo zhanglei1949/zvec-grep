@@ -64,31 +64,22 @@ async fn experiment_toolsets_hide_and_reject_disabled_tools() {
 }
 
 #[test]
-fn experimental_guidance_preserves_upstream_defaults_and_claude_instructions() {
+fn default_and_variants_share_one_guidance_base() {
     let server = ZvecGrepMcpServer::build(Arc::new(ZvecGrep::new()), McpToolset::Agent, None);
     assert_eq!(
         server
-            .server_info_with_guidance(None, None)
+            .server_info_with_guidance(None)
             .instructions
             .as_deref(),
         Some(super::AGENT_INSTRUCTIONS),
     );
     for flow in [false, true] {
         assert_eq!(
-            server
-                .server_info_with_guidance(None, Some(flow))
-                .instructions,
+            server.server_info_with_guidance(Some(flow)).instructions,
             Some(zg_cli::retrieval_guidance_variant(
                 zg_cli::McpToolset::Agent,
                 flow
             )),
-        );
-        assert_eq!(
-            server
-                .server_info_with_guidance(Some("claude-code"), Some(flow))
-                .instructions
-                .as_deref(),
-            Some(super::CLAUDE_AGENT_INSTRUCTIONS),
         );
     }
 }

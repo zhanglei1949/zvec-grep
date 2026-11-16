@@ -31,13 +31,12 @@ The E2E index scans the pinned repository using the candidate's supported file t
 
 Guidance comparisons opt into `guidance_variant=flow`; `direct` remains the default. Flow supports smoke/full, guidance-contrast and upstream-8 experiments, and the preflight probe checks both live MCP instructions and installed AGENTS.md. Vary the task set and guidance separately; see the [run guide](docs/caller-callee-guidance-contrast-run.md).
 
-After the upstream rebase, ordinary Agent/Full integrations retain upstream
-instructions and search descriptions. The benchmark explicitly sets
-`ZVEC_GREP_GUIDANCE_VARIANT=direct|flow` to enable its experimental Agent
-instructions, OpenCode guidance and search description. Search/Relationships
-toolsets remain dedicated experiment arms; Claude's client-specific instructions
-and the Full toolset retain upstream behavior. Historical reports and frozen
-surfaces still describe their recorded candidate versions.
+Default and experiment runs share one compact Rust guidance base per toolset.
+Unset guidance and explicit `direct` produce identical instructions; `flow`
+changes only the relationship positioning sentence, without changing tool
+descriptions or schemas. OpenCode's installed guidance uses the same body with
+host tool names. Parameter details live in tool descriptions and schemas.
+Historical reports and frozen surfaces still describe their recorded candidates.
 
 This benchmark measures how `zvec-grep` affects an agent's ability to answer
 repository-level software-engineering questions. The published comparison uses

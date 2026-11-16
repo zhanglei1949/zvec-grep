@@ -149,6 +149,85 @@ fn claude_receives_compact_instructions_on_http_and_stdio() -> Result<(), Box<dy
 }
 
 #[test]
+fn opencode_file_and_mcp_guidance_are_identical() -> Result<(), Box<dyn Error>> {
+    let _permit = server_test_permit();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));
+    for toolset in ["agent", "full", "relationships", "search"] {
+        let mut baseline = None;
+        for variant in [None, Some("direct"), Some("flow")] {
+            let home = TempDir::new()?;
+            let (mut guard, _) = start_server(&binary, &home, toolset, None, |command| {
+                command.env_remove("ZVEC_GREP_GUIDANCE_VARIANT");
+                if let Some(variant) = variant {
+                    command.env("ZVEC_GREP_GUIDANCE_VARIANT", variant);
+                }
+            })?;
+            let mut install = Command::new(&binary);
+            install
+                .args([
+                    "--install",
+                    "--target",
+                    "opencode",
+                    "--mcp-toolset",
+                    toolset,
+                    "--yes",
+                ])
+                .env("OPENCODE_CONFIG", home.path().join("opencode.json"))
+                .env("ZVEC_GREP_INSTALL_SKIP_SERVER", "1")
+                .env_remove("ZVEC_GREP_GUIDANCE_VARIANT");
+            if let Some(variant) = variant {
+                install.env("ZVEC_GREP_GUIDANCE_VARIANT", variant);
+            }
+            assert_command_success(&install.output()?);
+            let guidance = std::fs::read_to_string(home.path().join("AGENTS.md"))?
+                .replace("zvec_grep_zvec_grep_", "zvec_grep_");
+            let body = guidance
+                .trim()
+                .strip_prefix("<!-- ZVEC_GREP_START -->\n## zvec-grep\n")
+                .and_then(|s| s.strip_suffix("\n<!-- ZVEC_GREP_END -->"))
+                .ok_or("managed OpenCode guidance block")?;
+            let port = guard.listen.parse::<SocketAddr>()?.port();
+            let discovered = rpc(&post_as_client(
+                port,
+                "server/discover",
+                json!({}),
+                "",
+                "2026-07-28",
+                "opencode",
+            )?);
+            let instructions = discovered["result"]["instructions"]
+                .as_str()
+                .ok_or("OpenCode instructions")?;
+            assert_eq!(body, instructions, "{toolset} {variant:?}");
+            let tools =
+                rpc(&modern_post(port, "tools/list", json!({}), "")?)["result"]["tools"].clone();
+            if variant.is_none() {
+                baseline = Some((instructions.to_owned(), tools.clone()));
+            } else {
+                let (default_instructions, default_tools) =
+                    baseline.as_ref().ok_or("default guidance")?;
+                assert_eq!(&tools, default_tools, "variant changed tool definitions");
+                if variant == Some("direct") || toolset == "search" {
+                    assert_eq!(instructions, default_instructions);
+                }
+            }
+            if toolset == "search" {
+                assert!(!instructions.contains("zvec_grep_callers"));
+            } else {
+                assert!(instructions.contains("before repeated reference searches"));
+                assert!(instructions.contains("not code snippets"));
+                assert_eq!(
+                    instructions.contains("trace how control or data flows through call chains"),
+                    variant == Some("flow")
+                );
+            }
+            assert_command_success(&guard.stop()?);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn modern_http_discovery_tools_errors_and_remote_continuation() -> Result<(), Box<dyn Error>> {
     let _permit = server_test_permit();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_zg"));

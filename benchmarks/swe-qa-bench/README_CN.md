@@ -64,11 +64,10 @@ E2E 对固定 commit 的仓库按候选支持的类型和 suite ignore 文件建
 smoke/full 实验。运行前探针会核对实际 MCP instructions 和 AGENTS.md。
 题集与指导应分别对照，命令见[运行说明](docs/caller-callee-guidance-contrast-run.md)。
 
-同步 upstream 后，普通 Agent/Full 集成保留上游指引和搜索描述。评测通过
-`ZVEC_GREP_GUIDANCE_VARIANT=direct|flow` 显式启用实验 Agent 指引、
-OpenCode 指导和搜索描述；Search/Relationships 工具集仍用于实验分组。
-Claude 专用指引和 Full 工具集沿用上游行为。历史报告及冻结工具配置仍对应
-各自记录的候选版本。
+默认和实验运行按工具集共用一份精简 Rust 指导。未指定变体与显式 direct
+的正文相同；flow 只替换关系定位句，不改变工具描述或 schema。
+OpenCode 安装指导沿用同一正文，仅转换宿主工具名；参数细节放在工具描述和
+schema。历史报告及冻结工具配置仍对应各自记录的候选版本。
 
 完整会话树用量沿用 opencode-session-tree-v1。实验额外导出
 `agent/tool-calls.json`：主会话及递归子代理调用的标识、时间、参数、输出和

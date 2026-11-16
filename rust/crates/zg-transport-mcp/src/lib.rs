@@ -77,81 +77,8 @@ pub const FULL_TOOL_NAMES: [&str; 8] = [
     "zvec_grep_server_status",
 ];
 
-macro_rules! workspace_evidence_rules {
-    () => { concat!(
-        "- Use the current workspace as the evidence source when the user asks about local material, prior context establishes it as relevant, or the question concerns how the current project works—even if the workspace is not mentioned explicitly.\n",
-        "- A workspace may contain any mix of code, documents, configuration, and data.\n",
-        "- Do not use workspace retrieval for unrelated open-world questions, current external facts, or web content that does not depend on local evidence.\n",
-    ) };
-}
-
-macro_rules! search_routing_rules {
-    ($exact:literal, $focused:literal) => { concat!(
-        "- Use ", $exact, " first only when exact lookup alone is sufficient, such as locating one definition, literal, filename, configuration key, error message, regex match, or exhaustive occurrence list.\n",
-        "- Use zvec_grep_search first when wording or location is unknown, or when the answer requires architecture, lifecycle, call relationships, dependencies, data or control flow, design rationale, comparison, or synthesis across files or components.\n",
-        "- When user-provided or verified exact symbols are present but the answer spans multiple files, components, stages, implementations, or relationships, treat the task as mixed: call zvec_grep_search with the semantic intent and those anchors, then use ", $focused, " for focused verification.\n",
-        "- For a semantic or mixed workspace task, start discovery with focused zvec_grep_search before broad file discovery.\n",
-        "- Preserve the question's concepts, relationships, and constraints from the user request and established context in semantic queries. Treat inferred names as supplemental hypotheses, not replacements for or constraints on the stated intent.\n",
-        "- `query` creates one primary hybrid FTS-plus-vector group; `queries` creates one or more primary hybrid groups; `fts` and `vector` add supplemental lexical-only or semantic-only route groups. These are retrieval routes, not hard constraints. Without `fuse`, each query group keeps its ranked results; set `fuse: true` to collapse every group into one ranked search plan.\n",
-        "- For a fused mixed search, use arguments such as {\"root\":\"/absolute/workspace\",\"query\":\"how are results ranked and fused\",\"fts\":[\"RRF\",\"score\"],\"fuse\":true}.\n",
-        "- Search results include bounded source snippets by default. Set preview: \"full\" for each complete stored entity; this does not expand to the entire file or change ranking. Treat sufficient returned content as already-read evidence, and open only the cited file or range when a required detail falls outside it.\n",
-        "- If semantic retrieval remains irrelevant, fall back to ", $exact, ".\n",
-        "- Stop searching once the available evidence is sufficient for the requested task. Continue only to resolve a material gap or ambiguity; do not repeat similar searches or broaden the investigation merely to reconfirm what is already established.\n",
-        "- Do not launch a sub-agent solely to locate workspace material.\n",
-    ) };
-}
-
-pub const AGENT_INSTRUCTIONS: &str = concat!(
-    "Use zvec-grep with these workspace retrieval rules:\n",
-    workspace_evidence_rules!(),
-    search_routing_rules!("native Grep or rg", "Read, Grep, or rg"),
-    "- For workspaces indexed with graph support, use zvec_grep_callers or zvec_grep_callees for known symbols. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
-    "- Every workspace operation requires an absolute root path visible to the daemon.\n",
-    "- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n",
-    "- Use returned search evidence without a status preflight.\n",
-    "- Use sufficient returned evidence immediately; do not perform extra diagnostics merely because the index may refresh in the background.\n",
-    "- When an index is missing, search can ask the user to choose an embedding model and approve a background build. Only explicit user confirmation creates an index. Read the returned indexing state and retry search after completion; use native Grep or rg only when literal lookup answers the task.",
-);
-
-pub const FULL_INSTRUCTIONS: &str = concat!(
-    "Use zvec-grep with these workspace retrieval and lifecycle rules:\n",
-    workspace_evidence_rules!(),
-    search_routing_rules!("zvec_grep_rg", "Read or zvec_grep_rg"),
-    "- For workspaces indexed with graph support, use zvec_grep_callers or zvec_grep_callees for known symbols. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
-    "- Every workspace operation requires an absolute root path visible to the daemon.\n",
-    "- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n",
-    "- Use the zvec_grep_* tools directly for workspace search, status, indexing, deletion, and exhaustive lexical search.\n",
-    "- Use returned search evidence without a status preflight; call zvec_grep_index_status only for a missing index, failed or cancelled indexing, diagnostics, or explicit progress monitoring.\n",
-    "- Use sufficient returned evidence immediately; do not call status merely because the index may refresh in the background.\n",
-    "- Call zvec_grep_index only when persistent indexing or index deletion is explicitly requested. Never silently create, rebuild, or drop an index.\n",
-    "- For a new index, use a user-selected embedding or omit it only when a server default model is known; never guess a model.\n",
-    "- zvec_grep_index wait defaults to false; poll zvec_grep_index_status for background progress and set wait to true only when completion is required before continuing.\n",
-    "- Use zvec_grep_index with drop: true, or zvec_grep_index_drop, only when index deletion is explicitly requested.\n",
-    "- Call zvec_grep_server_status only for daemon diagnostics, not before ordinary searches.",
-);
-
-macro_rules! compact_workspace_rules {
-    ($exact:literal, $focused:literal) => {
-        concat!(
-            "Use zvec-grep for workspace evidence.\n",
-            "- Search local code, docs, config, or data when the request or prior context calls for local evidence, including questions about how this project works. Use external sources for unrelated questions.\n",
-            "- Use ", $exact, " for exact-only lookups. Use zvec_grep_search for unknown wording or locations and for architecture, relationships, or cross-file synthesis. For mixed tasks search the intent with known anchors, then verify with ", $focused, ".\n",
-            "- For questions about whether related local material exists without an exact anchor, try one focused semantic search. If irrelevant, report insufficient indexed evidence. For exact-only tasks, fall back to ", $exact, " if the index is missing or search fails.\n",
-            "- Use sufficient snippets as evidence. Open cited ranges for missing details, stop when evidence suffices, and avoid delegating solely to locate material.\n",
-            "- Pass an absolute root visible to the daemon. Read freshness and background_refresh without a status preflight. Use sufficient served_from_current_index results immediately.\n",
-            "- Use zvec_grep_callers or zvec_grep_callees for known symbols in graph-enabled indexes. Empty results are inconclusive. Enable with zg --index --graph (add --rebuild for an existing index).\n",
-            "- Combine hybrid query with supplemental fts or vector as needed. Groups rank separately unless fused. Example: {\"root\":\"/absolute/workspace\",\"query\":\"how are results ranked\",\"fts\":[\"RRF\"],\"fuse\":true}.\n",
-            "- Require explicit user authorization to create, rebuild, or drop an index. For missing-index setup, retry search after the approved build completes. Respect declined or cancelled setup."
-        )
-    };
-}
-
-const CLAUDE_AGENT_INSTRUCTIONS: &str =
-    compact_workspace_rules!("native Grep or rg", "Read, Grep, or rg");
-const CLAUDE_FULL_INSTRUCTIONS: &str = concat!(
-    compact_workspace_rules!("zvec_grep_rg", "Read or zvec_grep_rg"),
-    "\n- Use zvec_grep_index only for requested indexing or deletion. Use a user-selected embedding or a known default. wait defaults to false. Use zvec_grep_index_status for missing indexes, failures, or progress, and zvec_grep_server_status for daemon diagnostics.",
-);
+pub const AGENT_INSTRUCTIONS: &str = zg_cli::retrieval_guidance(zg_cli::McpToolset::Agent);
+pub const FULL_INSTRUCTIONS: &str = zg_cli::retrieval_guidance(zg_cli::McpToolset::Full);
 
 const MAX_QUERY_GROUPS: usize = 32;
 const MAX_QUERY_CHARS: usize = 4_000;
@@ -376,23 +303,6 @@ impl ZvecGrepMcpServer {
                 format!("{description} Accepts name, scope::name or scope.name; ::name selects top-level definitions. Queries matching more than {MAX_SYMBOL_MATCHES} indexed definitions fail; narrow the scope or use globs. limit counts call sites per definition (default 20, maximum {MAX_RELATIONSHIP_EDGES}); a truncation notice marks omitted sites. Exact misses may return suggestions without call sites. Returns readable text with one-based line and byte-column numbers. Requires graph indexing enabled with zg --index --graph (add --rebuild for an existing index). Reads persisted resolved calls without refreshing; empty results do not prove absence.").into()
             });
         }
-        if toolset != McpToolset::Full
-            && (toolset != McpToolset::Agent || zg_cli::guidance_experiment_from_env().is_some())
-        {
-            let search = router.map.get_mut(AGENT_TOOL_NAME).expect("search route");
-            search.attr.description = search.attr.description.as_ref().map(|description| {
-                description
-                    .replace(
-                        "semantic, relational, cross-file, or multi-hop evidence such as architecture, call chains",
-                        "conceptual and cross-file evidence such as architecture, source paths related to calls",
-                    )
-                    .replace(
-                        "Use it when exact lookup alone",
-                        "This retrieves source evidence, not an exact call graph. Use it when exact lookup alone",
-                    )
-                    .into()
-            });
-        }
         if toolset == McpToolset::Full {
             let search = router.map.get_mut(AGENT_TOOL_NAME).expect("search route");
             search.attr.description = search.attr.description.as_ref().map(|description| {
@@ -453,32 +363,18 @@ impl ZvecGrepMcpServer {
         self.router.list_all()
     }
 
-    fn server_info(&self, client_name: Option<&str>) -> ServerInfo {
-        self.server_info_with_guidance(client_name, zg_cli::guidance_experiment_from_env())
+    fn server_info(&self) -> ServerInfo {
+        self.server_info_with_guidance(zg_cli::guidance_experiment_from_env())
     }
 
-    fn server_info_with_guidance(
-        &self,
-        client_name: Option<&str>,
-        experiment: Option<bool>,
-    ) -> ServerInfo {
-        let instructions = match (client_name == Some("claude-code"), self.toolset) {
-            (true, McpToolset::Agent) => CLAUDE_AGENT_INSTRUCTIONS.to_owned(),
-            (true, McpToolset::Full) => CLAUDE_FULL_INSTRUCTIONS.to_owned(),
-            (_, McpToolset::Agent) => experiment.map_or_else(
-                || AGENT_INSTRUCTIONS.to_owned(),
-                |flow| zg_cli::retrieval_guidance_variant(zg_cli::McpToolset::Agent, flow),
-            ),
-            (_, McpToolset::Full) => FULL_INSTRUCTIONS.to_owned(),
-            (_, McpToolset::Search) => zg_cli::retrieval_guidance_variant(
-                zg_cli::McpToolset::Search,
-                experiment.unwrap_or(false),
-            ),
-            (_, McpToolset::Relationships) => zg_cli::retrieval_guidance_variant(
-                zg_cli::McpToolset::Relationships,
-                experiment.unwrap_or(false),
-            ),
+    fn server_info_with_guidance(&self, experiment: Option<bool>) -> ServerInfo {
+        let toolset = match self.toolset {
+            McpToolset::Agent => zg_cli::McpToolset::Agent,
+            McpToolset::Full => zg_cli::McpToolset::Full,
+            McpToolset::Search => zg_cli::McpToolset::Search,
+            McpToolset::Relationships => zg_cli::McpToolset::Relationships,
         };
+        let instructions = zg_cli::retrieval_guidance_variant(toolset, experiment.unwrap_or(false));
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(rmcp::model::Implementation::new(
                 "zvec-grep",
@@ -492,7 +388,7 @@ impl ZvecGrepMcpServer {
 impl ZvecGrepMcpServer {
     #[tool(
         name = "zvec_grep_callers",
-        description = "Incoming call sites for a symbol. Shows caller definitions and call-site locations in the caller files.",
+        description = "Locate persisted resolved direct callers of a project symbol. After confirming a function or method's definition, prefer this tool over repeated reference searches when the question needs upstream entry points or caller context. Returns symbol names, definition locations and call-site locations, not code snippets. Read relevant source ranges to understand usage, arguments and branches.",
         annotations(
             title = "Incoming call sites for a symbol",
             read_only_hint = true,
@@ -511,7 +407,7 @@ impl ZvecGrepMcpServer {
 
     #[tool(
         name = "zvec_grep_callees",
-        description = "Outgoing call sites for a symbol. Shows callee definitions and call-site locations in the caller file.",
+        description = "Locate persisted resolved direct callees of a project function or method. After confirming its definition, prefer this tool over repeated reference searches when the question needs downstream delegation or a cross-function processing chain. Returns symbol names, definition locations and call-site locations, not code snippets. Read relevant source ranges for implementation, arguments and execution order; the result is not every call expression or complete data flow.",
         annotations(
             title = "Outgoing call sites for a symbol",
             read_only_hint = true,
@@ -531,7 +427,7 @@ impl ZvecGrepMcpServer {
 
     #[tool(
         name = "zvec_grep_search",
-        description = "Search a workspace index for semantic, relational, cross-file, or multi-hop evidence such as architecture, call chains, dependencies, lifecycle, data or control flow, design rationale, and comparisons. Use it when exact lookup alone cannot answer a workspace-grounded question. Results start with freshness and any global index diagnostics, followed by CLI-formatted bounded source snippets; set preview: \"full\" to return each complete stored entity without changing retrieval or ranking. Treat sufficient returned content as already-read evidence without a status preflight. Use native Grep or rg instead when exact lookup alone is sufficient. A missing index can request user model selection and authorization; accepted setup starts a background build and returns indexing status. Retry after completion.",
+        description = "Search a workspace index for conceptual and cross-file evidence such as architecture, source paths related to calls, dependencies, lifecycle, data or control flow, design rationale, and comparisons. This retrieves source evidence, not an exact call graph. Use it when exact lookup alone cannot answer a workspace-grounded question. Results start with freshness and any global index diagnostics, followed by CLI-formatted bounded source snippets; set preview: \"full\" to return each complete stored entity without changing retrieval or ranking. Treat sufficient returned content as already-read evidence without a status preflight. Use native Grep or rg instead when exact lookup alone is sufficient. A missing index can request user model selection and authorization; accepted setup starts a background build and returns indexing status. Retry after completion.",
         annotations(
             title = "Search with zvec-grep",
             read_only_hint = false,
@@ -789,7 +685,7 @@ impl ZvecGrepMcpServer {
 
 impl ServerHandler for ZvecGrepMcpServer {
     fn get_info(&self) -> ServerInfo {
-        self.server_info(None)
+        self.server_info()
     }
 
     fn initialize(
@@ -797,7 +693,7 @@ impl ServerHandler for ZvecGrepMcpServer {
         request: InitializeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<InitializeResult, ErrorData>> + Send {
-        let mut info = self.server_info(Some(&request.client_info.name));
+        let mut info = self.server_info();
         if self
             .supported_protocol_versions()
             .contains(&request.protocol_version)
@@ -872,12 +768,11 @@ impl ServerHandler for ZvecGrepMcpServer {
 
     fn discover(
         &self,
-        context: RequestContext<RoleServer>,
+        _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<rmcp::model::DiscoverResult, ErrorData>> + Send {
-        let client = context.client_info();
         std::future::ready(Ok(rmcp::model::DiscoverResult::from_server_info(
             self.supported_protocol_versions().into_owned(),
-            self.server_info(client.as_ref().map(|info| info.name.as_str())),
+            self.server_info(),
         )
         .with_ttl_ms(3_600_000)
         .with_cache_scope(rmcp::model::CacheScope::Private)))
@@ -963,14 +858,14 @@ pub struct SearchInput {
     /// Absolute workspace root visible to the daemon.
     #[schemars(length(min = 1, max = 1024))]
     pub root: String,
-    /// One primary hybrid-search group.
+    /// One primary hybrid FTS-plus-vector search group. Preserve the question's concepts and known anchors.
     #[schemars(length(max = 4000))]
     pub query: Option<String>,
-    /// One or more primary hybrid-search groups.
+    /// One or more primary hybrid FTS-plus-vector groups, each ranked separately unless fuse is true.
     pub queries: Option<QueryListInput>,
-    /// Supplemental lexical-route groups.
+    /// Supplemental lexical-only route groups; these add retrieval routes, not hard text constraints.
     pub fts: Option<QueryListInput>,
-    /// Supplemental semantic/vector-route groups.
+    /// Supplemental semantic/vector-only route groups; these add retrieval routes, not hard filters.
     pub vector: Option<QueryListInput>,
     /// Maximum returned items per query group or fused plan.
     #[schemars(range(min = 1, max = 50), extend("type" = "integer"))]
@@ -998,7 +893,8 @@ pub struct SearchInput {
     /// Must be positive. ORT caps requests above pool capacity; it never resizes server pools or changes their shared CPU thread budget.
     #[schemars(range(min = 1), extend("type" = "integer"))]
     pub embedding_concurrency: Option<usize>,
-    /// Collapse all query groups into one ranked plan.
+    /// False or omitted ranks each query group separately; true collapses all groups into one ranked plan.
+    /// Example: {"query":"how are results ranked","fts":["RRF"],"fuse":true}.
     #[schemars(extend("type" = "boolean"))]
     pub fuse: Option<bool>,
     /// Prefer exact indexed symbols.
@@ -3344,10 +3240,7 @@ mod tests {
                 "zvec_grep_rg",
             ),
         ] {
-            let instructions = server
-                .server_info(Some("claude-code"))
-                .instructions
-                .expect("instructions");
+            let instructions = server.server_info().instructions.expect("instructions");
             let len = instructions.encode_utf16().count();
             assert!(
                 len <= 2_048,
@@ -3356,9 +3249,9 @@ mod tests {
             );
             assert!(instructions.contains(&format!("Use {exact_tool} for exact-only lookups")));
             assert!(instructions.contains("Require explicit user authorization"));
-            assert!(instructions.contains("Respect declined or cancelled setup."));
-            assert!(instructions.contains("Use sufficient served_from_current_index results"));
-            assert!(instructions.contains(r#""fuse":true"#));
+            assert!(instructions.contains("Respect declined or cancelled index setup."));
+            assert!(instructions.contains("without a status preflight"));
+            assert!(!instructions.contains(r#""fuse":true"#));
 
             for tool in server.listed_tools() {
                 let len = tool
@@ -3372,6 +3265,27 @@ mod tests {
                     "{} description has {len} UTF-16 code units",
                     tool.name
                 );
+                if tool.name == AGENT_TOOL_NAME {
+                    let schema = serde_json::to_value(&tool.input_schema).expect("search schema");
+                    assert!(
+                        schema["properties"]["query"]["description"]
+                            .as_str()
+                            .expect("query description")
+                            .contains("FTS-plus-vector")
+                    );
+                    assert!(
+                        schema["properties"]["fts"]["description"]
+                            .as_str()
+                            .expect("fts description")
+                            .contains("not hard text constraints")
+                    );
+                    assert!(
+                        schema["properties"]["fuse"]["description"]
+                            .as_str()
+                            .expect("fuse description")
+                            .contains(r#""fuse":true"#)
+                    );
+                }
             }
         }
     }
