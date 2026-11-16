@@ -94,103 +94,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  relationship-diagnostic:
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay') }}
-    name: Relationship diagnostic / ${{ matrix.task }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 80
-    permissions:
-      contents: read
-      actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        task: ${{ fromJSON(inputs.experiment_phase == 'oracle-capability' && '["matplotlib-37","sympy-38","xarray-32"]' || '["xarray-32"]') }}
-    steps:
-      - name: Authorize diagnostic run
-        id: authorize
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BENCH_REPOSITORY: ${{ github.repository }}
-          BENCH_ACTOR: ${{ github.actor }}
-          BENCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          CANDIDATE: ${{ inputs.candidate_ref }}
-          PHASE: ${{ inputs.experiment_phase }}
-          CAPABILITY_RUN: ${{ inputs.diagnostic_capability_run }}
-        run: |
-          set -euo pipefail
-          test "$CANDIDATE" = 85cb58345dac16ac62d85ae99365869cebcc8304
-          for actor in "$BENCH_ACTOR" "$BENCH_TRIGGERING_ACTOR"; do
-            role="$(gh api "repos/$BENCH_REPOSITORY/collaborators/$actor/permission" --jq '.role_name')"
-            case "$role" in admin|maintain) ;; *) exit 1 ;; esac
-          done
-          if [[ "$PHASE" == branch-replay ]]; then
-            [[ "$CAPABILITY_RUN" =~ ^[0-9]+$ ]]
-            gh api "repos/$BENCH_REPOSITORY/actions/runs/$CAPABILITY_RUN" --jq '.conclusion' | grep -qx success
-          fi
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-      - name: Resolve the frozen Rust package
-        id: rust-candidate
-        uses: ./.github/actions/rust-candidate-package
-        with:
-          candidate_repository: ${{ github.repository }}
-          candidate_ref: ${{ inputs.candidate_ref }}
-          cache_namespace: swe-qa-rust
-      - name: Install diagnostic runtime
-        run: |
-          npm install --global "$RUNNER_TEMP/rust-package-cache/candidate.tgz" @zvec/bindings-linux-x64@0.5.0 --omit=optional --no-audit --no-fund
-          sudo mkdir -p /app
-          sudo chown "$USER" /app
-      - if: inputs.experiment_phase == 'branch-replay'
-        uses: actions/download-artifact@v8
-        with:
-          name: caller-callee-evidence-guidance-fixed-search-relationships-xarray-32-43824775591-1
-          run-id: 43824775591
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}/source-trial
-      - if: inputs.experiment_phase == 'branch-replay'
-        uses: actions/download-artifact@v8
-        with:
-          name: zg-diagnostic-oracle-capability-xarray-32-${{ inputs.diagnostic_capability_run }}
-          run-id: ${{ inputs.diagnostic_capability_run }}
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}/capability
-      - name: Probe oracle-seeded capability without model calls
-        if: inputs.experiment_phase == 'oracle-capability'
-        env:
-          DIAGNOSTIC_CANDIDATE: ${{ steps.rust-candidate.outputs.commit }}
-          PYTHONPATH: benchmarks/swe-qa-bench
-        run: >-
-          python -m zg_bench.relationship_diagnostic --stage capability
-          --task '${{ matrix.task }}' --output "$RUNNER_TEMP/diagnostic"
-      - name: Replay one next decision per arm and repetition
-        if: inputs.experiment_phase == 'branch-replay'
-        env:
-          DIAGNOSTIC_CANDIDATE: ${{ steps.rust-candidate.outputs.commit }}
-          PYTHONPATH: benchmarks/swe-qa-bench
-          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
-        run: >-
-          python -m zg_bench.relationship_diagnostic --stage replay
-          --task xarray-32 --output "$RUNNER_TEMP/diagnostic"
-          --source "$RUNNER_TEMP/source-trial" --capability "$RUNNER_TEMP/capability"
-      - if: always() && steps.authorize.outcome == 'success'
-        uses: actions/upload-artifact@v7
-        with:
-          name: zg-diagnostic-${{ inputs.experiment_phase }}-${{ matrix.task }}-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/diagnostic/
-            ${{ runner.temp }}/rust-package-cache/manifest.json
-          if-no-files-found: warn
-          retention-days: 90
-
   validate:
     name: Validate locked selection
     needs: package-candidate
@@ -830,5 +733,96 @@ jobs:
         with:
           name: caller-callee-summary-${{ inputs.experiment_phase }}-${{ inputs.experiment_group }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/experiment-summary/
+          if-no-files-found: warn
+          retention-days: 90
+
+  relationship-diagnostic:
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay') }}
+    name: Relationship diagnostic / ${{ matrix.task }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        task: ${{ fromJSON(inputs.experiment_phase == 'oracle-capability' && '["matplotlib-37","sympy-38","xarray-32"]' || '["xarray-32"]') }}
+    steps:
+      - *authorize-benchmark
+      - name: Verify frozen diagnostic inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BENCH_REPOSITORY: ${{ github.repository }}
+          CANDIDATE: ${{ inputs.candidate_ref }}
+          PHASE: ${{ inputs.experiment_phase }}
+          CAPABILITY_RUN: ${{ inputs.diagnostic_capability_run }}
+        run: |
+          set -euo pipefail
+          test "$CANDIDATE" = 85cb58345dac16ac62d85ae99365869cebcc8304
+          if [[ "$PHASE" == branch-replay ]]; then
+            [[ "$CAPABILITY_RUN" =~ ^[0-9]+$ ]]
+            gh api "repos/$BENCH_REPOSITORY/actions/runs/$CAPABILITY_RUN" --jq '.conclusion' | grep -qx success
+          fi
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Resolve the frozen Rust package
+        id: rust-candidate
+        uses: ./.github/actions/rust-candidate-package
+        with:
+          candidate_repository: ${{ github.repository }}
+          candidate_ref: ${{ inputs.candidate_ref }}
+          cache_namespace: swe-qa-rust
+      - name: Install diagnostic runtime
+        run: |
+          npm install --global "$RUNNER_TEMP/rust-package-cache/candidate.tgz" @zvec/bindings-linux-x64@0.5.0 --omit=optional --no-audit --no-fund
+          sudo mkdir -p /app
+          sudo chown "$USER" /app
+      - if: inputs.experiment_phase == 'branch-replay'
+        uses: actions/download-artifact@v8
+        with:
+          name: caller-callee-evidence-guidance-fixed-search-relationships-xarray-32-43824775591-1
+          run-id: 43824775591
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/source-trial
+      - if: inputs.experiment_phase == 'branch-replay'
+        uses: actions/download-artifact@v8
+        with:
+          name: zg-diagnostic-oracle-capability-xarray-32-${{ inputs.diagnostic_capability_run }}
+          run-id: ${{ inputs.diagnostic_capability_run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/capability
+      - name: Probe oracle-seeded capability without model calls
+        if: inputs.experiment_phase == 'oracle-capability'
+        env:
+          DIAGNOSTIC_CANDIDATE: ${{ steps.rust-candidate.outputs.commit }}
+          PYTHONPATH: benchmarks/swe-qa-bench
+        run: >-
+          python -m zg_bench.relationship_diagnostic --stage capability
+          --task '${{ matrix.task }}' --output "$RUNNER_TEMP/diagnostic"
+      - name: Replay one next decision per arm and repetition
+        if: inputs.experiment_phase == 'branch-replay'
+        env:
+          DIAGNOSTIC_CANDIDATE: ${{ steps.rust-candidate.outputs.commit }}
+          PYTHONPATH: benchmarks/swe-qa-bench
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        run: >-
+          python -m zg_bench.relationship_diagnostic --stage replay
+          --task xarray-32 --output "$RUNNER_TEMP/diagnostic"
+          --source "$RUNNER_TEMP/source-trial" --capability "$RUNNER_TEMP/capability"
+      - if: always() && steps.authorize.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: zg-diagnostic-${{ inputs.experiment_phase }}-${{ matrix.task }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/diagnostic/
+            ${{ runner.temp }}/rust-package-cache/manifest.json
           if-no-files-found: warn
           retention-days: 90
