@@ -261,10 +261,10 @@ pub enum McpToolset {
 macro_rules! relationship_routing_rules {
     () => {
         concat!(
-            "- For code questions, if a symbol is supplied, confirm its definition by file/scope; for concepts, find the relevant symbol with available search, Grep or read. Distinguish callable symbols from fields/parameters; skip redundant discovery.\n",
-            "- For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites. For upstream context, downstream delegation or cross-function processing, prefer zvec_grep_callers or zvec_grep_callees before repeated reference searches. Query both only if needed.\n",
-            "- Check the matched definition and disambiguate before following edges. Results are definition and call-site locations, not code snippets. Read relevant ranges for logic, branches, arguments, fields and execution order; avoid rediscovering returned locations.\n",
-            "- These are resolved direct calls, not complete data flow. Empty results do not prove absence; use source or focused Grep for gaps or truncation. Read local-only logic directly. Stop when evidence is sufficient.\n",
+            "- Identify a relevant function/method's definition file and scope; a full body read is not required. For field/type flow, locate the related functions first.\n",
+            "- For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites. If the next step crosses a function boundary and caller/callee locations are still unknown, use the matching relationship tool before manual reference searches. Start with one symbol and needed direction; expand only for remaining gaps.\n",
+            "- Reuse known relationships and locations; read directly if one function suffices. Check matched definitions. Results are definition and call-site locations, not code snippets; read relevant ranges for logic and order.\n",
+            "- These are resolved direct calls, not complete data flow. Empty results do not prove absence; use focused Grep/read for gaps, dynamic calls or truncation. Stop when evidence is sufficient.\n",
         )
     };
 }
@@ -289,7 +289,7 @@ pub const fn retrieval_guidance(toolset: McpToolset) -> &'static str {
     match toolset {
         McpToolset::Relationships => concat!(
             workspace_guidance!(),
-            "Available zg tools: zvec_grep_callers and zvec_grep_callees. Use native Grep/rg and read for discovery.\n",
+            "Available zg tools: zvec_grep_callers and zvec_grep_callees. Use native Grep/rg and focused read for discovery.\n",
             relationship_routing_rules!(),
             "Relationships require graph indexing and read persisted calls without refreshing.\n",
             lifecycle_guidance!(),
@@ -301,14 +301,14 @@ pub const fn retrieval_guidance(toolset: McpToolset) -> &'static str {
         ),
         McpToolset::Agent => concat!(
             workspace_guidance!(),
-            "Available zg tools: zvec_grep_search, zvec_grep_callers and zvec_grep_callees. Use native Grep or rg for exact-only lookups. Use search for concepts and unknown locations; preserve intent and anchors.\n",
+            "Available zg tools: zvec_grep_search, zvec_grep_callers and zvec_grep_callees. Use native Grep or rg for exact-only lookups. Prefer search for concepts, multi-symbol context or unclear implementations, even with named symbols.\n",
             relationship_routing_rules!(),
             "Relationships require graph indexing and read persisted calls without refreshing.\n",
             lifecycle_guidance!(),
         ),
         McpToolset::Full => concat!(
             workspace_guidance!(),
-            "Available zg tools: zvec_grep_search, zvec_grep_callers, zvec_grep_callees, zvec_grep_rg, zvec_grep_index, zvec_grep_index_drop, zvec_grep_index_status, zvec_grep_server_status. Use zvec_grep_rg for exact-only lookups; search for concepts and unknown locations.\n",
+            "Available zg tools: zvec_grep_search, zvec_grep_callers, zvec_grep_callees, zvec_grep_rg, zvec_grep_index, zvec_grep_index_drop, zvec_grep_index_status, zvec_grep_server_status. Use zvec_grep_rg for exact-only lookups; prefer search for concepts, multi-symbol context or unclear implementations, even with named symbols.\n",
             relationship_routing_rules!(),
             "Relationships require graph indexing and do not refresh. Use index/index_drop only for requested indexing/deletion, index_status for failures or progress, and server_status for daemon diagnostics.\n",
             lifecycle_guidance!(),
@@ -384,8 +384,9 @@ mod guidance_variant_tests {
             let flow = retrieval_guidance_variant(toolset, true);
             assert!(flow.contains("trace how control or data flows through call chains"));
             assert!(!flow.contains("direct call relationships"));
-            assert!(flow.contains("confirm its definition"));
-            assert!(flow.contains("before repeated reference searches"));
+            assert!(flow.contains("definition file and scope"));
+            assert!(flow.contains("caller/callee locations are still unknown"));
+            assert!(flow.contains("before manual reference searches"));
             assert!(flow.contains("not code snippets"));
             assert_eq!(
                 flow.replace(FLOW_RELATIONSHIP_GUIDANCE, DIRECT_RELATIONSHIP_GUIDANCE),

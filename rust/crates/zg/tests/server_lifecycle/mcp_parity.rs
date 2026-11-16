@@ -214,7 +214,7 @@ fn opencode_file_and_mcp_guidance_are_identical() -> Result<(), Box<dyn Error>> 
             if toolset == "search" {
                 assert!(!instructions.contains("zvec_grep_callers"));
             } else {
-                assert!(instructions.contains("before repeated reference searches"));
+                assert!(instructions.contains("before manual reference searches"));
                 assert!(instructions.contains("not code snippets"));
                 assert_eq!(
                     instructions.contains("trace how control or data flows through call chains"),

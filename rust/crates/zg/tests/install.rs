@@ -48,10 +48,9 @@ fn opencode_default_and_direct_guidance_are_identical() {
             guidance.contains("trace how control or data flows through call chains"),
             variant == Some("flow")
         );
-        assert!(
-            guidance.contains("prefer zvec_grep_zvec_grep_callers or zvec_grep_zvec_grep_callees")
-        );
-        assert!(guidance.contains("confirm its definition"));
+        assert!(guidance.contains("caller/callee locations are still unknown"));
+        assert!(guidance.contains("before manual reference searches"));
+        assert!(guidance.contains("definition file and scope"));
         assert!(guidance.contains("not code snippets"));
     }
 }
@@ -534,7 +533,7 @@ fn claude_opencode_and_cursor_match_the_typescript_shapes() {
     );
     let guidance =
         fs::read_to_string(temporary.path().join("AGENTS.md")).expect("OpenCode guidance");
-    assert!(guidance.contains("prefer zvec_grep_zvec_grep_callers or zvec_grep_zvec_grep_callees"));
+    assert!(guidance.contains("caller/callee locations are still unknown"));
     assert_eq!(
         json(&opencode)["mcp"]["zvec_grep"]["headers"]["Authorization"],
         "Bearer {env:TOKEN}"

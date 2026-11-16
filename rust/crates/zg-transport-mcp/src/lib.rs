@@ -388,7 +388,7 @@ impl ZvecGrepMcpServer {
 impl ZvecGrepMcpServer {
     #[tool(
         name = "zvec_grep_callers",
-        description = "Locate persisted resolved direct callers of a project symbol. After confirming a function or method's definition, prefer this tool over repeated reference searches when the question needs upstream entry points or caller context. Returns symbol names, definition locations and call-site locations, not code snippets. Read relevant source ranges to understand usage, arguments and branches.",
+        description = "Locate persisted resolved direct callers of a project function or method. Once its definition file and scope are identified with search, Grep or read, use this before manual reference searches when upstream caller locations are still unknown. A full body read is not required. Reuse known relationships and locations. Returns symbol names, definition locations and call-site locations, not code snippets; read relevant source ranges for usage, arguments and branches.",
         annotations(
             title = "Incoming call sites for a symbol",
             read_only_hint = true,
@@ -407,7 +407,7 @@ impl ZvecGrepMcpServer {
 
     #[tool(
         name = "zvec_grep_callees",
-        description = "Locate persisted resolved direct callees of a project function or method. After confirming its definition, prefer this tool over repeated reference searches when the question needs downstream delegation or a cross-function processing chain. Returns symbol names, definition locations and call-site locations, not code snippets. Read relevant source ranges for implementation, arguments and execution order; the result is not every call expression or complete data flow.",
+        description = "Locate persisted resolved direct callees of a project function or method. Once its definition file and scope are identified with search, Grep or read, use this before manual reference searches when downstream callee locations are still unknown. A full body read is not required. Reuse known relationships and locations. Returns symbol names, definition locations and call-site locations, not code snippets; read relevant source ranges for implementation, arguments and execution order. This is not every call expression or complete data flow.",
         annotations(
             title = "Outgoing call sites for a symbol",
             read_only_hint = true,

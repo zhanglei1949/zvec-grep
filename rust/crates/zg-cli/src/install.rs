@@ -3418,9 +3418,7 @@ mod tests {
         let block = guidance_block(McpToolset::Agent, "zvec_grep__", false, grok_host_notes());
         assert!(block.contains("### Grok Build host notes"));
         assert!(block.contains("zvec_grep__zvec_grep_search"));
-        assert!(
-            block.contains("prefer zvec_grep__zvec_grep_callers or zvec_grep__zvec_grep_callees")
-        );
+        assert!(block.contains("caller/callee locations are still unknown"));
         assert!(block.contains("zg --auth grant"));
         assert!(block.contains("Use zvec-grep for relevant workspace evidence"));
         let plain = guidance_block(McpToolset::Agent, "", false, "");
