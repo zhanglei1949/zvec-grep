@@ -6,6 +6,12 @@
 
 ## Caller/callee tool experiment
 
+The [oracle capability and one-decision replay protocol](docs/caller-callee-oracle-replay-20261116.md)
+uses manual phases `oracle-capability` and `branch-replay`. It makes 34 retrieval-only
+MCP queries on three pinned repositories, then 20 one-decision GLM requests from one
+frozen Xarray request. It never runs the full answering/judging pipeline. Its
+explicit-call intervention measures instruction compliance, not autonomous adoption.
+
 The [2026-11-12 full results and actual tool use](docs/caller-callee-e2e-results-20261112.md)
 cover all 300 audited trials, with Actions artifacts and reproduction parameters.
 
