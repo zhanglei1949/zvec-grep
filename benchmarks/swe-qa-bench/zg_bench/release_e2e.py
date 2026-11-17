@@ -24,7 +24,7 @@ from .engines.judge import default_completion, judge_candidate, _response_mappin
 from .engines.registry import execution_environment, resolve_opencode_model
 from .model_requests import audit_model_requests
 from .release_analysis import GROUPS, METRICS, events, evidence_manifest, mcp_calls, summarize, tool_attempts, render_report
-from .release_packages import SOURCE_COMMIT, VERSION, prepare_release, sha256, verify_release, write_json
+from .release_packages import VERSION, prepare_release, sha256, verify_release, verify_install, write_json
 from .runner import BenchmarkSuite, build_harbor_command, load_suite
 from .swe_qa.collect import _profile_result
 from .swe_qa.pairs import load_references
@@ -110,6 +110,9 @@ def collect_trial(directory: Path, *, task: str, group: str, number: int, repeat
         row.update({key: usage.get("total", {}).get(key) for key in METRICS if key != "agent_wall_seconds"})
         row["usage_complete"] = usage.get("complete", False)
     row["model_attempts"] = tool_attempts(agent)
+    native_surface = agent / "tool-surface.native.json"
+    if native_surface.exists():
+        row["native_surface"] = json.loads(native_surface.read_text())
     surface_path = agent / "tool-surface.json"
     if surface_path.exists():
         row["surface"] = json.loads(surface_path.read_text())
@@ -199,6 +202,8 @@ def check_smoke(row: dict) -> list[str]:
                     errors.append(f"{tool}_fixture_locations_differ_from_source")
     if not row.get("surface", {}).get("preflight_calls"):
         errors.append("native_mcp_preflight_missing")
+    if {call["name"] for call in row.get("native_surface", {}).get("preflight_calls", [])} != {"zvec_grep_search", "zvec_grep_callers", "zvec_grep_callees"}:
+        errors.append("three_tool_native_preflight_missing")
     return errors
 
 
@@ -277,8 +282,11 @@ def run(args) -> int:
         for group in GROUPS:
             smoke_rows.extend(run_job(make_smoke_task(output, group), manifest=manifest_path, output=output,
                 group=group, number=0, task="release-dev", overlay=overlays[group, 0], smoke=True))
-        smoke = {"passed": all(not check_smoke(row) for row in smoke_rows),
-                 "groups": [{"group": row["group"], "errors": check_smoke(row)} for row in smoke_rows], "trials": smoke_rows}
+            if check_smoke(smoke_rows[-1]):
+                break
+        smoke = {"passed": len(smoke_rows) == len(GROUPS) and all(not check_smoke(row) for row in smoke_rows),
+                 "groups": [{"group": row["group"], "errors": check_smoke(row)} for row in smoke_rows],
+                 "not_started_groups": [group for group in GROUPS if group not in {row["group"] for row in smoke_rows}], "trials": smoke_rows}
         write_json(output / "smoke-gate.json", smoke)
         if not smoke["passed"]:
             print("Technical smoke blocked formal evaluation; no QA20 model trial was started.", flush=True)
@@ -317,6 +325,9 @@ def main() -> None:
     fetch = commands.add_parser("fetch-release")
     fetch.add_argument("--output", type=Path, required=True)
     fetch.add_argument("--platform", default="linux-x64-gnu", choices=("linux-x64-gnu", "darwin-arm64"))
+    install = commands.add_parser("verify-install", help="official postinstall/runtime check; no Agent or model")
+    install.add_argument("--release", type=Path, required=True)
+    install.add_argument("--prefix", type=Path, required=True)
     execute = commands.add_parser("run")
     execute.add_argument("--release", type=Path, required=True)
     execute.add_argument("--output", type=Path, required=True)
@@ -324,6 +335,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "fetch-release":
         prepare_release(args.output, platform=args.platform)
+    elif args.command == "verify-install":
+        print(json.dumps(verify_install(args.release.resolve(), args.prefix)))
     else:
         raise SystemExit(run(args))
 

@@ -20,7 +20,7 @@ SHA-256 写入验收。正式答题自主选择工具，每题每组每轮5次�
 从官方 npm registry 获取 `@zvec/zvec-grep@0.3.1` 与
 `@zvec/zvec-grep-linux-x64-gnu@0.3.1`。保存 registry 元数据和原始 tgz，检查
 SHA-512 SRI、SHA-1、包名和版本，逐项核对平台包 checksums.json；容器安装后
-再次核对原生文件和 `zg --version`。使用平台包内原始二进制及配套库，不安装旧版
+执行官方 postinstall 后，再核对原生文件、npm/系统入口及 `zg --version`。使用平台包内原始二进制及配套库，不安装旧版
 `@zvec/bindings-linux-x64`。源码来源预期为发布记录中的 `40b6005b`；包完整性校验
 与源码来源预期分别记录。
 
@@ -35,14 +35,14 @@ tools/list 并拒绝隐藏工具调用；从 AGENTS.md 的 zg 管理块及 MCP i
 
 ## 技术冒烟与停止规则
 
-三组各一个独立开发 fixture 会话，明确要求主 Agent 与 explore 子代理实际调用本组
+先在独立开发 fixture 直接验证三个原生 MCP 工具，再逐组执行一个全新 Agent 会话，明确要求主 Agent 与 explore 子代理实际调用本组
 工具；关系查询带 `globs="lib.rs"`。安装后还进行直接 MCP 查询，核对已知函数链的
 返回位置。直接探针调用与 Agent 调用分开统计。
 
 在模型 HTTP 边界检查：首个答题请求只有 system/user，实际包含安装指导和 MCP
 instructions，工具集合与 schema 符合分组，生成参数符合协议。完整保留请求、SSE
 响应、MCP 请求/响应和递归会话。三组均完成且实际调用通过，才允许进入 QA20。
-指导、schema 或参数解析失败时，技术冒烟标为失败，正式评测保持未启动。
+指导、schema 或参数解析失败时，技术冒烟标为失败，剩余 Agent 会话与正式评测保持未启动。
 
 准备阶段最多重试两次，保留每次记录。Harbor 的 Agent 重试关闭；模型开始答题后
 不因超时、低分、未调用或空结果重跑。同一工具、参数和错误连续出现3次且没有成功
@@ -83,6 +83,9 @@ Actions 入口（会先技术冒烟，通过后运行正式评测）：
 ```sh
 gh workflow run swe-qa-bench.yml --ref <冻结的harness分支> -f release_e2e=true
 ```
+
+只检查 Linux 官方安装和运行时版本时，使用 `-f release_native_only=true`。
+该模式自动选择发布包路径，跳过全部 Agent 和模型步骤。
 
 也可在具有 Docker、锁定依赖和 GLM_API_KEY 的 Linux 环境中执行：
 

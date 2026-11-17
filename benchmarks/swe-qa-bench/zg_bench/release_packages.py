@@ -5,6 +5,8 @@ import base64
 import hashlib
 import io
 import json
+import os
+import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, urlparse
@@ -124,3 +126,34 @@ def verify_release(path: Path) -> dict:
                 if actual is None or len(actual) != expected["bytes"] or hashlib.sha256(actual).hexdigest() != expected["sha256"]:
                     raise ValueError("Native payload changed")
     return manifest
+
+
+def verify_install(path: Path, prefix: Path) -> dict:
+    """Exercise the official installer without an Agent or any model call."""
+    manifest = verify_release(path)
+    prefix = prefix.resolve()
+    if prefix.exists():
+        raise ValueError("Installation check requires a fresh isolated prefix")
+    prefix.mkdir(parents=True)
+    environment = {**os.environ, "ZG_INSTALL_SKIP_AGENT_UPGRADE": "1"}
+    with (prefix / "install.log").open("w") as log:
+        subprocess.run(["npm", "install", "--global", "--prefix", str(prefix), "--offline", "--ignore-scripts", "--omit=optional", "--no-audit", "--no-fund",
+                        str(path.parent / "platform.tgz"), str(path.parent / "main.tgz")], env=environment, stdout=log, stderr=log, check=True)
+        meta = prefix / "lib/node_modules/@zvec/zvec-grep"
+        subprocess.run(["node", str(meta / "install.cjs")], env=environment, stdout=log, stderr=log, check=True)
+    checked = {}
+    for name, expected in manifest["packages"][1]["payload"].items():
+        target = meta / ("bin/zg.exe" if name == "bin/zg" else name)
+        if target.stat().st_size != expected["bytes"] or sha256(target) != expected["sha256"]:
+            raise ValueError("Materialized release payload differs from verified platform package")
+        checked[name] = expected["sha256"]
+    binary = prefix / "bin/zg"
+    if binary.resolve() != (meta / "bin/zg.exe").resolve():
+        raise ValueError("npm executable does not point to the verified payload")
+    version = subprocess.check_output([str(binary), "--version"], env=environment, text=True).strip()
+    if version != VERSION:
+        raise ValueError("Materialized release runtime version mismatch")
+    result = {"version": version, "platform": manifest["platform"], "official_postinstall_executed": True,
+              "npm_entry_verified": True, "payload_sha256": checked, "model_requests": 0}
+    write_json(path.parent / "installation.json", result)
+    return result

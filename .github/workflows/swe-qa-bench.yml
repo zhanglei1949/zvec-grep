@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / ${{ inputs.release_e2e && 'release-0.3.1-gated-900' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
+run-name: SWE-QA Bench / ${{ inputs.release_native_only && 'release-0.3.1-native-only' || inputs.release_e2e && 'release-0.3.1-gated-900' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -28,6 +28,10 @@ on:
     inputs:
       release_e2e:
         description: Official 0.3.1 package and guidance; gate three smokes before 900 QA20 trials
+        type: boolean
+        default: false
+      release_native_only:
+        description: With release_e2e, check official installation only; no Agent or model requests
         type: boolean
         default: false
       candidate_ref:
@@ -311,7 +315,7 @@ jobs:
           path: ${{ runner.temp }}/tool-preflight/
 
   package-candidate:
-    if: ${{ !inputs.release_e2e && inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' && inputs.experiment_phase != 'fresh-guidance-e2e' }}
+    if: ${{ !inputs.release_e2e && !inputs.release_native_only && inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' && inputs.experiment_phase != 'fresh-guidance-e2e' }}
     name: Build selected Rust candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -513,7 +517,7 @@ jobs:
           key: ${{ steps.zvec-index-seed-restore.outputs.cache-primary-key }}
 
   release-e2e:
-    if: ${{ inputs.release_e2e }}
+    if: ${{ inputs.release_e2e || inputs.release_native_only }}
     name: Official 0.3.1 / gated three-arm QA20
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -546,6 +550,7 @@ jobs:
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e fetch-release
           --output "$RUNNER_TEMP/official-release"
       - name: Technical smokes then three formal rounds
+        if: ${{ !inputs.release_native_only }}
         timeout-minutes: 330
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
@@ -554,6 +559,12 @@ jobs:
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e run
           --release "$RUNNER_TEMP/official-release/release.json"
           --output "$RUNNER_TEMP/qa20-release-e2e" --execute-full
+      - name: Verify official postinstall without model requests
+        if: ${{ inputs.release_native_only }}
+        run: >-
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e verify-install
+          --release "$RUNNER_TEMP/official-release/release.json"
+          --prefix "$RUNNER_TEMP/release-install-check"
       - name: Reject credential leakage in release evidence
         id: release-secret-scan
         if: always() && steps.authorize.outcome == 'success'
@@ -572,6 +583,7 @@ jobs:
           path: |
             ${{ runner.temp }}/qa20-release-e2e/
             ${{ runner.temp }}/official-release/
+            ${{ runner.temp }}/release-install-check/install.log
           if-no-files-found: error
           retention-days: 90
 
@@ -809,7 +821,7 @@ jobs:
           retention-days: 90
 
   relationship-diagnostic:
-    if: ${{ !inputs.release_e2e && github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute' || inputs.experiment_phase == 'fresh-guidance-e2e') }}
+    if: ${{ !inputs.release_e2e && !inputs.release_native_only && github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute' || inputs.experiment_phase == 'fresh-guidance-e2e') }}
     name: Relationship diagnostic / ${{ matrix.task }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80

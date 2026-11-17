@@ -78,18 +78,23 @@ class ReleaseOpenCode(ZvecOpenCode):
         verify_js = """const fs=require('fs'),c=require('crypto'),p=require('path');
 const manifest=JSON.parse(fs.readFileSync('/tmp/zg-official-release/release.json'));
 const root=p.join(process.argv[1],'@zvec/zvec-grep-linux-x64-gnu');
+const meta=p.join(process.argv[1],'@zvec/zvec-grep');
 for(const [file,expected] of Object.entries(manifest.packages[1].payload)) {
- const data=fs.readFileSync(p.join(root,file));
- if(data.length!==expected.bytes || c.createHash('sha256').update(data).digest('hex')!==expected.sha256) throw Error('Installed native payload mismatch');
+ for(const installed of [p.join(root,file),p.join(meta,file==='bin/zg'?'bin/zg.exe':file)]) {
+  const data=fs.readFileSync(installed);
+  if(data.length!==expected.bytes || c.createHash('sha256').update(data).digest('hex')!==expected.sha256) throw Error('Installed native payload mismatch');
+ }
 }
+if(fs.realpathSync(process.argv[2])!==fs.realpathSync(p.join(meta,'bin/zg.exe')))throw Error('npm zg entry differs from materialized release');
 fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:manifest.version,packages:manifest.packages.map(x=>({name:x.name,sha256:x.sha256})),payload_verified:true}));
 """
         result = await self.exec_as_agent(environment, command=(
             "set -e; " + NVM + checks + "; "
             "npm install -g --offline --ignore-scripts --omit=optional --no-audit --no-fund "
             "/tmp/zg-official-release/platform.tgz /tmp/zg-official-release/main.tgz; "
-            f"node -e {Q(verify_js)} \"$(npm root -g)\"; "
-            'printf "ZG_RELEASE_BINARY=%s\\n" "$(npm root -g)/@zvec/zvec-grep-linux-x64-gnu/bin/zg"'
+            'node "$(npm root -g)/@zvec/zvec-grep/install.cjs"; '
+            f"node -e {Q(verify_js)} \"$(npm root -g)\" \"$(command -v zg)\"; "
+            'printf "ZG_RELEASE_BINARY=%s\\n" "$(npm root -g)/@zvec/zvec-grep/bin/zg.exe"'
         ))
         binary = self._parse_install_path(result.stdout, marker="ZG_RELEASE_BINARY")
         await self.exec_as_root(environment, command=f"ln -sf {Q(binary)} /usr/local/bin/zg")
@@ -154,6 +159,11 @@ fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:ma
         await self.exec_as_agent(environment, command="zg --server status --check-ready", cwd=workdir)
         for name in ("release_mcp_proxy.mjs", "mcp_probe.mjs"):
             await environment.upload_file(RESOURCES / name, "/tmp/" + name)
+        if self._technical_smoke:
+            # Verify all three native tools before the first model session,
+            # independently of the arm later exposed to that model.
+            await self.exec_as_agent(environment, command=NVM + f"node /tmp/mcp_probe.mjs http://127.0.0.1:7999/mcp agent {Q(workdir)} > /logs/agent/tool-surface.native.json",
+                                     cwd=workdir, env={"ZG_BENCH_RELEASE_PREFLIGHT": "1"})
         guidance_js = "const p=require('path'),o=require('os');console.log(p.join(process.env.XDG_CONFIG_HOME||p.join(o.homedir(),'.config'),'opencode','AGENTS.md'))"
         guidance = await self.exec_as_agent(environment, command=NVM + f"node -e {Q(guidance_js)}")
         guidance_path = guidance.stdout.strip().splitlines()[-1]

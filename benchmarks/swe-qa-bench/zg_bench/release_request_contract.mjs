@@ -35,7 +35,7 @@ export function repeatedToolError(messages, threshold = 3) {
     if (message.role !== "tool") continue;
     const call = calls.get(message.tool_call_id);
     const content = text(message.content);
-    if (!call || !(call.name === "invalid" || /^\s*(error\b|invalid\b|json parse error)/i.test(content))) { previous = null; count = 0; continue; }
+    if (!call || !(call.name === "invalid" || /^\s*(error\b|invalid\b|json parse error|failed to (deserialize parameters|validate|execute)|validation error\b)/i.test(content))) { previous = null; count = 0; continue; }
     let args = call.arguments;
     try { args = JSON.parse(args); } catch { /* Invalid arguments are evidence. */ }
     const fingerprint = stable({ tool: call.name, arguments: args, error: content });

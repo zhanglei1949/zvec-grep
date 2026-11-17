@@ -132,10 +132,12 @@ class ReleaseAccountingTests(unittest.TestCase):
                  patch("zg_bench.release_e2e.run_job", side_effect=failed_job) as jobs:
                 code = run(SimpleNamespace(release=Path(temp) / "release.json", output=output, execute_full=True))
             self.assertEqual(code, 2)
-            self.assertEqual(jobs.call_count, 3)
+            self.assertEqual(jobs.call_count, 1)
             self.assertTrue(all(call.kwargs["number"] == 0 for call in jobs.call_args_list))
             self.assertFalse((output / "round-1").exists())
-            self.assertFalse(json.loads((output / "smoke-gate.json").read_text())["passed"])
+            gate = json.loads((output / "smoke-gate.json").read_text())
+            self.assertFalse(gate["passed"])
+            self.assertEqual(gate["not_started_groups"], ["agent", "relationships"])
 
     def test_release_workflow_keeps_source_flow_and_uploads_failed_smoke(self):
         import yaml

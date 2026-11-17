@@ -92,6 +92,12 @@ test("guard stops the third identical error, resets after progress, and retains 
   const progress = failed("success", "read", "source code");
   assert.equal(repeatedToolError([...first, ...progress, ...failed("c")]), null);
   assert.equal(repeatedToolError([...first, ...failed("c", "invalid", "different error")]), null);
+  const argumentError = 'failed to deserialize parameters: unknown field `value`, expected one of `root`, `fts`, `globs`';
+  const wrapped = '{"value":"{\\"fts\\": normalize, \\"globs\\": lib.rs}"}';
+  const actualShape = [...failed("x", "zvec_grep_zvec_grep_search", argumentError, wrapped),
+    ...failed("y", "zvec_grep_zvec_grep_search", argumentError, wrapped),
+    ...failed("z", "zvec_grep_zvec_grep_search", argumentError, wrapped)];
+  assert.equal(repeatedToolError(actualShape).count, 3);
 });
 
 test("recorder preserves raw malformed SSE and blocks a repeated-error request before the provider", async () => {
@@ -123,8 +129,8 @@ test("recorder preserves raw malformed SSE and blocks a repeated-error request b
     assert.equal(await (await send(body)).text(), raw);
     const loop = structuredClone(body);
     for (let index = 0; index < 3; index++) loop.messages.push(
-      { role: "assistant", tool_calls: [{ id: String(index), function: { name: "invalid", arguments: '{"error":"JSON Parse error"}' } }] },
-      { role: "tool", tool_call_id: String(index), content: "JSON Parse error" });
+      { role: "assistant", tool_calls: [{ id: String(index), function: { name: "zvec_grep_zvec_grep_callees", arguments: '{"value":"bad arguments"}' } }] },
+      { role: "tool", tool_call_id: String(index), content: 'failed to deserialize parameters: unknown field `value`, expected one of `root`, `symbol`, `globs`' });
     assert.equal((await send(loop)).status, 400);
     assert.equal(forwarded, 1);
   } finally {
