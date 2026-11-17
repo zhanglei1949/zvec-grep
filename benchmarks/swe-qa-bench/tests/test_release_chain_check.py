@@ -57,7 +57,7 @@ class ChainCheckTests(unittest.TestCase):
         calls = [{"name": "zvec_grep_zvec_grep_search", "input": CASES[0]["arguments"], "session_id": actor,
                   "call_id": actor, "status": "completed", "output": output, "started_at": stamp, "finished_at": stamp + 50}
                  for actor, stamp in [("root", 200), ("child", 300)]]
-        mcp = [{"sequence": sequence, "name": "zvec_grep_search", "arguments": CASES[0]["arguments"], "status": "succeeded"} for sequence in (1, 2, 3)]
+        mcp = [{"sequence": sequence, "name": "zvec_grep_search", "arguments": CASES[0]["arguments"], "status": "succeeded", "text": output} for sequence in (1, 2, 3)]
         return {"status": "completed", "surface": surface, "native_surface": copy.deepcopy(surface), "session_usage": {"root_session_id": "root"},
                 "calls": calls, "model_attempts": [{"name": "zvec_grep_zvec_grep_search", "valid_json": True, "schema_valid": True}],
                 "context_errors": [], "mcp": {"calls": mcp}, "evidence": str(directory)}
@@ -79,6 +79,15 @@ class ChainCheckTests(unittest.TestCase):
             row["mcp"]["calls"] += [{"sequence": 2, "name": "zvec_grep_search", "arguments": CASES[0]["arguments"], "status": "succeeded"}]
             row["surface"]["instructions"] = "altered"
             self.assertFalse(evaluate(CASES[0], row)["published_guidance_schema_unchanged"])
+
+    def test_one_millisecond_state_lag_needs_identical_payload_and_unique_rpc(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            row = self.row(root)
+            row["calls"][0]["started_at"] = 211
+            self.assertTrue(evaluate(CASES[0], row)["actors"]["main"]["passed"])
+            row["mcp"]["calls"][1]["text"] = "different source"
+            self.assertFalse(evaluate(CASES[0], row)["actors"]["main"]["passed"])
 
     def test_workflow_chain_mode_cannot_fall_through_to_formal(self):
         workflow = yaml.load((ROOT.parents[1] / ".github/workflows/swe-qa-bench.yml").read_text(), Loader=yaml.BaseLoader)

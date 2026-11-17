@@ -52,7 +52,7 @@ def useful_output(tool: str, output: str) -> dict:
     source = (ROOT / "fixtures/caller-callee-dev/lib.rs").read_text().splitlines()
     if tool == "search":
         correct = "lib.rs:2" in output and "normalize" in output and "value.max(0)" in output
-        return {"correct_and_useful": correct, "expected": "normalization definition at lib.rs:2, including max(0)"}
+        return {"correct_and_useful": correct, "contains_useful_information": correct, "expected": "normalization definition at lib.rs:2, including max(0)"}
     actual = {(int(line), int(column)) for line, column in re.findall(r"call at lib\.rs:(\d+):(\d+)", output)}
     if tool == "callers":
         expected = {(index, line.index("save(") + 1) for index, line in enumerate(source, 1) if line.startswith(("pub fn import_record", "pub fn export_record"))}
@@ -62,8 +62,11 @@ def useful_output(tool: str, output: str) -> dict:
         endpoints = bool(re.search(r"\bnormalize\s+lib\.rs:2\b", output))
     matched_definition = bool(re.search(r"^(?:::)?save\s+lib\.rs:4\b", output))
     return {"correct_and_useful": matched_definition and endpoints and actual == expected,
+            "contains_useful_information": bool(matched_definition and endpoints and actual & expected),
             "matched_definition_correct": matched_definition,
-            "expected_call_sites": sorted(expected), "actual_call_sites": sorted(actual)}
+            "expected_call_sites": sorted(expected), "actual_call_sites": sorted(actual),
+            "correct_call_sites": sorted(actual & expected), "unexpected_call_sites": sorted(actual - expected),
+            "missing_call_sites": sorted(expected - actual)}
 
 
 def session_evidence(row: dict) -> tuple[str | None, list[dict], dict | None]:
@@ -99,10 +102,20 @@ def evaluate(case: dict, row: dict) -> dict:
         checks = []
         for call in selected:
             source = useful_output(case["tool"], call.get("output") or "")
+            # OpenCode's state timestamp can lag the proxy's send timestamp by
+            # one millisecond. Also require exact parameters, matching text and
+            # a unique RPC candidate; timestamps alone cannot assign an actor.
             wire = [rpc["sequence"] for rpc in agent_rpc if rpc["name"].endswith("zvec_grep_" + case["tool"]) and rpc["arguments"] == case["arguments"] and rpc["status"] == "succeeded"
-                    and (call.get("started_at") or 0) <= rpc_times[rpc["sequence"]] <= (call.get("finished_at") or 0)]
+                    and rpc.get("text", "").strip() == (call.get("output") or "").strip()
+                    and (call.get("started_at") or 0) - 5 <= rpc_times[rpc["sequence"]] <= (call.get("finished_at") or 0)]
+            if len(wire) != 1:
+                wire = []
             checks.append({"call_id": call["call_id"], "session_id": call["session_id"], "status": call["status"], "source": source, "mcp_sequences": wire})
-        actor_rows[actor] = {"passed": bool(root_id and any(check["status"] == "completed" and check["source"]["correct_and_useful"] and check["mcp_sequences"] for check in checks)), "calls": checks}
+        actor_rows[actor] = {
+            "executed_successfully": bool(root_id and any(check["status"] == "completed" and check["mcp_sequences"] for check in checks)),
+            "contains_useful_information": bool(root_id and any(check["status"] == "completed" and check["source"]["contains_useful_information"] and check["mcp_sequences"] for check in checks)),
+            "passed": bool(root_id and any(check["status"] == "completed" and check["source"]["correct_and_useful"] and check["mcp_sequences"] for check in checks)),
+            "calls": checks}
     target_attempts = [attempt for attempt in row.get("model_attempts", []) if attempt["name"].endswith("zvec_grep_" + case["tool"])]
     result = {"case": case, "session_status": row["status"], "root_session_id": root_id,
               "published_guidance_schema_unchanged": unchanged, "actual_context_verified": context_correct,
@@ -117,9 +130,9 @@ def evaluate(case: dict, row: dict) -> dict:
 
 def render(results: list[dict]) -> str:
     lines = ["# 0.3.1 最小参数与可选参数验收", "", "每项1个独立 OpenCode 会话；全部保留发布版三个工具、schema及指导。未运行QA20和评分。", "",
-             "| 项目 | 主Agent有效调用 | 子代理有效调用 | 会话完成 | 指导/schema原样保留 | 参数错误尝试 | 验收 |", "|---|---|---|---|---|---:|---|"]
+             "| 项目 | 主Agent执行成功 | 子代理执行成功 | 返回全部正确 | 会话完成 | 指导/schema原样保留 | 参数错误尝试 | 验收 |", "|---|---|---|---|---|---|---:|---|"]
     for result in results:
-        row = [result["case"]["id"], *[str(result["actors"][actor]["passed"]) for actor in ("main", "child")], result["session_status"],
+        row = [result["case"]["id"], *[str(result["actors"][actor]["executed_successfully"]) for actor in ("main", "child")], str(all(result["actors"][actor]["passed"] for actor in ("main", "child"))), result["session_status"],
                str(result["published_guidance_schema_unchanged"]), str(result["invalid_schema_attempts"]), str(result["passed"])]
         lines.append("| " + " | ".join(row) + " |")
     lines += ["", "有效调用要求：参数与该项设定完全一致，实际到达MCP并成功，返回结果与独立fixture源码相符。", "",

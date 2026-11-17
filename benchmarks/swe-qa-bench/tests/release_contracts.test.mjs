@@ -98,6 +98,8 @@ test("guard stops the third identical error, resets after progress, and retains 
     ...failed("y", "zvec_grep_zvec_grep_search", argumentError, wrapped),
     ...failed("z", "zvec_grep_zvec_grep_search", argumentError, wrapped)];
   assert.equal(repeatedToolError(actualShape).count, 3);
+  const wrappedErrors = actualShape.map((message) => message.role === "tool" ? { ...message, content: "The arguments provided to the tool are invalid: " + argumentError } : message);
+  assert.equal(repeatedToolError(wrappedErrors).count, 3);
 });
 
 for (const bounded of [false, true]) {
