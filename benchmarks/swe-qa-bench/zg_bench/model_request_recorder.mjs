@@ -44,6 +44,16 @@ const server = http.createServer(async (request, response) => {
         throw new Error("Installed AGENTS.md or MCP instructions absent from actual system message");
       const names = body.tools.map((t) => t.function.name);
       if (!contract.tool_names.every((name) => names.includes(name))) throw new Error("Relationship tool absent");
+      if (contract.schema_profile === "canonical-relationships") {
+        for (const name of contract.tool_names) {
+          const parameters = body.tools.find((t) => t.function.name === name).function.parameters;
+          const filters = parameters?.properties;
+          if (filters?.globs?.type !== "array" || filters.globs.items?.type !== "object" ||
+              filters.insensitiveGlobs?.type !== "array" || filters.insensitiveGlobs.items?.type !== "string" ||
+              /"(?:\$ref|\$defs|anyOf|oneOf)"\s*:/.test(JSON.stringify(parameters)))
+            throw new Error("Actual relationship schema is not canonical");
+        }
+      }
       if (!firstTaskChecked && (body.messages.length !== 2 || body.messages[0].role !== "system" || body.messages[1].role !== "user"))
         throw new Error("First task request contains previous conversation history");
       if (body.tool_choice !== "auto") throw new Error("Expected voluntary API tool_choice=auto");

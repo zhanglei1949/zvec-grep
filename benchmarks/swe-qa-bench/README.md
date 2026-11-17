@@ -4,6 +4,12 @@
 
 # SWE-QA benchmark
 
+The [canonical relationship schema acceptance protocol](docs/canonical-schema-acceptance-20261117.md)
+uses one gated Xarray pilot, followed by at most four fresh sessions. It preserves
+the preceding guidance, checks actual outbound schemas before forwarding, and
+stops repeated invalid-action loops. Local preparation is complete; no real
+session has run yet. This diagnostic does not run the full suite or a judge.
+
 ## Caller/callee tool experiment
 
 The [fresh-session explicit guidance diagnostic](docs/caller-callee-fresh-guidance-20261116.md)

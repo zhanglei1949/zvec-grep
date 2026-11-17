@@ -73,14 +73,15 @@ def start_node(script, arguments, output, processes):
     return json.loads(control)
 
 
-def trial(directory, question, base, upstream, api_key, *, contract_only=False):
+def trial(directory, question, base, upstream, api_key, *, contract_only=False,
+          mcp_upstream="http://127.0.0.1:18991/mcp", answer_runner=None):
     directory.mkdir(parents=True)
     processes = []
     metadata = {"contract_only": contract_only, "started": time.time(), "complete": False}
     try:
         guidance, instructions = matching_guidance(base)
         (directory / "instructions.txt").write_text(instructions)
-        proxy = start_node(ROOT / "fixed_search_proxy.mjs", ["http://127.0.0.1:18991/mcp", directory / "mcp-execution.jsonl", directory / "mcp.closed", directory / "instructions.txt"], directory, processes)
+        proxy = start_node(ROOT / "fixed_search_proxy.mjs", [mcp_upstream, directory / "mcp-execution.jsonl", directory / "mcp.closed", directory / "instructions.txt"], directory, processes)
         env = {**os.environ, "XDG_CONFIG_HOME": str(directory / "config"), "XDG_DATA_HOME": str(directory / "data"),
                "XDG_STATE_HOME": str(directory / "state"), "XDG_CACHE_HOME": str(directory / "cache"),
                "ZVEC_GREP_GUIDANCE_VARIANT": "direct", "ZVEC_GREP_INSTALL_SKIP_SERVER": "1", "ZVEC_GREP_SERVER_URL": proxy["url"],
@@ -101,6 +102,8 @@ def trial(directory, question, base, upstream, api_key, *, contract_only=False):
             raise ValueError("Live guidance or relationship tool definitions differ")
         save(directory / "surface.json", surface)
         contract = {"guidance": guidance, "instructions": instructions, "tool_names": ["zvec_grep_" + t["name"] for t in surface["tools"]]}
+        if mcp_upstream.endswith("/mcp/canonical"):
+            contract["schema_profile"] = "canonical-relationships"
         save(directory / "request-contract.json", contract)
         recorder = start_node(ROOT / "model_request_recorder.mjs", [upstream, directory / "model-requests.jsonl", directory / "recorder.closed", directory / "request-contract.json"], directory, processes)
         config = build_opencode_config(resolve_opencode_model("custom-openai/glm-5.2").configuration, profile="zvec-grep", tool_experiment=True)
@@ -114,7 +117,9 @@ def trial(directory, question, base, upstream, api_key, *, contract_only=False):
         with (directory / "opencode.jsonl").open("w") as stdout, (directory / "opencode.stderr").open("w") as stderr:
             command = ["opencode", "run", "--dir", "/app", "--format", "json", "--model", "custom-openai/glm-5.2", "--dangerously-skip-permissions", "--", question]
             save(directory / "command.json", command)
-            result = subprocess.run(command, cwd="/app", env=env, stdout=stdout, stderr=stderr, timeout=900)
+            result = (answer_runner or subprocess.run)(command, cwd="/app", env=env, stdout=stdout, stderr=stderr, timeout=900)
+        if getattr(result, "stop_reason", None):
+            metadata["stop_reason"] = result.stop_reason
         metadata["returncode"] = result.returncode
         snapshot = json.loads(run(["opencode", "db", CALL_AUDIT_SQL, "--format", "json"], cwd="/app", output=directory / "snapshot-command.json", env=env))
         save(directory / "session-snapshot.json", snapshot)
@@ -124,6 +129,7 @@ def trial(directory, question, base, upstream, api_key, *, contract_only=False):
             raise ValueError("Expected one fresh root session")
         usage = summarize_session_usage(snapshot, next(iter(root_ids)), capture_complete=result.returncode == 0)
         save(directory / "session-usage.json", usage)
+        metadata["usage"] = usage["total"]
         calls = session_tool_calls(snapshot, {s["session_id"] for s in usage["sessions"]})
         save(directory / "tool-calls.json", calls)
         answers = [e["part"].get("text", "") for e in events if e.get("type") == "text" and e.get("part", {}).get("type") == "text"]

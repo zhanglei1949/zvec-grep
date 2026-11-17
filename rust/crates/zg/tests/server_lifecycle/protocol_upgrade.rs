@@ -107,17 +107,18 @@ fn claude_reinstall_keeps_full_guidance_for_a_compatible_older_daemon() -> Resul
             .env("USERPROFILE", home.path())
             .env("ZVEC_GREP_HOME", home.path())
             .env("CLAUDE_CONFIG_DIR", &claude)
+            .env_remove("ZVEC_GREP_GUIDANCE_VARIANT")
             .env_remove("ZVEC_GREP_INSTALL_SKIP_SERVER")
             .env("ZVEC_GREP_SERVER_URL", server_url.unwrap_or(""));
         command.output()
     };
+    let full_guidance = zg_cli::retrieval_guidance(zg_cli::McpToolset::Full);
     for transport in ["stdio", "http"] {
         let output = install(transport, None)?;
         assert_command_success(&output);
         assert!(String::from_utf8_lossy(&output.stderr).contains("Kept the full Claude guidance"));
         let installed = std::fs::read_to_string(&guidance)?;
-        assert!(installed.contains("### Retrieval routing"), "{installed}");
-        assert!(installed.contains("requires an explicit user request or authorization"));
+        assert!(installed.contains(full_guidance), "{installed}");
         assert_eq!(instance_record(home.path())?, older_record);
     }
 
@@ -129,10 +130,10 @@ fn claude_reinstall_keeps_full_guidance_for_a_compatible_older_daemon() -> Resul
         assert!(installed.starts_with("# Personal guidance\n"));
         assert_eq!(installed.matches("<!-- ZVEC_GREP_START -->").count(), 1);
         assert!(installed.contains("Follow the connected zvec-grep MCP server instructions"));
-        assert!(!installed.contains("### Retrieval routing"));
+        assert!(!installed.contains(full_guidance));
     }
     assert_command_success(&install("http", Some("http://127.0.0.1:1/mcp"))?);
-    assert!(std::fs::read_to_string(guidance)?.contains("### Retrieval routing"));
+    assert!(std::fs::read_to_string(guidance)?.contains(full_guidance));
     assert_command_success(&guard.stop()?);
     Ok(())
 }

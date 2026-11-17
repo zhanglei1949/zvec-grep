@@ -104,12 +104,9 @@ pub(crate) async fn run_server(
     };
     let shutdown = CancellationToken::new();
     let runtimes = WorkspaceRuntimeManager::native_with_idle_ttl(Arc::clone(&engine), idle_ttl);
-    let mcp_server = build_mcp_server(
-        config.mcp_toolset.unwrap_or_default(),
-        &engine,
-        &runtimes,
-        &shutdown,
-    );
+    let toolset = config.mcp_toolset.unwrap_or_default();
+    let mcp_server = build_mcp_server(toolset, &engine, &runtimes, &shutdown);
+    let canonical_server = build_mcp_server(toolset, &engine, &runtimes, &shutdown);
     let mcp_config = StreamableHttpServerConfig::default()
         .with_cancellation_token(shutdown.child_token())
         .with_allowed_hosts([
@@ -119,27 +116,22 @@ pub(crate) async fn run_server(
             config.listen.socket_addr().to_string(),
         ])
         .with_max_request_body_bytes(1024 * 1024);
-    let mcp_service = StreamableHttpService::new(
-        move || Ok(mcp_server.clone()),
-        Arc::new(crate::mcp_sessions::BoundedSessionManager::default()),
-        mcp_config,
-    );
     let app = Router::new()
         .route("/healthz", get(health))
         .route("/control/shutdown", post(request_shutdown))
         .route("/admin/execute", post(execute_command))
         .route("/admin/index", post(stream_index))
-        .nest_service("/mcp", mcp_service)
-        .layer(axum::middleware::from_fn_with_state(
-            token,
-            crate::authentication::authenticate,
-        ))
         .with_state(ControlState {
             shutdown: shutdown.clone(),
             listen_port,
             engine: Arc::clone(&engine),
             runtimes: runtimes.clone(),
-        });
+        })
+        .merge(mcp_routes(mcp_server, canonical_server, mcp_config))
+        .layer(axum::middleware::from_fn_with_state(
+            token,
+            crate::authentication::authenticate,
+        ));
 
     if let Err(error) = instance.mark_ready().await {
         instance.release().await?;
@@ -168,6 +160,27 @@ pub(crate) async fn run_server(
     let release_result = instance.release().await;
     serve_result?;
     release_result
+}
+
+fn mcp_routes(
+    legacy: ZvecGrepMcpServer,
+    canonical: ZvecGrepMcpServer,
+    config: StreamableHttpServerConfig,
+) -> Router {
+    let legacy_service = StreamableHttpService::new(
+        move || Ok(legacy.clone()),
+        Arc::new(crate::mcp_sessions::BoundedSessionManager::default()),
+        config.clone(),
+    );
+    let canonical = canonical.with_canonical_relationship_schema();
+    let canonical_service = StreamableHttpService::new(
+        move || Ok(canonical.clone()),
+        Arc::new(crate::mcp_sessions::BoundedSessionManager::default()),
+        config,
+    );
+    Router::new()
+        .nest_service("/mcp", legacy_service)
+        .nest_service("/mcp/canonical", canonical_service)
 }
 
 fn build_mcp_server(
@@ -518,6 +531,9 @@ async fn execute_relationships(
             .map(reply),
     )
 }
+
+#[cfg(test)]
+mod mcp_tests;
 
 #[cfg(test)]
 mod tests {

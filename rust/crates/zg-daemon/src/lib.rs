@@ -1,7 +1,8 @@
 //! Daemon lifecycle and loopback HTTP host.
 //!
 //! The daemon owns one reusable `ZvecGrep` instance. It exposes the selected agent or
-//! full MCP toolset at `/mcp`, a health probe, a local shutdown endpoint, and a
+//! full MCP toolset at `/mcp`, an opt-in relationship schema view at
+//! `/mcp/canonical`, a health probe, a local shutdown endpoint, and a
 //! concurrency-safe stdio bootstrap proxy.
 
 mod authentication;

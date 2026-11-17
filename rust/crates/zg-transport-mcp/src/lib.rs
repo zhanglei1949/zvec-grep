@@ -4,6 +4,7 @@
 //! into typed requests executed by the engine or the resident workspace provider.
 
 mod consent;
+mod relationship_schema;
 mod request;
 mod rg_format;
 mod search_format;
@@ -11,6 +12,8 @@ mod setup;
 
 pub use search_format::SearchPreview;
 
+#[cfg(test)]
+mod canonical_schema_tests;
 #[cfg(test)]
 mod relationships_tests;
 
@@ -334,6 +337,21 @@ impl ZvecGrepMcpServer {
             consent_state: Arc::new(consent::ContinuationState::default()),
             setup_state: Arc::new(setup::SetupState::default()),
         }
+    }
+
+    /// Advertise inline rule arrays for relationship filters without changing
+    /// the accepted runtime parameters or any other tool's schema.
+    ///
+    /// # Panics
+    /// Panics if a statically declared relationship route or its properties are missing.
+    #[must_use]
+    pub fn with_canonical_relationship_schema(mut self) -> Self {
+        for name in ["zvec_grep_callers", "zvec_grep_callees"] {
+            let route = self.router.map.get_mut(name).expect("relationship route");
+            route.attr.input_schema =
+                Arc::new(relationship_schema::canonical(&route.attr.input_schema));
+        }
+        self
     }
 
     async fn relationship_query(
@@ -895,6 +913,7 @@ pub struct SearchInput {
     pub embedding_concurrency: Option<usize>,
     /// False or omitted ranks each query group separately; true collapses all groups into one ranked plan.
     /// Example: {"query":"how are results ranked","fts":["RRF"],"fuse":true}.
+    #[allow(clippy::doc_link_with_quotes)] // Keep the existing public schema example verbatim.
     #[schemars(extend("type" = "boolean"))]
     pub fuse: Option<bool>,
     /// Prefer exact indexed symbols.

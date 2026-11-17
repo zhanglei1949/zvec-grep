@@ -296,7 +296,9 @@ fn stdio_install_is_idempotent_and_uninstall_preserves_user_content() {
     assert!(server.get("cwd").is_none());
     let guidance = fs::read_to_string(home.join("AGENTS.md")).expect("guidance");
     assert!(guidance.contains("mcp__zvec_grep__zvec_grep_search"));
-    assert!(guidance.contains("default agent toolset offers search only"));
+    assert!(guidance.contains("mcp__zvec_grep__zvec_grep_callers"));
+    assert!(guidance.contains("mcp__zvec_grep__zvec_grep_callees"));
+    assert!(guidance.contains("default agent toolset offers search and caller/callee queries"));
     assert!(guidance.contains("zg --auth grant"));
     assert!(guidance.contains("do not substitute `--allow-remote`"));
     assert!(guidance.contains("`autoUpdate` to `false`"));

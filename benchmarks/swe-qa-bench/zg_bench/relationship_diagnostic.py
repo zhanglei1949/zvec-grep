@@ -109,8 +109,9 @@ def definitions(root, anchors):
 
 
 class MCP:
-    def __init__(self, output):
+    def __init__(self, output, url="http://127.0.0.1:18991/mcp"):
         self.output = output
+        self.url = url
         self.headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
         self.sequence = 0
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -122,7 +123,7 @@ class MCP:
             payload["id"] = self.sequence
         entry = {"time": time.time(), "request": payload}
         try:
-            req = urllib.request.Request("http://127.0.0.1:18991/mcp", encoded(payload), self.headers)
+            req = urllib.request.Request(self.url, encoded(payload), self.headers)
             with self.opener.open(req, timeout=90) as response:
                 raw = response.read().decode()
                 entry.update(status=response.status, raw_response=raw)
@@ -147,7 +148,7 @@ class MCP:
                 out.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def prepare(task, root, output):
+def prepare(task, root, output, *, candidate=CANDIDATE, mcp_url="http://127.0.0.1:18991/mcp"):
     selection = json.loads((DATA / "selection-caller-callee.json").read_text())
     item = next(t for t in selection["tasks"] if t["task_slug"] == task)
     run(["git", "init", str(root)], cwd=output, output=output / "clone-init.json")
@@ -163,7 +164,7 @@ def prepare(task, root, output):
     (root / ".zg-bench-index.ignore").write_bytes(ignore.read_bytes())
     with (root / ".git/info/exclude").open("a") as out:
         out.write("\n.zg-bench-index.ignore\n")
-    manifest = {"candidate": CANDIDATE, "task": task, "source": item,
+    manifest = {"candidate": candidate, "task": task, "source": item,
                 "embedding": "local/potion-code-16m-v2", "binding": "@zvec/bindings-linux-x64@0.5.0",
                 "ignore_sha256": digest(ignore.read_bytes()), "anchors": ANCHORS[task],
                 "harness": os.environ.get("GITHUB_SHA"), "run_id": os.environ.get("GITHUB_RUN_ID")}
@@ -171,10 +172,10 @@ def prepare(task, root, output):
     run(["zg", "--index", "--graph", "--embedding", manifest["embedding"], "--ignore-file", ".zg-bench-index.ignore"], cwd=root, output=output / "index.json")
     run(["zg", "--status", "--check-ready"], cwd=root, output=output / "status.json")
     env = {**os.environ, "ZVEC_GREP_GUIDANCE_VARIANT": "direct", "ZVEC_GREP_INSTALL_SKIP_SERVER": "1",
-           "ZVEC_GREP_SERVER_URL": "http://127.0.0.1:18991/mcp", "XDG_CONFIG_HOME": str(output / "config")}
+           "ZVEC_GREP_SERVER_URL": mcp_url, "XDG_CONFIG_HOME": str(output / "config")}
     run(["zg", "--install", "--target", "opencode", "--mcp-transport", "http", "--mcp-toolset", "relationships", "--yes"], cwd=root, output=output / "install.json", env=env)
     run(["zg", "--server", "on", "--home", str(output / "daemon"), "--listen", "127.0.0.1:18991", "--mcp-toolset", "relationships"], cwd=root, output=output / "server.json", env=env)
-    mcp = MCP(output / "mcp-rpc.jsonl")
+    mcp = MCP(output / "mcp-rpc.jsonl", mcp_url)
     init = mcp.call("initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "zg-relationship-diagnostic", "version": "1"}})
     mcp.headers["MCP-Protocol-Version"] = init["protocolVersion"]
     mcp.call("notifications/initialized", {}, notification=True)

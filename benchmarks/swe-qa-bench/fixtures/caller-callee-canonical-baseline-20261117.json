@@ -1,0 +1,244 @@
+{
+  "guidance": "<!-- ZVEC_GREP_START -->\n## zvec-grep\nUse zvec-grep for relevant workspace evidence; use external sources for unrelated questions. Pass a daemon-visible absolute root.\nAvailable zg tools: zvec_grep_zvec_grep_callers and zvec_grep_zvec_grep_callees. Use native Grep/rg and focused read for discovery.\n- Identify a relevant function/method's definition file and scope; a full body read is not required. For field/type flow, locate the related functions first.\n- For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites. If the next step crosses a function boundary and caller/callee locations are still unknown, use the matching relationship tool before manual reference searches. Start with one symbol and needed direction; expand only for remaining gaps.\n- Reuse known relationships and locations; read directly if one function suffices. Check matched definitions. Results are definition and call-site locations, not code snippets; read relevant ranges for logic and order.\n- These are resolved direct calls, not complete data flow. Empty results do not prove absence; use focused Grep/read for gaps, dynamic calls or truncation. Stop when evidence is sufficient.\nRelationships require graph indexing and read persisted calls without refreshing.\nRequire explicit user authorization to create, rebuild or drop an index. Respect declined or cancelled index setup. Use sufficient search evidence without a status preflight; read source only for gaps.\n<!-- ZVEC_GREP_END -->\n",
+  "instructions": "Use zvec-grep for relevant workspace evidence; use external sources for unrelated questions. Pass a daemon-visible absolute root.\nAvailable zg tools: zvec_grep_callers and zvec_grep_callees. Use native Grep/rg and focused read for discovery.\n- Identify a relevant function/method's definition file and scope; a full body read is not required. For field/type flow, locate the related functions first.\n- For a known symbol's direct call relationships, use callers for incoming call sites or callees for outgoing call sites. If the next step crosses a function boundary and caller/callee locations are still unknown, use the matching relationship tool before manual reference searches. Start with one symbol and needed direction; expand only for remaining gaps.\n- Reuse known relationships and locations; read directly if one function suffices. Check matched definitions. Results are definition and call-site locations, not code snippets; read relevant ranges for logic and order.\n- These are resolved direct calls, not complete data flow. Empty results do not prove absence; use focused Grep/read for gaps, dynamic calls or truncation. Stop when evidence is sufficient.\nRelationships require graph indexing and read persisted calls without refreshing.\nRequire explicit user authorization to create, rebuild or drop an index. Respect declined or cancelled index setup. Use sufficient search evidence without a status preflight; read source only for gaps.",
+  "tools": [
+    {
+      "name": "zvec_grep_callees",
+      "description": "Locate persisted resolved direct callees of a project function or method. Once its definition file and scope are identified with search, Grep or read, use this before manual reference searches when downstream callee locations are still unknown. A full body read is not required. Reuse known relationships and locations. Returns symbol names, definition locations and call-site locations, not code snippets; read relevant source ranges for implementation, arguments and execution order. This is not every call expression or complete data flow. Accepts name, scope::name or scope.name; ::name selects top-level definitions. Queries matching more than 10 indexed definitions fail; narrow the scope or use globs. limit counts call sites per definition (default 20, maximum 50); a truncation notice marks omitted sites. Exact misses may return suggestions without call sites. Returns readable text with one-based line and byte-column numbers. Requires graph indexing enabled with zg --index --graph (add --rebuild for an existing index). Reads persisted resolved calls without refreshing; empty results do not prove absence.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": {
+          "GlobListInput": {
+            "description": "Public string/list globs plus the existing typed-rule extension.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/GlobInput"
+                }
+              }
+            ]
+          },
+          "GlobInput": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "caseInsensitive": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "pattern"
+            ]
+          },
+          "PathListInput": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 1024
+                },
+                "maxItems": 128
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "properties": {
+          "root": {
+            "description": "Absolute workspace root visible to the daemon.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "symbol": {
+            "description": "Symbol name or scope-qualified name, such as `Class::method` or `Class.method`; `::name` selects only top-level definitions.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "globs": {
+            "description": "Ordered workspace-relative glob rules for definitions and suggestions; call-site files remain unrestricted.",
+            "anyOf": [
+              {
+                "$ref": "#/$defs/GlobListInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "insensitiveGlobs": {
+            "description": "Ordered case-insensitive glob rules, applied after globs, as in search.",
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PathListInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "description": "Maximum call sites per matching symbol; defaults to 20, capped at 50.",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "root",
+          "symbol"
+        ]
+      },
+      "annotations": {
+        "title": "Outgoing call sites for a symbol",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "zvec_grep_callers",
+      "description": "Locate persisted resolved direct callers of a project function or method. Once its definition file and scope are identified with search, Grep or read, use this before manual reference searches when upstream caller locations are still unknown. A full body read is not required. Reuse known relationships and locations. Returns symbol names, definition locations and call-site locations, not code snippets; read relevant source ranges for usage, arguments and branches. Accepts name, scope::name or scope.name; ::name selects top-level definitions. Queries matching more than 10 indexed definitions fail; narrow the scope or use globs. limit counts call sites per definition (default 20, maximum 50); a truncation notice marks omitted sites. Exact misses may return suggestions without call sites. Returns readable text with one-based line and byte-column numbers. Requires graph indexing enabled with zg --index --graph (add --rebuild for an existing index). Reads persisted resolved calls without refreshing; empty results do not prove absence.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": {
+          "GlobListInput": {
+            "description": "Public string/list globs plus the existing typed-rule extension.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/GlobInput"
+                }
+              }
+            ]
+          },
+          "GlobInput": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "caseInsensitive": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "pattern"
+            ]
+          },
+          "PathListInput": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 1024
+                },
+                "maxItems": 128
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "properties": {
+          "root": {
+            "description": "Absolute workspace root visible to the daemon.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "symbol": {
+            "description": "Symbol name or scope-qualified name, such as `Class::method` or `Class.method`; `::name` selects only top-level definitions.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "globs": {
+            "description": "Ordered workspace-relative glob rules for definitions and suggestions; call-site files remain unrestricted.",
+            "anyOf": [
+              {
+                "$ref": "#/$defs/GlobListInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "insensitiveGlobs": {
+            "description": "Ordered case-insensitive glob rules, applied after globs, as in search.",
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PathListInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "description": "Maximum call sites per matching symbol; defaults to 20, capped at 50.",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "root",
+          "symbol"
+        ]
+      },
+      "annotations": {
+        "title": "Incoming call sites for a symbol",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

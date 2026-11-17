@@ -461,6 +461,40 @@ search. These queries do not load models or refresh the index.
 Graph extraction and resolution must have populated the index for call edges to
 be available; unresolved references are excluded from results.
 
+The HTTP daemon also exposes an opt-in `/mcp/canonical` endpoint. `/mcp` remains
+the default and retains its existing schemas. The canonical endpoint uses the
+same tool names, instructions and execution handlers, but advertises inline rule
+arrays for callers/callees `globs` and string arrays for `insensitiveGlobs`, without
+nullable unions or schema references. Other tool schemas are unchanged. For example:
+
+```json
+{"root":"/workspace","symbol":"Example.update","globs":[{"pattern":"src/example.py","caseInsensitive":false}],"limit":20}
+```
+
+Omit optional filters to use their defaults. Both endpoints preserve the existing
+runtime decoding and validation, including rejection of explicit `null`; valid
+legacy string/list inputs still execute with the same semantics. Clients that
+validate their requests against the legacy schema should continue using `/mcp`.
+The endpoints have independent HTTP session managers and share the same engine,
+authentication, host/origin checks and shutdown lifecycle.
+
+With the daemon already running, select the canonical endpoint when installing
+the HTTP integration, using the daemon's actual host and port:
+
+```sh
+ZVEC_GREP_SERVER_URL=http://127.0.0.1:7999/mcp/canonical \
+  zg --install --target opencode --mcp-transport http --yes
+```
+
+This does not migrate existing installations or change the default stdio bridge.
+It is a schema compatibility measure; interoperability with a particular model
+service requires separate verification. To export the current relationship tool
+definitions without models or indexes, run from `rust/`:
+
+```sh
+cargo run --offline -p zg-transport-mcp --example relationship_schemas
+```
+
 This version indexes text and code with one embedding model per workspace. Choose
 it with `zg --index --embedding <model>` or set a default with
 `zg --config model set <model> --default`. Code, documents and structured text use
