@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ARM_TOOLS, pruneGuidance, pruneManagedGuidance, startArmProxy } from "../zg_bench/release_mcp_proxy.mjs";
@@ -90,4 +92,51 @@ test("guard stops the third identical error, resets after progress, and retains 
   const progress = failed("success", "read", "source code");
   assert.equal(repeatedToolError([...first, ...progress, ...failed("c")]), null);
   assert.equal(repeatedToolError([...first, ...failed("c", "invalid", "different error")]), null);
+});
+
+test("recorder preserves raw malformed SSE and blocks a repeated-error request before the provider", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "zg-release-recorder-"));
+  let forwarded = 0;
+  const raw = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"zvec_grep_zvec_grep_callees","arguments":"{\\\"globs\\\": lib.rs}"}}]}}]}\n\ndata: [DONE]\n\n';
+  const upstream = http.createServer(async (request, response) => {
+    for await (const chunk of request) { /* Consume without logging credentials. */ }
+    forwarded++;
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write(raw.slice(0, 30)); response.end(raw.slice(30));
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  const schema = { type: "object", properties: { root: { type: "string" } } };
+  const contract = { mode: "release", terminate_isolated_agent: false, guidance: "release guidance", instructions: "MCP rules",
+    tool_names: ["zvec_grep_zvec_grep_callees"], schemas: { zvec_grep_zvec_grep_callees: schema } };
+  const contractFile = join(directory, "contract.json"), output = join(directory, "requests.jsonl"), closed = join(directory, "closed");
+  writeFileSync(contractFile, JSON.stringify(contract));
+  const child = spawn(process.execPath, [fileURLToPath(new URL("../zg_bench/model_request_recorder.mjs", import.meta.url)),
+    `http://127.0.0.1:${upstream.address().port}/v1`, output, closed, contractFile]);
+  let stderr = ""; child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const exit = new Promise((resolve) => child.once("exit", resolve));
+  try {
+    const ready = await new Promise((resolve, reject) => { child.stdout.once("data", (chunk) => resolve(JSON.parse(chunk))); child.once("error", reject); child.once("exit", () => reject(Error(stderr))); });
+    const body = { model: "glm-5.2", temperature: 0, seed: 42, max_tokens: 32000, enable_thinking: true, reasoning_effort: "high", tool_choice: "auto",
+      messages: [{ role: "system", content: 'release guidance\n<server name="zvec_grep">MCP rules</server>' }, { role: "user", content: "question" }],
+      tools: [{ function: { name: "zvec_grep_zvec_grep_callees", parameters: schema } }] };
+    const send = (value) => fetch(ready.baseURL + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer fake-secret-never-recorded" }, body: JSON.stringify(value) });
+    assert.equal(await (await send(body)).text(), raw);
+    const loop = structuredClone(body);
+    for (let index = 0; index < 3; index++) loop.messages.push(
+      { role: "assistant", tool_calls: [{ id: String(index), function: { name: "invalid", arguments: '{"error":"JSON Parse error"}' } }] },
+      { role: "tool", tool_call_id: String(index), content: "JSON Parse error" });
+    assert.equal((await send(loop)).status, 400);
+    assert.equal(forwarded, 1);
+  } finally {
+    child.kill("SIGTERM"); await exit;
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+  assert.equal(readFileSync(join(directory, "model-responses/1.raw"), "utf8"), raw);
+  const recorded = readFileSync(output, "utf8");
+  assert.ok(!recorded.includes("fake-secret-never-recorded"));
+  assert.ok(recorded.includes('"type":"guard_stop"'));
+  assert.ok(recorded.includes('"first_task_request":true'));
+  assert.equal(JSON.parse(readFileSync(join(directory, "guard-stop.json"))).reason, "repeated_tool_error");
+  assert.equal(readFileSync(closed, "utf8"), "closed\n");
+  rmSync(directory, { recursive: true });
 });
