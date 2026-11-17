@@ -1567,6 +1567,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "harbor" },
+    { name = "jsonschema" },
     { name = "litellm" },
     { name = "pyyaml" },
 ]
@@ -1574,6 +1575,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "harbor", specifier = "==0.18.0" },
+    { name = "jsonschema", specifier = "==4.23.0" },
     { name = "litellm", specifier = "==1.83.14" },
     { name = "pyyaml", specifier = ">=6.0.2,<7" },
 ]

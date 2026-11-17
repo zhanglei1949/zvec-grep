@@ -4,6 +4,15 @@
 
 # SWE-QA benchmark
 
+## Official 0.3.1 Caller/Callee E2E
+
+The [release protocol](docs/caller-callee-release-e2e-0.3.1.md) uses the official
+npm main/platform packages and published guidance. Set `release_e2e=true` in
+`swe-qa-bench.yml`: three independent development smokes gate all 900 formal
+QA20 trials (20 tasks × 3 arms × 5 repeats × 3 rounds). Product schemas,
+arguments and search defaults remain unchanged. Source-candidate experiments
+and historical reports keep their existing behavior.
+
 ## Caller/callee tool experiment
 
 The [fresh-session explicit guidance diagnostic](docs/caller-callee-fresh-guidance-20261116.md)

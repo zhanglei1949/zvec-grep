@@ -91,6 +91,10 @@ if (fixture) {
           root: fixture,
           symbol: name.endsWith("callers") ? "normalize" : "import_record",
         };
+    if (process.env.ZG_BENCH_RELEASE_PREFLIGHT === "1") {
+      args.globs = "lib.rs";
+      if (!name.endsWith("search")) args.limit = 20;
+    }
     const result = await request(
       "tools/call",
       { name, arguments: args },

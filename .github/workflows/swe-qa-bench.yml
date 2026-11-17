@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / ${{ inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
+run-name: SWE-QA Bench / ${{ inputs.release_e2e && 'release-0.3.1-gated-900' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -26,6 +26,10 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      release_e2e:
+        description: Official 0.3.1 package and guidance; gate three smokes before 900 QA20 trials
+        type: boolean
+        default: false
       candidate_ref:
         description: Rust source branch, tag, or commit to benchmark
         required: true
@@ -307,7 +311,7 @@ jobs:
           path: ${{ runner.temp }}/tool-preflight/
 
   package-candidate:
-    if: ${{ inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' && inputs.experiment_phase != 'fresh-guidance-e2e' }}
+    if: ${{ !inputs.release_e2e && inputs.experiment_phase != 'oracle-capability' && inputs.experiment_phase != 'branch-replay' && inputs.experiment_phase != 'branch-execute' && inputs.experiment_phase != 'fresh-guidance-e2e' }}
     name: Build selected Rust candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -500,12 +504,76 @@ jobs:
           path: ${{ runner.temp }}/swe-qa-task-report/${{ matrix.task }}/
           if-no-files-found: warn
           retention-days: 90
+
       - name: Save this task's populated zvec index seed
         if: inputs.embedding == 'local' && success() && steps.zvec-index-seed-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: ${{ runner.temp }}/swe-qa-index-seed
           key: ${{ steps.zvec-index-seed-restore.outputs.cache-primary-key }}
+
+  release-e2e:
+    if: ${{ inputs.release_e2e }}
+    name: Official 0.3.1 / gated three-arm QA20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      - *authorize-benchmark
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install locked benchmark dependencies
+        run: |
+          python -m pip install --disable-pip-version-check uv==0.9.17
+          uv sync --project benchmarks/swe-qa-bench --frozen
+      - name: Validate QA20 and offline release contracts
+        run: |
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa validate \
+            --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json \
+            --references benchmarks/swe-qa-bench/zg_bench/swe_qa/data/references.json \
+            --dataset benchmarks/swe-qa-bench/datasets
+          uv run --project benchmarks/swe-qa-bench python -m unittest discover -s benchmarks/swe-qa-bench/tests -p 'test_release*.py' -v
+      - name: Download and verify the official release
+        run: >-
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e fetch-release
+          --output "$RUNNER_TEMP/official-release"
+      - name: Technical smokes then three formal rounds
+        timeout-minutes: 330
+        env:
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
+        run: >-
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e run
+          --release "$RUNNER_TEMP/official-release/release.json"
+          --output "$RUNNER_TEMP/qa20-release-e2e" --execute-full
+      - name: Reject credential leakage in release evidence
+        id: release-secret-scan
+        if: always() && steps.authorize.outcome == 'success'
+        env:
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        run: >-
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan
+          --secret-env GLM_API_KEY --root "$RUNNER_TEMP/qa20-release-e2e"
+          --root "$RUNNER_TEMP/official-release"
+      - name: Preserve release evidence including blocked smoke
+        if: always() && steps.authorize.outcome == 'success' && steps.release-secret-scan.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa20-release-0.3.1-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/qa20-release-e2e/
+            ${{ runner.temp }}/official-release/
+          if-no-files-found: error
+          retention-days: 90
 
   aggregate-report:
     name: Aggregate completed task reports
@@ -741,7 +809,7 @@ jobs:
           retention-days: 90
 
   relationship-diagnostic:
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute' || inputs.experiment_phase == 'fresh-guidance-e2e') }}
+    if: ${{ !inputs.release_e2e && github.event_name == 'workflow_dispatch' && (inputs.experiment_phase == 'oracle-capability' || inputs.experiment_phase == 'branch-replay' || inputs.experiment_phase == 'branch-execute' || inputs.experiment_phase == 'fresh-guidance-e2e') }}
     name: Relationship diagnostic / ${{ matrix.task }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80

@@ -4,6 +4,14 @@
 
 # SWE-QA benchmark
 
+## 官方 0.3.1 Caller/Callee E2E
+
+[发布版评测协议与运行方式](docs/caller-callee-release-e2e-0.3.1.md)：使用官方 npm
+主包与 Linux 平台包，按发布版原文裁剪三组指导。独立开发 fixture 的三组技术冒烟
+全部通过后，运行 QA20 每题每组每轮5次、共3轮，正式样本900次。
+入口为 `swe-qa-bench.yml` 的 `release_e2e=true`。该入口独立于下文的源码候选实验，
+不调整产品 schema 或 search 参数，不合并历史结果。
+
 ## Caller/Callee 三组 E2E 实验（v1）
 
 [2026-11-12 全量结果与实际调用](docs/caller-callee-e2e-results-20261112.md)：
