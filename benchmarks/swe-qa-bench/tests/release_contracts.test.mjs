@@ -100,7 +100,8 @@ test("guard stops the third identical error, resets after progress, and retains 
   assert.equal(repeatedToolError(actualShape).count, 3);
 });
 
-test("recorder preserves raw malformed SSE and blocks a repeated-error request before the provider", async () => {
+for (const bounded of [false, true]) {
+test(`recorder preserves raw SSE and enforces ${bounded ? "request budget" : "repeated-error stop"} before the provider`, async () => {
   const directory = mkdtempSync(join(tmpdir(), "zg-release-recorder-"));
   let forwarded = 0;
   const raw = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"zvec_grep_zvec_grep_callees","arguments":"{\\\"globs\\\": lib.rs}"}}]}}]}\n\ndata: [DONE]\n\n';
@@ -113,7 +114,7 @@ test("recorder preserves raw malformed SSE and blocks a repeated-error request b
   await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
   const schema = { type: "object", properties: { root: { type: "string" } } };
   const contract = { mode: "release", terminate_isolated_agent: false, guidance: "release guidance", instructions: "MCP rules",
-    tool_names: ["zvec_grep_zvec_grep_callees"], schemas: { zvec_grep_zvec_grep_callees: schema } };
+    tool_names: ["zvec_grep_zvec_grep_callees"], schemas: { zvec_grep_zvec_grep_callees: schema }, ...(bounded ? { max_task_requests: 1 } : {}) };
   const contractFile = join(directory, "contract.json"), output = join(directory, "requests.jsonl"), closed = join(directory, "closed");
   writeFileSync(contractFile, JSON.stringify(contract));
   const child = spawn(process.execPath, [fileURLToPath(new URL("../zg_bench/model_request_recorder.mjs", import.meta.url)),
@@ -128,7 +129,7 @@ test("recorder preserves raw malformed SSE and blocks a repeated-error request b
     const send = (value) => fetch(ready.baseURL + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer fake-secret-never-recorded" }, body: JSON.stringify(value) });
     assert.equal(await (await send(body)).text(), raw);
     const loop = structuredClone(body);
-    for (let index = 0; index < 3; index++) loop.messages.push(
+    for (let index = 0; !bounded && index < 3; index++) loop.messages.push(
       { role: "assistant", tool_calls: [{ id: String(index), function: { name: "zvec_grep_zvec_grep_callees", arguments: '{"value":"bad arguments"}' } }] },
       { role: "tool", tool_call_id: String(index), content: 'failed to deserialize parameters: unknown field `value`, expected one of `root`, `symbol`, `globs`' });
     assert.equal((await send(loop)).status, 400);
@@ -142,7 +143,8 @@ test("recorder preserves raw malformed SSE and blocks a repeated-error request b
   assert.ok(!recorded.includes("fake-secret-never-recorded"));
   assert.ok(recorded.includes('"type":"guard_stop"'));
   assert.ok(recorded.includes('"first_task_request":true'));
-  assert.equal(JSON.parse(readFileSync(join(directory, "guard-stop.json"))).reason, "repeated_tool_error");
+  assert.equal(JSON.parse(readFileSync(join(directory, "guard-stop.json"))).reason, bounded ? "request_budget_exhausted" : "repeated_tool_error");
   assert.equal(readFileSync(closed, "utf8"), "closed\n");
   rmSync(directory, { recursive: true });
 });
+}

@@ -4,6 +4,15 @@
 
 # SWE-QA benchmark
 
+## 0.3.1 minimal-argument chain acceptance
+
+`release_chain_check=true` runs seven independent development-fixture OpenCode
+sessions: minimal search/callers/callees and four separate fts/globs checks.
+Each checks the main agent and an explore child against actual MCP traffic and
+fixture source. All three published tools, schemas and guidance remain intact.
+The mode never starts QA20 or a judge. Each session has a 12-request/300-second
+cap and stops after three identical tool errors; failures do not suppress other cases.
+
 ## Official 0.3.1 Caller/Callee E2E
 
 The [release protocol](docs/caller-callee-release-e2e-0.3.1.md) uses the official

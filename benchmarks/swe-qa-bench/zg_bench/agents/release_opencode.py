@@ -24,7 +24,7 @@ NVM = 'if [ -s "$HOME/.nvm/nvm.sh" ]; then . "$HOME/.nvm/nvm.sh"; fi; '
 
 
 class ReleaseOpenCode(ZvecOpenCode):
-    def __init__(self, *args, release_bundle: str, round_number: int, technical_smoke: bool = False, **kwargs):
+    def __init__(self, *args, release_bundle: str, round_number: int, technical_smoke: bool = False, technical_request_limit: int | None = None, **kwargs):
         self._release_path = Path(release_bundle).resolve()
         self._release = verify_release(self._release_path)
         if self._release["platform"] != "linux-x64-gnu":
@@ -39,6 +39,9 @@ class ReleaseOpenCode(ZvecOpenCode):
         if not isinstance(technical_smoke, bool) or technical_smoke != (round_number == 0):
             raise ValueError("Technical smoke must use round zero")
         self._technical_smoke = technical_smoke
+        if technical_request_limit is not None and (not technical_smoke or type(technical_request_limit) is not int or technical_request_limit < 1):
+            raise ValueError("Request limits are only supported for technical sessions")
+        self._technical_request_limit = technical_request_limit
         kwargs.update(graph_index=True, collect_tool_calls=True, collect_session_usage=True, record_model_requests=True)
         kwargs["zvec_grep_package_sha256"] = self._release["packages"][0]["sha256"]
         super().__init__(*args, **kwargs)
@@ -193,6 +196,8 @@ fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:ma
 fs.writeFileSync('/logs/agent/request-contract.json',JSON.stringify({mode:'release',terminate_isolated_agent:true,
  guidance:s.guidance,instructions:s.instructions,tool_names:s.tools.map(t=>'zvec_grep_'+t.name),
  schemas:Object.fromEntries(s.tools.map(t=>['zvec_grep_'+t.name,t.inputSchema]))}));"""
+        if self._technical_request_limit is not None:
+            contract_js += f"const c=JSON.parse(fs.readFileSync('/logs/agent/request-contract.json'));c.max_task_requests={self._technical_request_limit};fs.writeFileSync('/logs/agent/request-contract.json',JSON.stringify(c));"
         await self.exec_as_agent(environment, command=NVM + f"node -e {Q(contract_js)}")
         provider = self.model_name.split("/", 1)[0]
         upstream = self._opencode_config["provider"][provider]["options"]["baseURL"]

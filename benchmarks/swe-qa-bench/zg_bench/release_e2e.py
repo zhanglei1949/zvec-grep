@@ -207,11 +207,15 @@ def check_smoke(row: dict) -> list[str]:
     return errors
 
 
-def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False) -> list[dict]:
+def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None) -> list[dict]:
     destination = output / ("smoke" if smoke else f"round-{number}") / group / task
     destination.mkdir(parents=True, exist_ok=False)
     jobs = destination / "jobs"
     command = release_command(suite, manifest, jobs, group, number, overlay=overlay, smoke=smoke)
+    if request_limit is not None:
+        if not smoke:
+            raise ValueError("Request limit applies only to technical sessions")
+        command += ["--agent-kwarg", f"technical_request_limit={request_limit}"]
     write_json(destination / "command.json", command)
     started = time.monotonic()
     with (destination / "harbor.stdout").open("w") as stdout, (destination / "harbor.stderr").open("w") as stderr:

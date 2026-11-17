@@ -13,6 +13,7 @@ const responsesDirectory = join(dirname(output), "model-responses");
 if (contract) mkdirSync(responsesDirectory, { recursive: true });
 let firstTaskChecked = false;
 let releaseStopped = false;
+let taskRequestsForwarded = 0;
 const normalize = (text) => text.split(/\r?\n/).map((line) => line.trim()).join("\n").trim();
 const upstream = new URL(upstreamBase);
 if (!["http:", "https:"].includes(upstream.protocol) || upstream.username || upstream.password || upstream.search || upstream.hash)
@@ -41,9 +42,10 @@ const server = http.createServer(async (request, response) => {
   record({ type: "request", id, path: request.url, body_sha256: createHash("sha256").update(bytes).digest("hex"), body });
   if (contract?.mode === "release") {
     const repeated = repeatedToolError(body.messages);
-    if (releaseStopped || repeated) {
+    const budgetExceeded = body.tools?.length && Number.isSafeInteger(contract.max_task_requests) && taskRequestsForwarded >= contract.max_task_requests;
+    if (releaseStopped || repeated || budgetExceeded) {
       releaseStopped = true;
-      const stop = { stage: "agent", reason: "repeated_tool_error", request_id: id, repeated };
+      const stop = { stage: "agent", reason: budgetExceeded ? "request_budget_exhausted" : "repeated_tool_error", request_id: id, repeated };
       record({ type: "guard_stop", id, ...stop });
       writeFileSync(join(dirname(output), "guard-stop.json"), JSON.stringify(stop));
       response.writeHead(400, { "content-type": "application/json" }).end(JSON.stringify({ error: { message: "Repeated tool errors; trial stopped by benchmark protocol", type: "benchmark_guard" } }));
@@ -79,6 +81,7 @@ const server = http.createServer(async (request, response) => {
     }
   }
   const target = new URL(upstream.href.replace(/\/$/, "") + "/chat/completions");
+  if (body.tools?.length) taskRequestsForwarded++;
   const headers = { ...request.headers, host: target.host };
   delete headers.connection;
   const transport = target.protocol === "https:" ? https : http;

@@ -4,6 +4,14 @@
 
 # SWE-QA benchmark
 
+## 0.3.1 最小参数链路验收
+
+`swe-qa-bench.yml` 的 `release_chain_check=true` 只执行独立开发fixture的7个全新
+OpenCode会话：search/callers/callees最小参数各1个，另有search的fts/globs及两个
+关系工具的globs各1个。每项分别核对主Agent和explore子代理的实际MCP调用、返回源码位置，
+完整保留发布版三个工具、schema和指导。每会话最多12个带工具请求，最长300秒，
+相同错误连续3次停止。该入口不会启动QA20或评分，参数专项的失败也不阻断其余项目。
+
 ## 官方 0.3.1 Caller/Callee E2E
 
 [发布版评测协议与运行方式](docs/caller-callee-release-e2e-0.3.1.md)：使用官方 npm
