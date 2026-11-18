@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
+from harbor.utils.env import resolve_env_vars
 
 from zg_bench import release_full as full
 from zg_bench.agents.release_index import ReleaseIndexOnly
@@ -61,6 +62,25 @@ class FullReleaseTests(unittest.TestCase):
             asyncio.run(ReleaseIndexOnly.run(fake, "question is ignored", None, None))
             self.assertEqual(json.loads((Path(temp) / "index-only.json").read_text()),
                              {"model_requests": 0, "answering_started": False})
+
+    def test_harbor_index_initialization_does_not_require_model_credentials(self):
+        suite = full.load_suite("swe-qa-bench", tier="full")
+        command = full.index_command(suite, Path("release.json"), Path("jobs"), Path("overlay.json"))
+        formal = full.release_command(suite, Path("release.json"), Path("jobs"), "agent", 1,
+                                      overlay=Path("overlay.json"), model=full.MODEL)
+        def agent_env(cmd):
+            return dict(cmd[n + 1].split("=", 1) for n, value in enumerate(cmd) if value == "--agent-env")
+        with patch.dict(full.os.environ, {}, clear=True):
+            # Exercise the exact resolver that rejected all eleven CI jobs.
+            with self.assertRaisesRegex(ValueError, "OPENAI_API_KEY"):
+                resolve_env_vars(agent_env(formal))
+            self.assertEqual(resolve_env_vars(agent_env(command)), {})
+        self.assertEqual(command[command.index("--agent") + 1], "zg_bench.agents.release_index:ReleaseIndexOnly")
+        self.assertEqual(command[command.index("--n-attempts") + 1], "1")
+        self.assertEqual(command[command.index("--max-retries") + 1], "0")
+        # Official installation/index settings stay identical to formal trials.
+        kwargs = lambda cmd: [cmd[n + 1] for n, value in enumerate(cmd) if value == "--agent-kwarg"]
+        self.assertEqual(kwargs(command), kwargs(formal))
 
     def test_formal_missing_snapshot_cannot_silently_rebuild(self):
         with tempfile.TemporaryDirectory() as temp:

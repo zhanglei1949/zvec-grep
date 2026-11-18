@@ -68,6 +68,18 @@ def identity(task: str, number: int, manifest: dict) -> dict:
             "input_sha256": p["input_sha256"], "source_commit": p["source"][task]["repository_commit"]}
 
 
+def index_command(suite, release: Path, jobs: Path, overlay: Path) -> list[str]:
+    command = release_command(suite, release, jobs, "agent", 1, overlay=overlay, model=MODEL)
+    command[command.index("--agent") + 1] = "zg_bench.agents.release_index:ReleaseIndexOnly"
+    command[command.index("--n-attempts") + 1] = "1"
+    # Harbor resolves --agent-env before constructing even an index-only agent.
+    # This stage never runs OpenCode, so it must not require model credentials.
+    for position in range(len(command) - 2, -1, -1):
+        if command[position] == "--agent-env" and command[position + 1].startswith("OPENAI_API_KEY="):
+            del command[position:position + 2]
+    return command
+
+
 def build_index(args) -> None:
     manifest = verify_release(args.release.resolve())
     if args.task not in {r["task"] for r in plan()["indexes"]}:
@@ -77,9 +89,7 @@ def build_index(args) -> None:
     os.environ["ZG_BENCH_INDEX_SEED_DIR"] = str(seeds)
     suite = dataclasses.replace(load_suite("swe-qa-bench", tier="full"), tasks=(args.task,))
     overlay = prepare_overlay(output, "agent", 0, str(output))
-    command = release_command(suite, args.release.resolve(), output / "jobs", "agent", 1, overlay=overlay, model=MODEL)
-    command[command.index("--agent") + 1] = "zg_bench.agents.release_index:ReleaseIndexOnly"
-    command[command.index("--n-attempts") + 1] = "1"
+    command = index_command(suite, args.release.resolve(), output / "jobs", overlay)
     write_json(output / "command.json", command)
     with (output / "stdout.log").open("w") as stdout, (output / "stderr.log").open("w") as stderr:
         result = subprocess.run(command, env=execution_environment(agent="opencode", model=MODEL), stdout=stdout, stderr=stderr)
