@@ -185,6 +185,10 @@ class ChainCheckTests(unittest.TestCase):
             self.assertEqual(resumable_cases(root, {"model": "custom-openai/qwen3.8-max"}, "custom-openai/qwen3.8-max"), ["minimal-search"])
             with self.assertRaisesRegex(ValueError, "identical model"):
                 resumable_cases(root, {"model": "custom-openai/glm-5.2"}, "custom-openai/qwen3.8-max")
+            attempted = root / "cases" / CASES[1]["id"] / "model-requests.jsonl"
+            attempted.write_text(json.dumps({"type": "request"}) + "\n")
+            with self.assertRaisesRegex(ValueError, "already emitted"):
+                resumable_cases(root, {"model": "custom-openai/qwen3.8-max"}, "custom-openai/qwen3.8-max")
 
 
 if __name__ == "__main__":

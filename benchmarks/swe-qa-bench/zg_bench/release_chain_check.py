@@ -57,6 +57,8 @@ def resumable_cases(root: Path, protocol: dict, model: str) -> list[str]:
         if (row["session_status"] == "completed" and row["published_guidance_schema_unchanged"] and row["actual_context_verified"]
                 and not row["invalid_schema_attempts"] and all(actor["executed_successfully"] for actor in row["actors"].values())):
             result.append(row["case"]["id"])
+        elif any(event["type"] == "request" for log in path.parent.rglob("model-requests.jsonl") for event in events(log)):
+            raise ValueError("Refusing to rerun a failed case that already emitted a model request")
     return result
 
 
