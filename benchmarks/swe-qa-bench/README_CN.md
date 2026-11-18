@@ -22,9 +22,13 @@ OpenCode会话：search/callers/callees最小参数各1个，另有search的fts/
 ## 官方 0.3.1 Caller/Callee E2E
 
 [发布版评测协议与运行方式](docs/caller-callee-release-e2e-0.3.1.md)：使用官方 npm
-主包与 Linux 平台包，按发布版原文裁剪三组指导。独立开发 fixture 的三组技术冒烟
-全部通过后，运行 QA20 每题每组每轮5次、共3轮，正式样本900次。
-入口为 `swe-qa-bench.yml` 的 `release_e2e=true`。该入口独立于下文的源码候选实验，
+主包与 Linux 平台包，按发布版原文裁剪三组指导。正式答题、评审均使用 Qwen3.8 Max。
+`release_e2e=true` 默认只运行三组各1个全新技术会话及3次技术答案评分验收，
+核对主 Agent 和 explore 子代理；Search、组合组同时传入字符串 fts+globs，组合组覆盖三个工具。
+[#434](https://github.com/zvec-ai/zvec-grep/issues/434) 的指定误关联保留为质量缺陷，
+其他返回错误仍阻止验收。只有显式设置 `release_execute_full=true`，且技术及评分验收
+全部通过，才运行 QA20 每题每组每轮5次、共3轮、900个正式样本。
+该入口独立于下文的源码候选实验，
 不调整产品 schema 或 search 参数，不合并历史结果。
 
 ## Caller/Callee 三组 E2E 实验（v1）

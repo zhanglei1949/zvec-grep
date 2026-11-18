@@ -150,9 +150,9 @@ class ChainCheckTests(unittest.TestCase):
                 config["model"] = "selected"
                 configs.append(config)
             self.assertEqual(configs[0], configs[1])
-            with self.assertRaisesRegex(ValueError, "limited to technical"):
-                release_command(suite, Path("release.json"), Path("jobs"), "agent", 1,
-                                overlay=Path("compose.json"), model="custom-openai/qwen3.8-max")
+            formal = release_command(suite, Path("release.json"), Path("jobs"), "agent", 1,
+                                     overlay=Path("compose.json"), model="custom-openai/qwen3.8-max")
+            self.assertEqual(formal[formal.index("--model") + 1], "custom-openai/qwen3.8-max")
 
     def test_baseline_index_and_cases_must_match_before_reusing(self):
         with tempfile.TemporaryDirectory() as temporary:

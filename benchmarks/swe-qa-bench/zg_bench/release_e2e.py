@@ -25,6 +25,7 @@ from .engines.registry import execution_environment, resolve_opencode_model
 from .model_requests import audit_model_requests
 from .release_analysis import GROUPS, METRICS, events, evidence_manifest, mcp_calls, summarize, tool_attempts, render_report
 from .release_packages import VERSION, prepare_release, sha256, verify_release, verify_install, write_json
+from .release_smoke import KNOWN_CALLER_ISSUE, smoke_arguments, smoke_review, verified_fixture_baseline
 from .runner import BenchmarkSuite, build_harbor_command, load_suite
 from .swe_qa.collect import _profile_result
 from .swe_qa.pairs import load_references
@@ -33,13 +34,18 @@ from .tool_experiment import audit_calls
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "zg_bench/swe_qa/data"
 MODEL_REVISION = "e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b"
+DEFAULT_MODEL = "qwen3.8-max"
+SMOKE_REFERENCE = {
+    "question": "Explain how negative values are normalized and which functions directly call the top-level save, distinguishing the storage module's save.",
+    "reference_answer": "normalize at lib.rs:2 clamps values with max(0). Top-level save at line 4 calls normalize; import_record at line 6 and export_record at line 8 call that save. storage::flush at line 16 instead calls module-local storage::save at line 14, which also calls normalize. orphan_leaf has no resolved callers. A graph attribution of storage::flush to the root save is incorrect.",
+}
 
 
-def release_command(suite: BenchmarkSuite, manifest: Path, jobs: Path, group: str, number: int, *, overlay: Path, smoke: bool = False, model: str = "custom-openai/glm-5.2") -> list[str]:
+def release_command(suite: BenchmarkSuite, manifest: Path, jobs: Path, group: str, number: int, *, overlay: Path, smoke: bool = False, model: str = "custom-openai/qwen3.8-max") -> list[str]:
     if group not in GROUPS or number not in (0, 1, 2, 3) or smoke != (number == 0):
         raise ValueError("Invalid release stage or arm")
-    if model not in ("custom-openai/glm-5.2", "custom-openai/qwen3.8-max") or (not smoke and model != "custom-openai/glm-5.2"):
-        raise ValueError("Alternate release models are limited to technical checks")
+    if model not in ("custom-openai/glm-5.2", "custom-openai/qwen3.8-max"):
+        raise ValueError("Unsupported release model")
     command = build_harbor_command(suite, profile="zvec-grep", agent="opencode", model=model,
         jobs_dir=jobs, job_name=f"r{number}-{group}-zvec-grep", n_attempts=1 if smoke else 5, max_retries=0,
         mcp_toolset=group, record_model_requests=True, embedding_model="local/potion-code-16m-v2",
@@ -97,15 +103,14 @@ build_timeout_sec = 1200.0
 ''')
     (task / "tests").mkdir()
     shutil.copyfile(ROOT / "datasets/xarray-32/tests/test.sh", task / "tests/test.sh")
-    if group == "search":
-        action = 'call zvec_grep_zvec_grep_search with {"root":"/app","fts":"normalize","globs":"lib.rs"}'
-    else:
-        action = ('call zvec_grep_zvec_grep_callers with {"root":"/app","symbol":"::save","globs":"lib.rs","limit":20}, '
-                  'then call zvec_grep_zvec_grep_callees with the same arguments')
+    action = ", then ".join("call zvec_grep_zvec_grep_" + tool + " with " + json.dumps(arguments, separators=(",", ":"))
+                            for tool, arguments in smoke_arguments(group).items())
     prompt = ("This is an integration test in the current workspace. First " + action + ". "
-              "Then use the task tool with subagent_type explore and ask that subagent to repeat those same MCP calls. "
+              "Use exactly these keys and values; do not add or rewrite arguments. "
+              "Then use the task tool once with subagent_type explore and ask that subagent to repeat those exact MCP calls. "
               "Both you and the subagent must actually execute the advertised tools and inspect their returned source locations. "
-              "Read the relevant source and report which functions directly call save and what save calls. Do not use web tools.")
+              "Read the relevant source after the MCP calls and report which functions directly call save and what save calls. "
+              "If a tool fails, report the failure; do not retry identical arguments. Do not modify files or use web tools.")
     (task / "instruction.md").write_text(prompt + "\n")
     return BenchmarkSuite(name="release-dev", dataset=None, tier="full", tasks=("release-dev",), path=task.parent)
 
@@ -181,43 +186,10 @@ def collect_job(jobs: Path, *, task: str, group: str, number: int, expected: int
 
 
 def check_smoke(row: dict) -> list[str]:
-    errors = []
-    if row["status"] != "completed":
-        errors.append("technical_session_incomplete")
-    attempts = row.get("model_attempts", [])
-    if any(not call["valid_json"] for call in attempts):
-        errors.append("model_emitted_invalid_arguments")
-    if any(call["name"].startswith("zvec_grep_") and not call.get("schema_valid") for call in attempts):
-        errors.append("model_arguments_failed_published_schema")
-    if row.get("context_errors"):
-        errors.append("guidance_or_schema_rejected")
-    required = ["search"] if row["group"] == "search" else ["callers", "callees"]
-    for tool in required:
-        if not any(call["name"].endswith("zvec_grep_" + tool) for call in attempts):
-            errors.append(f"{tool}_raw_model_attempt_missing")
-        calls = [call for call in row.get("calls", []) if call["name"].endswith("zvec_grep_" + tool) and call["status"] == "completed"
-                 and isinstance(call.get("input"), dict) and call["input"].get("globs") == "lib.rs"]
-        sessions = {call["session_id"] for call in calls}
-        root_session = row.get("session_usage", {}).get("root_session_id")
-        if len(sessions) < 2 or root_session not in sessions:
-            errors.append(f"{tool}_not_executed_by_both_main_and_child")
-        if tool != "search" and not all("call at" in (call.get("output") or "") for call in calls):
-            errors.append(f"{tool}_no_locations")
-        if tool != "search":
-            source = (ROOT / "fixtures/caller-callee-dev/lib.rs").read_text().splitlines()
-            expected = {(index, line.index("save(") + 1) for index, line in enumerate(source, 1) if line.startswith(("pub fn import_record", "pub fn export_record"))} if tool == "callers" else {(index, line.index("normalize(") + 1) for index, line in enumerate(source, 1) if line.startswith("pub fn save")}
-            for call in calls:
-                locations = {(int(line), int(column)) for line, column in re.findall(r"call at lib\.rs:(\d+):(\d+)", call.get("output") or "")}
-                if locations != expected:
-                    errors.append(f"{tool}_fixture_locations_differ_from_source")
-    if not row.get("surface", {}).get("preflight_calls"):
-        errors.append("native_mcp_preflight_missing")
-    if {call["name"] for call in row.get("native_surface", {}).get("preflight_calls", [])} != {"zvec_grep_search", "zvec_grep_callers", "zvec_grep_callees"}:
-        errors.append("three_tool_native_preflight_missing")
-    return errors
+    return smoke_review(row)["errors"]
 
 
-def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None, model: str = "custom-openai/glm-5.2") -> list[dict]:
+def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None, model: str = "custom-openai/qwen3.8-max") -> list[dict]:
     destination = output / ("smoke" if smoke else f"round-{number}") / group / task
     destination.mkdir(parents=True, exist_ok=False)
     jobs = destination / "jobs"
@@ -236,17 +208,19 @@ def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, 
     return rows
 
 
-def score_rows(rows: list[dict], output: Path) -> None:
-    references = load_references(DATA / "references.json")
-    runtime = resolve_opencode_model("custom-openai/glm-5.2", require_credentials=True)
+def score_rows(rows: list[dict], output: Path, *, model: str = DEFAULT_MODEL, technical: bool = False) -> None:
+    references = {"release:dev": SMOKE_REFERENCE} if technical else load_references(DATA / "references.json")
+    runtime = resolve_opencode_model("custom-openai/" + model, require_credentials=True)
     complete = default_completion()
     selected = [row for row in rows if row["status"] == "completed" and row.get("judge") is None and "judge_error" not in row]
     random.Random(42).shuffle(selected)
     for row in selected:
         directory = output / f"round-{row['round']}" / row["group"] / row["task"] / f"judge-{row['repeat']}"
-        directory.mkdir(exist_ok=False)
+        directory.mkdir(parents=True, exist_ok=False)
         responses = []
         def recording_completion(**kwargs):
+            if kwargs.get("model") != "openai/" + model:
+                raise ValueError("Judge request model differs from selected release model")
             write_json(directory / f"request-{len(responses)+1}.json", {key: value for key, value in kwargs.items() if key not in ("api_key", "api_base")})
             try:
                 response = complete(**kwargs)
@@ -257,17 +231,39 @@ def score_rows(rows: list[dict], output: Path) -> None:
                 raise
             responses.append(_response_mapping(response))
             write_json(directory / f"response-{len(responses)}.json", responses[-1])
+            declared_model = responses[-1].get("model")
+            if not isinstance(declared_model, str) or declared_model.rsplit("/", 1)[-1] != model:
+                raise ValueError("Judge response model differs from selected release model")
             return response
         reference = references[row["task"].replace("-", ":")]
         try:
             row["judge"] = judge_candidate(completion_fn=recording_completion, api_key=runtime.api_key,
                 api_base=runtime.configuration.base_url, question=reference["question"], reference=reference["reference_answer"],
-                candidate=row["answer"], attempts=3)
+                candidate=row["answer"], attempts=3, model=model)
         except Exception as error:
             row["judge_error"] = type(error).__name__
             row["failure_stage"] = "judge"
         write_json(directory / "judgement.json", row.get("judge"))
-        write_json(output / "trials.json", rows)
+        write_json(output / ("technical-trials.json" if technical else "trials.json"), rows)
+
+
+def check_smoke_judges(rows: list[dict], output: Path, model: str) -> dict:
+    score_rows(rows, output, model=model, technical=True)
+    checks = []
+    for row in rows:
+        directory = output / f"round-0/{row['group']}/{row['task']}/judge-{row['repeat']}"
+        requests = [json.loads(path.read_text()) for path in sorted(directory.glob("request-*.json"))]
+        responses = [json.loads(path.read_text()) for path in sorted(directory.glob("response-*.json"))]
+        declared = [response.get("model") for response in responses if response.get("model")]
+        passed = bool(row.get("judge") and row["judge"]["model"] == model and requests and declared
+                      and all(request.get("model") == "openai/" + model for request in requests)
+                      and all(name.rsplit("/", 1)[-1] == model for name in declared))
+        checks.append({"group": row["group"], "passed": passed, "requested_model": model,
+                       "response_models": declared, "judge": row.get("judge"), "evidence": str(directory),
+                       "scope": "technical_fixture_only_not_QA20"})
+    result = {"passed": len(rows) == len(GROUPS) and all(check["passed"] for check in checks), "checks": checks}
+    write_json(output / "judge-smoke.json", result)
+    return result
 
 
 def run(args) -> int:
@@ -277,17 +273,26 @@ def run(args) -> int:
         raise ValueError("Use the Linux release package on the Linux/Docker runner")
     if shutil.which("docker") is None:
         raise RuntimeError("Release E2E requires Docker; use the Linux Actions entry")
-    resolve_opencode_model("custom-openai/glm-5.2", require_credentials=True)
+    model = getattr(args, "model", DEFAULT_MODEL)
+    execution_model = "custom-openai/" + model
+    runtime = resolve_opencode_model(execution_model, require_credentials=True)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     selection = json.loads((DATA / "selection.json").read_text())
     tasks = [task["task_slug"] for task in selection["tasks"]]
-    identity = {"protocol": "qa20-release-e2e-0.3.1-v1", "release": manifest, "harness": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
-                "rounds": 3, "trials_per_task_group_round": 5, "formal_trials": 900, "model_revision": MODEL_REVISION,
+    identity = {"protocol": "qa20-release-e2e-0.3.1-v2", "release": manifest, "harness": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+                "rounds": 3, "trials_per_task_group_round": 5, "planned_formal_trials": 900, "execute_full_requested": args.execute_full,
+                "execution_model": execution_model, "judge_model": model, "model_revision": MODEL_REVISION,
+                "known_quality_issue": KNOWN_CALLER_ISSUE, "fixture_sha256": sha256(ROOT / "fixtures/caller-callee-dev/lib.rs"),
                 "input_sha256": {name: sha256(DATA / name) for name in ("selection.json", "references.json", "index.ignore")}}
     write_json(output / "protocol.json", identity)
     seeds = output / "index-snapshots"
-    seeds.mkdir()
+    if getattr(args, "baseline", None):
+        baseline, protocol = verified_fixture_baseline(args.baseline.resolve(), manifest)
+        shutil.copytree(baseline / "index-snapshots", seeds)
+        write_json(output / "baseline-protocol.json", protocol)
+    else:
+        seeds.mkdir()
     os.environ["ZG_BENCH_INDEX_SEED_DIR"] = str(seeds)
     overlays = {(group, slot): prepare_overlay(output, group, slot, str(output)) for group in GROUPS for slot in (0, 1)}
     smoke_rows = []
@@ -295,18 +300,25 @@ def run(args) -> int:
     try:
         for group in GROUPS:
             smoke_rows.extend(run_job(make_smoke_task(output, group), manifest=manifest_path, output=output,
-                group=group, number=0, task="release-dev", overlay=overlays[group, 0], smoke=True))
+                group=group, number=0, task="release-dev", overlay=overlays[group, 0], smoke=True, model=execution_model))
             if check_smoke(smoke_rows[-1]):
                 break
         smoke = {"passed": len(smoke_rows) == len(GROUPS) and all(not check_smoke(row) for row in smoke_rows),
-                 "groups": [{"group": row["group"], "errors": check_smoke(row)} for row in smoke_rows],
+                 "groups": [{"group": row["group"], **smoke_review(row)} for row in smoke_rows],
                  "not_started_groups": [group for group in GROUPS if group not in {row["group"] for row in smoke_rows}], "trials": smoke_rows}
         write_json(output / "smoke-gate.json", smoke)
         if not smoke["passed"]:
             print("Technical smoke blocked formal evaluation; no QA20 model trial was started.", flush=True)
             return 2
+        judge_smoke = check_smoke_judges(smoke_rows, output, model)
+        smoke["judge_passed"] = judge_smoke["passed"]
+        smoke["passed"] = smoke["passed"] and judge_smoke["passed"]
+        write_json(output / "smoke-gate.json", smoke)
+        if not smoke["passed"]:
+            print("Judge smoke blocked formal evaluation; no QA20 model trial was started.", flush=True)
+            return 2
         if not args.execute_full:
-            print("Technical smoke passed; formal evaluation was not requested.", flush=True)
+            print("Technical and judge smoke passed; formal evaluation was not requested.", flush=True)
             return 0
         base = load_suite("swe-qa-bench", tier="full")
         for number in range(1, 4):
@@ -314,14 +326,14 @@ def run(args) -> int:
                 result = []
                 for task in tasks[slot::2]:
                     result.extend(run_job(dataclasses.replace(base, tasks=(task,)), manifest=manifest_path, output=output,
-                        group=group, number=number, task=task, overlay=overlays[group, slot]))
+                        group=group, number=number, task=task, overlay=overlays[group, slot], model=execution_model))
                 return result
             with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
                 futures = [executor.submit(worker, group, slot) for group in GROUPS for slot in (0, 1)]
                 for future in concurrent.futures.as_completed(futures):
                     rows.extend(future.result())
                     write_json(output / "trials.json", rows)
-            score_rows(rows, output)
+            score_rows(rows, output, model=model)
             report = summarize(rows, tasks)
             write_json(output / "report.json", report)
             (output / "report.md").write_text(render_report(report))
@@ -330,6 +342,9 @@ def run(args) -> int:
                 return 2
         return 0 if summarize(rows, tasks)["complete"] else 2
     finally:
+        write_json(output / "execution-status.json", {"formal_trial_records": len(rows),
+                   "formal_answering_requests": sum(bool(row.get("first_request_sent")) for row in rows),
+                   "technical_groups": len(smoke_rows), "execute_full_requested": args.execute_full})
         write_json(output / "evidence-sha256.json", evidence_manifest(output))
 
 
@@ -345,6 +360,8 @@ def main() -> None:
     execute = commands.add_parser("run")
     execute.add_argument("--release", type=Path, required=True)
     execute.add_argument("--output", type=Path, required=True)
+    execute.add_argument("--model", choices=("glm-5.2", "qwen3.8-max"), default=DEFAULT_MODEL, help="Explicit model for both answering and judging")
+    execute.add_argument("--baseline", type=Path, help="Restore a verified development-fixture index from a chain archive")
     execute.add_argument("--execute-full", action="store_true", help="only after all three technical smokes pass")
     args = parser.parse_args()
     if args.command == "fetch-release":

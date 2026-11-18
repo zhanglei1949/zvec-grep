@@ -97,7 +97,8 @@ class ReleaseAccountingTests(unittest.TestCase):
 
     def test_smoke_does_not_count_direct_probe_as_agent_use(self):
         row = {"group": "relationships", "status": "completed", "model_attempts": [], "calls": [], "surface": {"preflight_calls": [{"name": "callers"}]}}
-        self.assertIn("callers_not_executed_by_both_main_and_child", check_smoke(row))
+        self.assertIn("callers_not_executed_by_main", check_smoke(row))
+        self.assertIn("callers_not_executed_by_child", check_smoke(row))
         with tempfile.TemporaryDirectory() as temp:
             rows = collect_job(Path(temp), task="requests-16", group="search", number=1, expected=5)
             self.assertEqual(len(rows), 5)
@@ -107,6 +108,7 @@ class ReleaseAccountingTests(unittest.TestCase):
         command = release_command(load_suite("swe-qa-bench", tier="full"), Path("release.json"), Path("jobs"), "relationships", 2, overlay=Path("compose.json"))
         self.assertEqual(command[command.index("--max-retries") + 1], "0")
         self.assertEqual(command[command.index("--n-attempts") + 1], "5")
+        self.assertEqual(command[command.index("--model") + 1], "custom-openai/qwen3.8-max")
         self.assertIn("round_number=2", command)
         self.assertIn("zg_bench.agents.release_opencode:ReleaseOpenCode", command)
         self.assertFalse(any("guidance_variant=" in item or "fixed_search=" in item for item in command))
@@ -146,6 +148,8 @@ class ReleaseAccountingTests(unittest.TestCase):
         steps = workflow["jobs"]["release-e2e"]["steps"]
         run_step = next(step for step in steps if step.get("name") == "Technical smokes then three formal rounds")
         self.assertIn("--execute-full", run_step["run"])
+        self.assertIn('"$EXECUTE_FULL" = true', run_step["run"])
+        self.assertEqual(workflow["on"]["workflow_dispatch"]["inputs"]["release_execute_full"]["default"], "false")
         upload = next(step for step in steps if step.get("name") == "Preserve release evidence including blocked smoke")
         self.assertIn("always()", upload["if"])
         self.assertEqual(upload["with"]["include-hidden-files"], "true")

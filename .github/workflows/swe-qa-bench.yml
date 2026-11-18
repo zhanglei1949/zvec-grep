@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / ${{ inputs.release_native_only && 'release-0.3.1-native-only' || inputs.release_chain_check && 'release-0.3.1-chain-check' || inputs.release_e2e && 'release-0.3.1-gated-900' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.model || 'glm-5.2' }}
+run-name: SWE-QA Bench / ${{ inputs.release_native_only && 'release-0.3.1-native-only' || inputs.release_chain_check && 'release-0.3.1-chain-check' || inputs.release_e2e && 'release-0.3.1-three-arm' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.release_e2e && 'qwen3.8-max' || inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -27,7 +27,11 @@ on:
   workflow_dispatch:
     inputs:
       release_e2e:
-        description: Official 0.3.1 package and guidance; gate three smokes before 900 QA20 trials
+        description: Official 0.3.1 three-arm technical and judge acceptance; full evaluation needs a separate flag
+        type: boolean
+        default: false
+      release_execute_full:
+        description: Explicitly allow 900 formal trials after all release technical and judge checks pass
         type: boolean
         default: false
       release_native_only:
@@ -110,7 +114,7 @@ on:
 permissions: {}
 
 env:
-  SWE_QA_MODEL: ${{ inputs.model || 'glm-5.2' }}
+  SWE_QA_MODEL: ${{ inputs.release_e2e && 'qwen3.8-max' || inputs.model || 'glm-5.2' }}
   SWE_QA_MODEL_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
 
 concurrency:
@@ -563,7 +567,7 @@ jobs:
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e fetch-release
           --output "$RUNNER_TEMP/official-release"
       - name: Restore the frozen chain baseline artifact
-        if: ${{ inputs.release_chain_check && inputs.release_chain_baseline_run != '' }}
+        if: ${{ (inputs.release_chain_check || inputs.release_e2e) && inputs.release_chain_baseline_run != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -577,10 +581,14 @@ jobs:
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
-        run: >-
-          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e run
-          --release "$RUNNER_TEMP/official-release/release.json"
-          --output "$RUNNER_TEMP/qa20-release-e2e" --execute-full
+          EXECUTE_FULL: ${{ inputs.release_execute_full }}
+        run: |
+          release_args=()
+          if [ -d "$RUNNER_TEMP/chain-baseline" ]; then release_args+=(--baseline "$RUNNER_TEMP/chain-baseline"); fi
+          if [ "$EXECUTE_FULL" = true ]; then release_args+=(--execute-full); fi
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e run \
+            --release "$RUNNER_TEMP/official-release/release.json" \
+            --output "$RUNNER_TEMP/qa20-release-e2e" --model "$SWE_QA_MODEL" "${release_args[@]}"
       - name: Verify official postinstall without model requests
         if: ${{ inputs.release_native_only }}
         run: >-

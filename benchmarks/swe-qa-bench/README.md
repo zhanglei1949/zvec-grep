@@ -28,7 +28,14 @@ traces remain intact and `resumed_cases` records them. No completed Agent is rer
 
 The [release protocol](docs/caller-callee-release-e2e-0.3.1.md) uses the official
 npm main/platform packages and published guidance. Set `release_e2e=true` in
-`swe-qa-bench.yml`: three independent development smokes gate all 900 formal
+`swe-qa-bench.yml` to run three fresh arm-specific OpenCode sessions and three
+blind fixture-judge probes, with Qwen3.8 Max for both answering and judging.
+Search and combined arms check string `fts` and `globs` together; the combined
+arm exercises all three tools in both the main agent and explore child.
+The exact caller false-positive in [#434](https://github.com/zvec-ai/zvec-grep/issues/434)
+is retained as a known quality defect, separately from the technical gate;
+other source discrepancies still fail. Default execution stops after acceptance.
+Only an explicit `release_execute_full=true` can permit all 900 formal
 QA20 trials (20 tasks × 3 arms × 5 repeats × 3 rounds). Product schemas,
 arguments and search defaults remain unchanged. Source-candidate experiments
 and historical reports keep their existing behavior.

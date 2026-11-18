@@ -9,7 +9,7 @@ caller/callee。三组保留 OpenCode 原生工具和子代理，禁用 webfetch
 | agent（组合） | search、callers、callees |
 | relationships | callers、callees |
 
-固定 QA20 原题、参考答案、仓库 commit、index.ignore；OpenCode 1.18.4、GLM-5.2、
+固定 QA20 原题、参考答案、仓库 commit、index.ignore；OpenCode 1.18.4、Qwen3.8 Max、
 temperature=0、seed=42、thinking=true、reasoning_effort=high、max_tokens=32000。
 使用 HTTP `/mcp`、CPU Potion Code 16M v2，模型 revision 和三个权重/分词文件的
 SHA-256 写入验收。正式答题自主选择工具，每题每组每轮5次，共3轮、900次。
@@ -36,13 +36,23 @@ tools/list 并拒绝隐藏工具调用；从 AGENTS.md 的 zg 管理块及 MCP i
 ## 技术冒烟与停止规则
 
 先在独立开发 fixture 直接验证三个原生 MCP 工具，再逐组执行一个全新 Agent 会话，明确要求主 Agent 与 explore 子代理实际调用本组
-工具；关系查询带 `globs="lib.rs"`。安装后还进行直接 MCP 查询，核对已知函数链的
+全部工具；Search、组合组的 search 同时传入 `fts="normalize"` 和 `globs="lib.rs"`；关系查询带 `globs="lib.rs"`。安装后还进行直接 MCP 查询，核对已知函数链的
 返回位置。直接探针调用与 Agent 调用分开统计。
 
 在模型 HTTP 边界检查：首个答题请求只有 system/user，实际包含安装指导和 MCP
 instructions，工具集合与 schema 符合分组，生成参数符合协议。完整保留请求、SSE
 响应、MCP 请求/响应和递归会话。三组均完成且实际调用通过，才允许进入 QA20。
 指导、schema 或参数解析失败时，技术冒烟标为失败，剩余 Agent 会话与正式评测保持未启动。
+
+调用成功与返回质量分别记录。[#434](https://github.com/zvec-ai/zvec-grep/issues/434)
+中 storage::flush 被误归给顶层 save 的指定关系，在固定fixture上保留为已知质量缺陷，
+不阻止技术链路通过；原始返回不改写，也不在正式结果中删除该类错误。正确的调用位置
+必须全部返回，其他新增误关联、漏掉正确关系或错误定义仍阻止验收。
+
+三组完成后，各取已保存的最终技术回答进行一次 Qwen3.8 Max 评分链路验收，失败按评审规则
+最多尝试3次。Judge仅收到通用fixture问题、宿主侧参考答案和最终回答，不追加组名和工具轨迹。
+保存请求参数、服务端模型标识及原始响应；只验证模型与五维评分格式，不设分数门槛，
+不纳入QA20统计。参考答案不进入答题容器。答题和正式评审均显式使用同一Qwen模型。
 
 准备阶段最多重试两次，保留每次记录。Harbor 的 Agent 重试关闭；模型开始答题后
 不因超时、低分、未调用或空结果重跑。同一工具、参数和错误连续出现3次且没有成功
@@ -78,7 +88,7 @@ uv run --project benchmarks/swe-qa-bench python -m unittest discover \
   -s benchmarks/swe-qa-bench/tests -p 'test_release*.py' -v
 ```
 
-Actions 入口（会先技术冒烟，通过后运行正式评测）：
+Actions 最小验收入口（不会启动正式评测）：
 
 ```sh
 gh workflow run swe-qa-bench.yml --ref <冻结的harness分支> -f release_e2e=true
@@ -87,15 +97,18 @@ gh workflow run swe-qa-bench.yml --ref <冻结的harness分支> -f release_e2e=t
 只检查 Linux 官方安装和运行时版本时，使用 `-f release_native_only=true`。
 该模式自动选择发布包路径，跳过全部 Agent 和模型步骤。
 
+另行获得正式运行授权后，才增加 `-f release_execute_full=true`。CLI同样默认停在验收，
+必须显式传入 `--execute-full` 才允许进入900次。发布版入口固定 Qwen3.8 Max，旧源码实验的模型默认不变。
+
 也可在具有 Docker、锁定依赖和 GLM_API_KEY 的 Linux 环境中执行：
 
 ```sh
 python -m zg_bench.release_e2e fetch-release --output /tmp/qa20-release-package
 python -m zg_bench.release_e2e run \
   --release /tmp/qa20-release-package/release.json \
-  --output /tmp/qa20-release-results --execute-full
+  --output /tmp/qa20-release-results --model qwen3.8-max
 ```
 
-不传 `--execute-full` 时只做技术冒烟。输出目录必须不存在，避免混合或覆盖旧轮。
+不传 `--execute-full` 时只做技术冒烟和技术答案评分验收。输出目录必须不存在，避免混合或覆盖旧轮。
 Actions artifact `qa20-release-0.3.1-<run>-<attempt>` 保留协议、包元数据、tgz、
 smoke-gate.json、逐次原始证据、分轮结果和 SHA-256 清单。历史结果保持原样。
