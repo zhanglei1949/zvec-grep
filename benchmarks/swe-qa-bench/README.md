@@ -20,6 +20,9 @@ GLM client capabilities (including no interleaved-history extension), generation
 parameters and original error-prefix detector; only the model ID/display name
 changes. The actual model and generation parameters are checked on the wire.
 Both seven-session runs remain separate from QA20 and are not reliability estimates.
+For preparation-only recovery, `release_chain_resume_completed=true` explicitly
+preserves successful same-model sessions from the supplied baseline; their original
+traces remain intact and `resumed_cases` records them. No completed Agent is rerun.
 
 ## Official 0.3.1 Caller/Callee E2E
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from zg_bench.release_chain_check import CASES, QUERY, baseline_protocol, evaluate, make_case, useful_output
+from zg_bench.release_chain_check import CASES, QUERY, baseline_protocol, evaluate, make_case, resumable_cases, useful_output
 from zg_bench.release_e2e import release_command
 from zg_bench.release_packages import sha256
 from zg_bench.agents.release_opencode import MODEL_FILES, MODEL_PREFIX, embedding_cache_warmup_command
@@ -171,6 +171,20 @@ class ChainCheckTests(unittest.TestCase):
             source.write_bytes(b"different index")
             with self.assertRaisesRegex(ValueError, "recorded hashes"):
                 baseline_protocol(directory, manifest)
+
+    def test_recovery_preserves_completed_sessions_only_for_same_model(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for case, status in ((CASES[0], "completed"), (CASES[1], "failed")):
+                directory = root / "cases" / case["id"]
+                directory.mkdir(parents=True)
+                row = {"case": case, "session_status": status, "published_guidance_schema_unchanged": True,
+                       "actual_context_verified": True, "invalid_schema_attempts": 0,
+                       "actors": {actor: {"executed_successfully": True} for actor in ("main", "child")}}
+                (directory / "case-report.json").write_text(json.dumps(row))
+            self.assertEqual(resumable_cases(root, {"model": "custom-openai/qwen3.8-max"}, "custom-openai/qwen3.8-max"), ["minimal-search"])
+            with self.assertRaisesRegex(ValueError, "identical model"):
+                resumable_cases(root, {"model": "custom-openai/glm-5.2"}, "custom-openai/qwen3.8-max")
 
 
 if __name__ == "__main__":

@@ -48,6 +48,18 @@ def baseline_protocol(directory: Path, manifest: dict) -> tuple[Path, dict]:
     return root, protocol
 
 
+def resumable_cases(root: Path, protocol: dict, model: str) -> list[str]:
+    if protocol.get("model", "custom-openai/glm-5.2") != model:
+        raise ValueError("Completed sessions can only be resumed for the identical model")
+    result = []
+    for path in sorted((root / "cases").glob("*/case-report.json")):
+        row = json.loads(path.read_text())
+        if (row["session_status"] == "completed" and row["published_guidance_schema_unchanged"] and row["actual_context_verified"]
+                and not row["invalid_schema_attempts"] and all(actor["executed_successfully"] for actor in row["actors"].values())):
+            result.append(row["case"]["id"])
+    return result
+
+
 def make_case(output: Path, case: dict):
     suite = make_smoke_task(output, "agent")
     task = suite.path / "release-dev"
@@ -170,12 +182,16 @@ def run(args) -> None:
     resolved = resolve_opencode_model(model, require_credentials=True).configuration
     output.mkdir(parents=True, exist_ok=True)
     baseline = baseline_protocol(args.baseline.resolve(), manifest) if args.baseline else None
+    if args.resume_completed and not baseline:
+        raise ValueError("Resuming requires a verified baseline archive")
+    resumed = resumable_cases(*baseline, model) if args.resume_completed else []
     protocol = {"protocol": "release-0.3.1-chain-check-v2", "release": manifest,
                 "harness": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
                 "model": model, "endpoint_sha256": hashlib.sha256(resolved.base_url.encode()).hexdigest(),
                 "error_guard_version": 1,
                 "generation": {"temperature": 0, "seed": 42, "enable_thinking": True, "reasoning_effort": "high", "max_tokens": 32000},
                 "baseline_harness": baseline[1]["harness"] if baseline else None,
+                "resumed_cases": resumed,
                 "cases": CASES, "formal_trials": 0, "sessions_per_case": 1, "request_limit": 12, "agent_timeout_seconds": 300,
                 "fixture_sha256": sha256(ROOT / "fixtures/caller-callee-dev/lib.rs")}
     path = output / "protocol.json"
@@ -188,6 +204,8 @@ def run(args) -> None:
             raise ValueError("Refusing to overwrite existing index snapshots")
         shutil.copytree(baseline[0] / "index-snapshots", seeds)
         write_json(output / "baseline-protocol.json", baseline[1])
+        for case_id in resumed:
+            shutil.copytree(baseline[0] / "cases" / case_id, output / "cases" / case_id)
     seeds.mkdir(exist_ok=True)
     os.environ["ZG_BENCH_INDEX_SEED_DIR"] = str(seeds)
     overlay = prepare_overlay(output, "agent", 0, str(output))
@@ -196,6 +214,8 @@ def run(args) -> None:
             if case["phase"] != args.phase:
                 continue
             root = output / "cases" / case["id"]
+            if case["id"] in resumed:
+                continue
             if root.exists():
                 raise ValueError("Refusing to rerun or overwrite a diagnostic case")
             root.mkdir(parents=True)
@@ -217,6 +237,7 @@ def main() -> None:
     parser.add_argument("--phase", choices=("minimal", "optional"), required=True)
     parser.add_argument("--model", choices=("glm-5.2", "qwen3.8-max"), default="glm-5.2")
     parser.add_argument("--baseline", type=Path, help="Downloaded baseline artifact; restore its verified fixture index")
+    parser.add_argument("--resume-completed", action="store_true", help="Preserve completed same-model sessions; retry preparation failures only")
     run(parser.parse_args())
 
 

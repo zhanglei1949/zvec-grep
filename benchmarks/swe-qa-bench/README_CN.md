@@ -16,6 +16,8 @@ OpenCode会话：search/callers/callees最小参数各1个，另有search的fts/
 填写此前同仓库的链路验收 run ID，可恢复其经过哈希验证的 fixture 索引。只切换模型时，
 保留 GLM 那轮的客户端能力配置（不额外启用交错推理历史）、生成参数和原始错误识别规则，
 仅改模型标识与显示名，并检查实际请求。每模型每项仅1个会话，不据此估计稳定性。
+准备失败后的恢复可显式设置 `release_chain_resume_completed=true`：保留同模型已有成功
+会话及其原始轨迹，`resumed_cases` 记录来源，其余用例重新准备，不重跑已完成的 Agent。
 
 ## 官方 0.3.1 Caller/Callee E2E
 

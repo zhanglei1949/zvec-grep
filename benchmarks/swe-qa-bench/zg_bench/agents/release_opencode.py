@@ -166,7 +166,7 @@ fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:ma
         # Use the published resolver in an isolated scratch workspace; the
         # frozen answering workspace/index must never be rebuilt to warm it.
         warmup = await self.exec_as_agent(environment, command="set -e; " + NVM + embedding_cache_warmup_command())
-        metadata["embedding_cache_warmed"] = "ZG_EMBEDDING_CACHE_WARMED=1" in warmup.stdout
+        metadata["embedding_cache_warmed"] = "ZG_EMBEDDING_CACHE_WARMED=1" in (warmup.stdout or "")
         model_check = "const fs=require('fs'),c=require('crypto'),p=require('path');const checked={};" + \
             f"for(const [file,expected] of Object.entries({json.dumps(MODEL_FILES)})){{" + \
             f"const hash=c.createHash('sha256').update(fs.readFileSync(p.join(process.env.ZVEC_GREP_MODEL_CACHE,{json.dumps(MODEL_PREFIX)},file))).digest('hex');" + \

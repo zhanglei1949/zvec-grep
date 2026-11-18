@@ -42,6 +42,10 @@ on:
         description: Optional same-repository chain run whose verified fixture index will be reused
         type: string
         default: ""
+      release_chain_resume_completed:
+        description: Preserve completed same-model baseline sessions and retry preparation failures only
+        type: boolean
+        default: false
       candidate_ref:
         description: Rust source branch, tag, or commit to benchmark
         required: true
@@ -589,9 +593,11 @@ jobs:
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
+          RESUME_COMPLETED: ${{ inputs.release_chain_resume_completed }}
         run: |
           baseline_args=()
           if [ -d "$RUNNER_TEMP/chain-baseline" ]; then baseline_args=(--baseline "$RUNNER_TEMP/chain-baseline"); fi
+          if [ "$RESUME_COMPLETED" = true ]; then baseline_args+=(--resume-completed); fi
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_chain_check \
             --release "$RUNNER_TEMP/official-release/release.json" \
             --output "$RUNNER_TEMP/qa20-release-chain-check" --phase minimal --model "$SWE_QA_MODEL" "${baseline_args[@]}"
@@ -601,9 +607,11 @@ jobs:
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
+          RESUME_COMPLETED: ${{ inputs.release_chain_resume_completed }}
         run: |
           baseline_args=()
           if [ -d "$RUNNER_TEMP/chain-baseline" ]; then baseline_args=(--baseline "$RUNNER_TEMP/chain-baseline"); fi
+          if [ "$RESUME_COMPLETED" = true ]; then baseline_args+=(--resume-completed); fi
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_chain_check \
             --release "$RUNNER_TEMP/official-release/release.json" \
             --output "$RUNNER_TEMP/qa20-release-chain-check" --phase optional --model "$SWE_QA_MODEL" "${baseline_args[@]}"
