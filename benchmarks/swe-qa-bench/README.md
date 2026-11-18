@@ -40,6 +40,15 @@ QA20 trials (20 tasks × 3 arms × 5 repeats × 3 rounds). Product schemas,
 arguments and search defaults remain unchanged. Source-candidate experiments
 and historical reports keep their existing behavior.
 
+The full Actions path uses `swe-qa-release-full.yml` and
+`swe-qa-release-shards.yml` to stay within each job's six-hour limit. Eleven
+repository/commit indexes are frozen once, then restored with verified hashes.
+At most two task jobs run concurrently; each runs the three arms concurrently
+and five attempts serially per arm. Round summaries and original trial records
+are uploaded before the next round. Missing trials remain explicit; no Agent
+is rerun to fill a missing or failed slot. Cumulative summaries include paired
+scores, token use and relationship-tool adoption.
+
 ## Caller/callee tool experiment
 
 The [fresh-session explicit guidance diagnostic](docs/caller-callee-fresh-guidance-20261116.md)

@@ -1,0 +1,140 @@
+name: Frozen release shards
+'on':
+  workflow_call:
+    inputs:
+      phase:
+        type: string
+        required: true
+      round_number:
+        type: number
+        default: 1
+      matrix_json:
+        type: string
+        required: true
+    secrets:
+      GLM_API_KEY:
+        required: true
+permissions: {}
+jobs:
+  shard:
+    name: ${{ inputs.phase }} / r${{ inputs.round_number }} / ${{ matrix.task }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include: ${{ fromJSON(inputs.matrix_json) }}
+    env:
+      TASK_ID: ${{ matrix.task }}
+      INDEX_ID: ${{ matrix.index || matrix.task }}
+      ROUND_NUMBER: ${{ inputs.round_number }}
+    steps:
+    - name: Authorize benchmark run
+      id: authorize
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BENCH_REPOSITORY: ${{ github.repository }}
+        BENCH_EVENT_NAME: ${{ github.event_name }}
+        BENCH_IS_PR_COMMENT: 'false'
+        BENCH_ACTOR: ${{ github.actor }}
+        BENCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      run: |
+        set -euo pipefail
+        if [[ "$BENCH_EVENT_NAME" != "workflow_dispatch" && "$BENCH_IS_PR_COMMENT" != "true" ]]; then
+          echo "::error::SWE-QA Bench requires workflow_dispatch or a PR comment caller."
+          exit 1
+        fi
+        if [[ -z "$BENCH_ACTOR" || -z "$BENCH_TRIGGERING_ACTOR" ]]; then
+          echo "::error::Both the original actor and the current triggering actor are required."
+          exit 1
+        fi
+        for actor in "$BENCH_ACTOR" "$BENCH_TRIGGERING_ACTOR"; do
+          # The legacy permission field maps maintain to write; use role_name.
+          role="$(gh api "repos/$BENCH_REPOSITORY/collaborators/$actor/permission" --jq '.role_name')"
+          case "$role" in
+            admin|maintain)
+              echo "Authorized $actor with repository role $role."
+              ;;
+            *)
+              echo "::error::SWE-QA Bench requires the admin or maintain repository role; $actor has $role."
+              exit 1
+              ;;
+          esac
+        done
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+    - name: Install locked benchmark dependencies
+      run: |
+        python -m pip install --disable-pip-version-check uv==0.9.17
+        uv sync --project benchmarks/swe-qa-bench --frozen
+    - name: Download verified official release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: gh run download "$GITHUB_RUN_ID" --name "qa20-full-common-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/common"
+    - name: Download immutable repository snapshot
+      if: inputs.phase == 'task'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: gh run download "$GITHUB_RUN_ID" --name "qa20-full-index-$INDEX_ID-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/frozen-index"
+    - name: Build one native index without model requests
+      if: inputs.phase == 'index'
+      timeout-minutes: 300
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_full index --task "$TASK_ID" --release "$RUNNER_TEMP/common/official-release/release.json" --output "$RUNNER_TEMP/index-build"
+    - name: Run fifteen frozen formal slots and judge saved answers
+      if: inputs.phase == 'task'
+      timeout-minutes: 330
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_full task --task "$TASK_ID" --round "$ROUND_NUMBER" --release "$RUNNER_TEMP/common/official-release/release.json"
+        --index "$RUNNER_TEMP/frozen-index" --output "$RUNNER_TEMP/case"
+    - name: Reject credential leakage
+      id: secret-scan
+      if: always() && steps.authorize.outcome == 'success'
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan --secret-env GLM_API_KEY --root "$RUNNER_TEMP/case" --root "$RUNNER_TEMP/index-build" --root "$RUNNER_TEMP/common"
+    - name: Preserve native index and verification
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success' && inputs.phase == 'index'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-index-${{ matrix.task }}-${{ github.run_id }}
+        include-hidden-files: true
+        path: ${{ runner.temp }}/index-build/index-snapshots/
+        if-no-files-found: error
+        retention-days: 90
+    - name: Preserve independently aggregatable trial records
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success' && inputs.phase == 'task'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-records-r${{ inputs.round_number }}-${{ matrix.task }}-${{ github.run_id }}
+        path: ${{ runner.temp }}/case/records/
+        if-no-files-found: warn
+        retention-days: 90
+    - name: Preserve actual requests, traces and failures
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-raw-${{ inputs.phase }}-r${{ inputs.round_number }}-${{ matrix.task }}-${{ github.run_id }}
+        include-hidden-files: true
+        path: |-
+          ${{ runner.temp }}/case/
+          ${{ runner.temp }}/index-build/
+          !${{ runner.temp }}/case/index-snapshots/**
+          !${{ runner.temp }}/index-build/index-snapshots/**
+        if-no-files-found: warn
+        retention-days: 90

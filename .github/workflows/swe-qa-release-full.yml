@@ -1,0 +1,422 @@
+name: Official 0.3.1 / Qwen / 900
+'on':
+  workflow_call:
+    inputs:
+      fixture_baseline_run:
+        type: string
+        default: ''
+    secrets:
+      GLM_API_KEY:
+        required: true
+permissions: {}
+jobs:
+  prepare:
+    name: Freeze package and confirm accepted settings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tasks: ${{ steps.selection.outputs.tasks }}
+      indexes: ${{ steps.selection.outputs.indexes }}
+    steps:
+    - name: Authorize benchmark run
+      id: authorize
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BENCH_REPOSITORY: ${{ github.repository }}
+        BENCH_EVENT_NAME: ${{ github.event_name }}
+        BENCH_IS_PR_COMMENT: 'false'
+        BENCH_ACTOR: ${{ github.actor }}
+        BENCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      run: |
+        set -euo pipefail
+        if [[ "$BENCH_EVENT_NAME" != "workflow_dispatch" && "$BENCH_IS_PR_COMMENT" != "true" ]]; then
+          echo "::error::SWE-QA Bench requires workflow_dispatch or a PR comment caller."
+          exit 1
+        fi
+        if [[ -z "$BENCH_ACTOR" || -z "$BENCH_TRIGGERING_ACTOR" ]]; then
+          echo "::error::Both the original actor and the current triggering actor are required."
+          exit 1
+        fi
+        for actor in "$BENCH_ACTOR" "$BENCH_TRIGGERING_ACTOR"; do
+          # The legacy permission field maps maintain to write; use role_name.
+          role="$(gh api "repos/$BENCH_REPOSITORY/collaborators/$actor/permission" --jq '.role_name')"
+          case "$role" in
+            admin|maintain)
+              echo "Authorized $actor with repository role $role."
+              ;;
+            *)
+              echo "::error::SWE-QA Bench requires the admin or maintain repository role; $actor has $role."
+              exit 1
+              ;;
+          esac
+        done
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+    - name: Install locked benchmark dependencies
+      run: |
+        python -m pip install --disable-pip-version-check uv==0.9.17
+        uv sync --project benchmarks/swe-qa-bench --frozen
+    - name: Validate frozen input and offline contracts
+      run: |-
+        uv run --project benchmarks/swe-qa-bench python -m zg_bench.swe_qa validate --selection benchmarks/swe-qa-bench/zg_bench/swe_qa/data/selection.json --references benchmarks/swe-qa-bench/zg_bench/swe_qa/data/references.json --dataset benchmarks/swe-qa-bench/datasets
+        uv run --project benchmarks/swe-qa-bench python -m unittest discover -s benchmarks/swe-qa-bench/tests -p 'test_release*.py' -v
+    - name: Emit twenty tasks and eleven unique repositories
+      id: selection
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_full plan >> "$GITHUB_OUTPUT"
+    - name: Verify official release package
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e fetch-release --output "$RUNNER_TEMP/official-release"
+    - name: Restore technical fixture snapshot
+      if: inputs.fixture_baseline_run != ''
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        BASELINE_RUN: ${{ inputs.fixture_baseline_run }}
+      run: |-
+        [[ "$BASELINE_RUN" =~ ^[0-9]+$ ]] || exit 1
+        gh run download "$BASELINE_RUN" --pattern "qa20-release-0.3.1-$BASELINE_RUN-*" --dir "$RUNNER_TEMP/fixture-baseline"
+    - name: Recheck three-arm and Qwen judge acceptance before formal slots
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
+      run: |-
+        baseline_args=()
+        if [ -d "$RUNNER_TEMP/fixture-baseline" ]; then baseline_args=(--baseline "$RUNNER_TEMP/fixture-baseline"); fi
+        uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e run --release "$RUNNER_TEMP/official-release/release.json" --output "$RUNNER_TEMP/full-preflight" --model qwen3.8-max "${baseline_args[@]}"
+    - name: Reject credential leakage
+      id: secret-scan
+      if: always() && steps.authorize.outcome == 'success'
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan --secret-env GLM_API_KEY --root "$RUNNER_TEMP/full-preflight" --root "$RUNNER_TEMP/official-release"
+    - name: Preserve full-run package and startup evidence
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-common-${{ github.run_id }}
+        include-hidden-files: true
+        path: |-
+          ${{ runner.temp }}/official-release/
+          ${{ runner.temp }}/full-preflight/
+        if-no-files-found: error
+        retention-days: 90
+  indexes:
+    needs:
+    - prepare
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/swe-qa-release-shards.yml
+    with:
+      phase: index
+      round_number: 1
+      matrix_json: ${{ needs.prepare.outputs.indexes }}
+    secrets:
+      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+  round-1:
+    needs:
+    - prepare
+    - indexes
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/swe-qa-release-shards.yml
+    with:
+      phase: task
+      round_number: 1
+      matrix_json: ${{ needs.prepare.outputs.tasks }}
+    secrets:
+      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+  summary-1:
+    name: Round 1 cumulative comparison
+    needs:
+    - prepare
+    - round-1
+    if: always() && needs.prepare.result == 'success' && needs.round-1.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ROUND_NUMBER: '1'
+    steps:
+    - name: Authorize benchmark run
+      id: authorize
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BENCH_REPOSITORY: ${{ github.repository }}
+        BENCH_EVENT_NAME: ${{ github.event_name }}
+        BENCH_IS_PR_COMMENT: 'false'
+        BENCH_ACTOR: ${{ github.actor }}
+        BENCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      run: |
+        set -euo pipefail
+        if [[ "$BENCH_EVENT_NAME" != "workflow_dispatch" && "$BENCH_IS_PR_COMMENT" != "true" ]]; then
+          echo "::error::SWE-QA Bench requires workflow_dispatch or a PR comment caller."
+          exit 1
+        fi
+        if [[ -z "$BENCH_ACTOR" || -z "$BENCH_TRIGGERING_ACTOR" ]]; then
+          echo "::error::Both the original actor and the current triggering actor are required."
+          exit 1
+        fi
+        for actor in "$BENCH_ACTOR" "$BENCH_TRIGGERING_ACTOR"; do
+          # The legacy permission field maps maintain to write; use role_name.
+          role="$(gh api "repos/$BENCH_REPOSITORY/collaborators/$actor/permission" --jq '.role_name')"
+          case "$role" in
+            admin|maintain)
+              echo "Authorized $actor with repository role $role."
+              ;;
+            *)
+              echo "::error::SWE-QA Bench requires the admin or maintain repository role; $actor has $role."
+              exit 1
+              ;;
+          esac
+        done
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+    - name: Install locked benchmark dependencies
+      run: |
+        python -m pip install --disable-pip-version-check uv==0.9.17
+        uv sync --project benchmarks/swe-qa-bench --frozen
+    - name: Download frozen package and completed records
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |-
+        gh run download "$GITHUB_RUN_ID" --name "qa20-full-common-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/common"
+        gh run download "$GITHUB_RUN_ID" --pattern "qa20-full-records-r*-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/records"
+    - name: Aggregate without repeating Agents
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_full aggregate --release "$RUNNER_TEMP/common/official-release/release.json" --records "$RUNNER_TEMP/records"
+        --through-round "$ROUND_NUMBER" --output "$RUNNER_TEMP/summary"
+    - name: Reject credential leakage
+      id: secret-scan
+      if: always() && steps.authorize.outcome == 'success'
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan --secret-env GLM_API_KEY --root "$RUNNER_TEMP/summary"
+    - name: Preserve cumulative scores, usage, adoption and failures
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-summary-r1-${{ github.run_id }}
+        include-hidden-files: true
+        path: ${{ runner.temp }}/summary/
+        if-no-files-found: warn
+        retention-days: 90
+  round-2:
+    needs:
+    - prepare
+    - summary-1
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/swe-qa-release-shards.yml
+    with:
+      phase: task
+      round_number: 2
+      matrix_json: ${{ needs.prepare.outputs.tasks }}
+    secrets:
+      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+  summary-2:
+    name: Round 2 cumulative comparison
+    needs:
+    - prepare
+    - round-2
+    if: always() && needs.prepare.result == 'success' && needs.round-2.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ROUND_NUMBER: '2'
+    steps:
+    - name: Authorize benchmark run
+      id: authorize
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BENCH_REPOSITORY: ${{ github.repository }}
+        BENCH_EVENT_NAME: ${{ github.event_name }}
+        BENCH_IS_PR_COMMENT: 'false'
+        BENCH_ACTOR: ${{ github.actor }}
+        BENCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      run: |
+        set -euo pipefail
+        if [[ "$BENCH_EVENT_NAME" != "workflow_dispatch" && "$BENCH_IS_PR_COMMENT" != "true" ]]; then
+          echo "::error::SWE-QA Bench requires workflow_dispatch or a PR comment caller."
+          exit 1
+        fi
+        if [[ -z "$BENCH_ACTOR" || -z "$BENCH_TRIGGERING_ACTOR" ]]; then
+          echo "::error::Both the original actor and the current triggering actor are required."
+          exit 1
+        fi
+        for actor in "$BENCH_ACTOR" "$BENCH_TRIGGERING_ACTOR"; do
+          # The legacy permission field maps maintain to write; use role_name.
+          role="$(gh api "repos/$BENCH_REPOSITORY/collaborators/$actor/permission" --jq '.role_name')"
+          case "$role" in
+            admin|maintain)
+              echo "Authorized $actor with repository role $role."
+              ;;
+            *)
+              echo "::error::SWE-QA Bench requires the admin or maintain repository role; $actor has $role."
+              exit 1
+              ;;
+          esac
+        done
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+    - name: Install locked benchmark dependencies
+      run: |
+        python -m pip install --disable-pip-version-check uv==0.9.17
+        uv sync --project benchmarks/swe-qa-bench --frozen
+    - name: Download frozen package and completed records
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |-
+        gh run download "$GITHUB_RUN_ID" --name "qa20-full-common-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/common"
+        gh run download "$GITHUB_RUN_ID" --pattern "qa20-full-records-r*-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/records"
+    - name: Aggregate without repeating Agents
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_full aggregate --release "$RUNNER_TEMP/common/official-release/release.json" --records "$RUNNER_TEMP/records"
+        --through-round "$ROUND_NUMBER" --output "$RUNNER_TEMP/summary"
+    - name: Reject credential leakage
+      id: secret-scan
+      if: always() && steps.authorize.outcome == 'success'
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan --secret-env GLM_API_KEY --root "$RUNNER_TEMP/summary"
+    - name: Preserve cumulative scores, usage, adoption and failures
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-summary-r2-${{ github.run_id }}
+        include-hidden-files: true
+        path: ${{ runner.temp }}/summary/
+        if-no-files-found: warn
+        retention-days: 90
+  round-3:
+    needs:
+    - prepare
+    - summary-2
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/swe-qa-release-shards.yml
+    with:
+      phase: task
+      round_number: 3
+      matrix_json: ${{ needs.prepare.outputs.tasks }}
+    secrets:
+      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+  summary-3:
+    name: Round 3 cumulative comparison
+    needs:
+    - prepare
+    - round-3
+    if: always() && needs.prepare.result == 'success' && needs.round-3.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ROUND_NUMBER: '3'
+    steps:
+    - name: Authorize benchmark run
+      id: authorize
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BENCH_REPOSITORY: ${{ github.repository }}
+        BENCH_EVENT_NAME: ${{ github.event_name }}
+        BENCH_IS_PR_COMMENT: 'false'
+        BENCH_ACTOR: ${{ github.actor }}
+        BENCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      run: |
+        set -euo pipefail
+        if [[ "$BENCH_EVENT_NAME" != "workflow_dispatch" && "$BENCH_IS_PR_COMMENT" != "true" ]]; then
+          echo "::error::SWE-QA Bench requires workflow_dispatch or a PR comment caller."
+          exit 1
+        fi
+        if [[ -z "$BENCH_ACTOR" || -z "$BENCH_TRIGGERING_ACTOR" ]]; then
+          echo "::error::Both the original actor and the current triggering actor are required."
+          exit 1
+        fi
+        for actor in "$BENCH_ACTOR" "$BENCH_TRIGGERING_ACTOR"; do
+          # The legacy permission field maps maintain to write; use role_name.
+          role="$(gh api "repos/$BENCH_REPOSITORY/collaborators/$actor/permission" --jq '.role_name')"
+          case "$role" in
+            admin|maintain)
+              echo "Authorized $actor with repository role $role."
+              ;;
+            *)
+              echo "::error::SWE-QA Bench requires the admin or maintain repository role; $actor has $role."
+              exit 1
+              ;;
+          esac
+        done
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+    - name: Install locked benchmark dependencies
+      run: |
+        python -m pip install --disable-pip-version-check uv==0.9.17
+        uv sync --project benchmarks/swe-qa-bench --frozen
+    - name: Download frozen package and completed records
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |-
+        gh run download "$GITHUB_RUN_ID" --name "qa20-full-common-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/common"
+        gh run download "$GITHUB_RUN_ID" --pattern "qa20-full-records-r*-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/records"
+    - name: Aggregate without repeating Agents
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_full aggregate --release "$RUNNER_TEMP/common/official-release/release.json" --records "$RUNNER_TEMP/records"
+        --through-round "$ROUND_NUMBER" --output "$RUNNER_TEMP/summary"
+    - name: Reject credential leakage
+      id: secret-scan
+      if: always() && steps.authorize.outcome == 'success'
+      env:
+        GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+      run: uv run --project benchmarks/swe-qa-bench python -m zg_bench.ci.secret_scan --secret-env GLM_API_KEY --root "$RUNNER_TEMP/summary"
+    - name: Preserve cumulative scores, usage, adoption and failures
+      if: always() && steps.authorize.outcome == 'success' && steps.secret-scan.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: qa20-full-summary-r3-${{ github.run_id }}
+        include-hidden-files: true
+        path: ${{ runner.temp }}/summary/
+        if-no-files-found: warn
+        retention-days: 90

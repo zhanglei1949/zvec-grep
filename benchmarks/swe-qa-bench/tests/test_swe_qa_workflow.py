@@ -126,6 +126,10 @@ class ManualBenchmarkAuthorizationTests(unittest.TestCase):
         )
         for job_name, job in self.workflow["jobs"].items():
             with self.subTest(job=job_name):
+                if job_name == "release-full":
+                    self.assertEqual(job["uses"], "./.github/workflows/swe-qa-release-full.yml")
+                    self.assertEqual(job["permissions"], {"contents": "read", "actions": "read"})
+                    continue  # The called workflows authorize before their checkout.
                 self.assertEqual(job["steps"][0], self.guard)
                 self.assertNotIn("secrets.", json.dumps(job.get("env", {})))
                 checkouts = [

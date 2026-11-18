@@ -189,11 +189,13 @@ def check_smoke(row: dict) -> list[str]:
     return smoke_review(row)["errors"]
 
 
-def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None, model: str = "custom-openai/qwen3.8-max") -> list[dict]:
+def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None, model: str = "custom-openai/qwen3.8-max", require_index_seed: bool = False) -> list[dict]:
     destination = output / ("smoke" if smoke else f"round-{number}") / group / task
     destination.mkdir(parents=True, exist_ok=False)
     jobs = destination / "jobs"
     command = release_command(suite, manifest, jobs, group, number, overlay=overlay, smoke=smoke, model=model)
+    if require_index_seed:
+        command += ["--agent-kwarg", "require_index_seed=true"]
     if request_limit is not None:
         if not smoke:
             raise ValueError("Request limit applies only to technical sessions")
@@ -208,7 +210,7 @@ def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, 
     return rows
 
 
-def score_rows(rows: list[dict], output: Path, *, model: str = DEFAULT_MODEL, technical: bool = False) -> None:
+def score_rows(rows: list[dict], output: Path, *, model: str = DEFAULT_MODEL, technical: bool = False, on_progress=None) -> None:
     references = {"release:dev": SMOKE_REFERENCE} if technical else load_references(DATA / "references.json")
     runtime = resolve_opencode_model("custom-openai/" + model, require_credentials=True)
     complete = default_completion()
@@ -245,6 +247,8 @@ def score_rows(rows: list[dict], output: Path, *, model: str = DEFAULT_MODEL, te
             row["failure_stage"] = "judge"
         write_json(directory / "judgement.json", row.get("judge"))
         write_json(output / ("technical-trials.json" if technical else "trials.json"), rows)
+        if on_progress is not None:
+            on_progress()
 
 
 def check_smoke_judges(rows: list[dict], output: Path, model: str) -> dict:

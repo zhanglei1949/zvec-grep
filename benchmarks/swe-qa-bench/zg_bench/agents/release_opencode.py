@@ -35,7 +35,7 @@ def embedding_cache_warmup_command():
 
 
 class ReleaseOpenCode(ZvecOpenCode):
-    def __init__(self, *args, release_bundle: str, round_number: int, technical_smoke: bool = False, technical_request_limit: int | None = None, **kwargs):
+    def __init__(self, *args, release_bundle: str, round_number: int, technical_smoke: bool = False, technical_request_limit: int | None = None, require_index_seed: bool = False, **kwargs):
         self._release_path = Path(release_bundle).resolve()
         self._release = verify_release(self._release_path)
         if self._release["platform"] != "linux-x64-gnu":
@@ -53,6 +53,9 @@ class ReleaseOpenCode(ZvecOpenCode):
         if technical_request_limit is not None and (not technical_smoke or type(technical_request_limit) is not int or technical_request_limit < 1):
             raise ValueError("Request limits are only supported for technical sessions")
         self._technical_request_limit = technical_request_limit
+        if not isinstance(require_index_seed, bool):
+            raise ValueError("require_index_seed must be a boolean")
+        self._require_index_seed = require_index_seed
         kwargs.update(graph_index=True, collect_tool_calls=True, collect_session_usage=True, record_model_requests=True)
         kwargs["zvec_grep_package_sha256"] = self._release["packages"][0]["sha256"]
         super().__init__(*args, **kwargs)
@@ -132,6 +135,8 @@ fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:ma
 
     async def _restore_index_seed(self, environment, workdir, *, seed_key):
         seed = self._index_seed_dir(seed_key)
+        if self._require_index_seed and not seed.exists():
+            raise RuntimeError("Required frozen index snapshot is missing; refusing to rebuild")
         if seed.exists():
             manifest = seed / "payload-sha256.json"
             if not manifest.exists() or json.loads(manifest.read_text()) != self._snapshot_hashes(seed / "workspace"):

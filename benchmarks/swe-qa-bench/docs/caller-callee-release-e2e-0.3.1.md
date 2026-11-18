@@ -97,8 +97,26 @@ gh workflow run swe-qa-bench.yml --ref <冻结的harness分支> -f release_e2e=t
 只检查 Linux 官方安装和运行时版本时，使用 `-f release_native_only=true`。
 该模式自动选择发布包路径，跳过全部 Agent 和模型步骤。
 
-另行获得正式运行授权后，才增加 `-f release_execute_full=true`。CLI同样默认停在验收，
+正式运行增加 `-f release_execute_full=true`。CLI同样默认停在验收，
 必须显式传入 `--execute-full` 才允许进入900次。发布版入口固定 Qwen3.8 Max，旧源码实验的模型默认不变。
+
+Actions 正式入口调用 `swe-qa-release-full.yml` 与 `swe-qa-release-shards.yml`，
+将900次拆成三轮、每轮20个题目作业。最多两个题目作业并行，每个作业内三组同期
+运行、各组5次串行；每轮全部答题、评分和汇总后自动进入下一轮。这样单个作业
+可以在6小时时限内完成。拆分仅调整调度和保存边界，模型、参数和900个试验位置不变。
+
+11个不同仓库版本先各构建一份冻结索引，建索引不运行答题模型。每次正式运行必须
+找到与仓库 commit、发布包和排除规则一致的快照，校验文件摘要后恢复；缺失或损坏
+时记录准备失败，不能另建一份替代。每个题目作业独立保存原始请求、SSE、工具轨迹、
+评分响应与摘要。逐次评分完成后立即保存汇总记录，便于在作业中断时保留已完成部分。
+
+```sh
+gh workflow run swe-qa-bench.yml --ref <冻结的harness分支> \
+  -f release_e2e=true -f release_execute_full=true \
+  -f release_chain_baseline_run=44232115501
+```
+
+这里的 baseline 只复用开发fixture的已验证索引，不复用任何正式答题、评分或历史结果。
 
 也可在具有 Docker、锁定依赖和 GLM_API_KEY 的 Linux 环境中执行：
 
@@ -112,3 +130,14 @@ python -m zg_bench.release_e2e run \
 不传 `--execute-full` 时只做技术冒烟和技术答案评分验收。输出目录必须不存在，避免混合或覆盖旧轮。
 Actions artifact `qa20-release-0.3.1-<run>-<attempt>` 保留协议、包元数据、tgz、
 smoke-gate.json、逐次原始证据、分轮结果和 SHA-256 清单。历史结果保持原样。
+
+正式分批运行的产物为 `qa20-full-common-<run>`（包与启动验收）、
+`qa20-full-index-<task>-<run>`（11份索引）、`qa20-full-raw-task-r<round>-<task>-<run>`
+（原始证据）、`qa20-full-records-r<round>-<task>-<run>`（逐次记录）、
+`qa20-full-summary-r<round>-<run>`（累计比较）。下载所有 records 后可离线重新汇总，
+不重新调用 Agent 或 Judge：
+
+```sh
+python -m zg_bench.release_full aggregate --records <records目录> \
+  --release <common目录>/official-release/release.json --through-round 3 --output <新汇总目录>
+```

@@ -1,5 +1,5 @@
 name: SWE-QA Bench
-run-name: SWE-QA Bench / ${{ inputs.release_native_only && 'release-0.3.1-native-only' || inputs.release_chain_check && 'release-0.3.1-chain-check' || inputs.release_e2e && 'release-0.3.1-three-arm' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.release_e2e && 'qwen3.8-max' || inputs.model || 'glm-5.2' }}
+run-name: SWE-QA Bench / ${{ inputs.release_e2e && inputs.release_execute_full && 'release-0.3.1-900' || inputs.release_native_only && 'release-0.3.1-native-only' || inputs.release_chain_check && 'release-0.3.1-chain-check' || inputs.release_e2e && 'release-0.3.1-three-arm' || inputs.task_set || 'qa20' }} / ${{ inputs.experiment_group || 'legacy' }} / ${{ inputs.experiment_phase || inputs.scope }} / ${{ inputs.guidance_variant || 'direct' }} / Rust ${{ inputs.candidate_ref || 'main' }} / ${{ inputs.release_e2e && 'qwen3.8-max' || inputs.model || 'glm-5.2' }}
 
 on:
   workflow_call:
@@ -533,7 +533,7 @@ jobs:
           key: ${{ steps.zvec-index-seed-restore.outputs.cache-primary-key }}
 
   release-e2e:
-    if: ${{ inputs.release_e2e || inputs.release_native_only || inputs.release_chain_check }}
+    if: ${{ (inputs.release_e2e || inputs.release_native_only || inputs.release_chain_check) && !inputs.release_execute_full }}
     name: Official 0.3.1 / gated three-arm QA20
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -646,6 +646,17 @@ jobs:
             ${{ runner.temp }}/qa20-release-chain-check/
           if-no-files-found: error
           retention-days: 90
+
+  release-full:
+    if: ${{ inputs.release_e2e && inputs.release_execute_full && !inputs.release_native_only && !inputs.release_chain_check }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/swe-qa-release-full.yml
+    with:
+      fixture_baseline_run: ${{ inputs.release_chain_baseline_run }}
+    secrets:
+      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
 
   aggregate-report:
     name: Aggregate completed task reports
