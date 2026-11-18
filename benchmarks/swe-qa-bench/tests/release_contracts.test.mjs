@@ -72,6 +72,11 @@ test("request contract requires both guidance surfaces and exact published schem
     messages: [{ role: "system", content: 'AGENTS release guidance\n<server name="zvec_grep">MCP release instructions</server>' }, { role: "user", content: "question" }],
     tools: [{ function: { name: "zvec_grep_zvec_grep_callers", parameters: schema } }] };
   verifyReleaseRequest(body, contract, true);
+  const qwen = structuredClone(body); qwen.model = "qwen3.8-max";
+  assert.throws(() => verifyReleaseRequest(qwen, contract, true), /generation settings/);
+  verifyReleaseRequest(qwen, { ...contract, model: "qwen3.8-max" }, true);
+  const changedSampling = { ...qwen, temperature: 0.6 };
+  assert.throws(() => verifyReleaseRequest(changedSampling, { ...contract, model: "qwen3.8-max" }, true), /generation settings/);
   const bad = structuredClone(body); bad.messages[0].content = "AGENTS release guidance";
   assert.throws(() => verifyReleaseRequest(bad, contract, true), /instructions absent/);
   const hidden = structuredClone(body); hidden.tools.push({ function: { name: "zvec_grep_zvec_grep_search", parameters: {} } });
@@ -100,6 +105,8 @@ test("guard stops the third identical error, resets after progress, and retains 
   assert.equal(repeatedToolError(actualShape).count, 3);
   const wrappedErrors = actualShape.map((message) => message.role === "tool" ? { ...message, content: "The arguments provided to the tool are invalid: " + argumentError } : message);
   assert.equal(repeatedToolError(wrappedErrors).count, 3);
+  assert.equal(repeatedToolError(wrappedErrors, 3, false), null); // Original GLM chain detector.
+  assert.equal(repeatedToolError(actualShape, 3, false).count, 3);
 });
 
 for (const bounded of [false, true]) {

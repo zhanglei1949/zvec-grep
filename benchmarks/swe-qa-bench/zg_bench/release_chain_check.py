@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -24,6 +26,26 @@ CASES = [
     {"id": "optional-callers-globs", "phase": "optional", "tool": "callers", "arguments": {"root": "/app", "symbol": "::save", "globs": "lib.rs"}},
     {"id": "optional-callees-globs", "phase": "optional", "tool": "callees", "arguments": {"root": "/app", "symbol": "::save", "globs": "lib.rs"}},
 ]
+
+
+def baseline_protocol(directory: Path, manifest: dict) -> tuple[Path, dict]:
+    paths = [path for path in directory.rglob("protocol.json")
+             if json.loads(path.read_text()).get("protocol", "").startswith("release-0.3.1-chain-check-")]
+    if len(paths) != 1:
+        raise ValueError("Expected exactly one baseline chain protocol")
+    root, protocol = paths[0].parent, json.loads(paths[0].read_text())
+    if (protocol["cases"] != CASES or protocol["fixture_sha256"] != sha256(ROOT / "fixtures/caller-callee-dev/lib.rs")
+            or protocol["release"] != manifest):
+        raise ValueError("Baseline cases, fixture or official release differ")
+    snapshots = root / "index-snapshots"
+    checks = list(snapshots.glob("*/payload-sha256.json"))
+    if len(checks) != 1:
+        raise ValueError("Expected one baseline fixture index snapshot")
+    workspace = checks[0].parent / "workspace"
+    actual = {str(path.relative_to(workspace)): sha256(path) for path in sorted(workspace.rglob("*")) if path.is_file()}
+    if not actual or actual != json.loads(checks[0].read_text()):
+        raise ValueError("Baseline index snapshot differs from its recorded hashes")
+    return root, protocol
 
 
 def make_case(output: Path, case: dict):
@@ -144,10 +166,16 @@ def render(results: list[dict]) -> str:
 def run(args) -> None:
     manifest_path, output = args.release.resolve(), args.output.resolve()
     manifest = verify_release(manifest_path)
-    resolve_opencode_model("custom-openai/glm-5.2", require_credentials=True)
+    model = "custom-openai/" + args.model
+    resolved = resolve_opencode_model(model, require_credentials=True).configuration
     output.mkdir(parents=True, exist_ok=True)
-    protocol = {"protocol": "release-0.3.1-chain-check-v1", "release": manifest,
+    baseline = baseline_protocol(args.baseline.resolve(), manifest) if args.baseline else None
+    protocol = {"protocol": "release-0.3.1-chain-check-v2", "release": manifest,
                 "harness": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+                "model": model, "endpoint_sha256": hashlib.sha256(resolved.base_url.encode()).hexdigest(),
+                "error_guard_version": 1,
+                "generation": {"temperature": 0, "seed": 42, "enable_thinking": True, "reasoning_effort": "high", "max_tokens": 32000},
+                "baseline_harness": baseline[1]["harness"] if baseline else None,
                 "cases": CASES, "formal_trials": 0, "sessions_per_case": 1, "request_limit": 12, "agent_timeout_seconds": 300,
                 "fixture_sha256": sha256(ROOT / "fixtures/caller-callee-dev/lib.rs")}
     path = output / "protocol.json"
@@ -155,6 +183,11 @@ def run(args) -> None:
         raise ValueError("Chain check protocol changed between phases")
     write_json(path, protocol)
     seeds = output / "index-snapshots"
+    if baseline and args.phase == "minimal":
+        if seeds.exists():
+            raise ValueError("Refusing to overwrite existing index snapshots")
+        shutil.copytree(baseline[0] / "index-snapshots", seeds)
+        write_json(output / "baseline-protocol.json", baseline[1])
     seeds.mkdir(exist_ok=True)
     os.environ["ZG_BENCH_INDEX_SEED_DIR"] = str(seeds)
     overlay = prepare_overlay(output, "agent", 0, str(output))
@@ -168,7 +201,7 @@ def run(args) -> None:
             root.mkdir(parents=True)
             suite = make_case(root, case)
             rows = run_job(suite, manifest=manifest_path, output=root, group="agent", number=0,
-                           task="release-dev", overlay=overlay, smoke=True, request_limit=12)
+                           task="release-dev", overlay=overlay, smoke=True, request_limit=12, model=model)
             write_json(root / "case-report.json", evaluate(case, rows[0]))
         results = [json.loads(path.read_text()) for path in sorted((output / "cases").glob("*/case-report.json"))]
         write_json(output / "report.json", {"protocol": protocol, "results": results, "formal_trials": 0})
@@ -182,6 +215,8 @@ def main() -> None:
     parser.add_argument("--release", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--phase", choices=("minimal", "optional"), required=True)
+    parser.add_argument("--model", choices=("glm-5.2", "qwen3.8-max"), default="glm-5.2")
+    parser.add_argument("--baseline", type=Path, help="Downloaded baseline artifact; restore its verified fixture index")
     run(parser.parse_args())
 
 

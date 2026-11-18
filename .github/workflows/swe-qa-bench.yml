@@ -38,6 +38,10 @@ on:
         description: Seven real OpenCode checks with published guidance; never starts QA20
         type: boolean
         default: false
+      release_chain_baseline_run:
+        description: Optional same-repository chain run whose verified fixture index will be reused
+        type: string
+        default: ""
       candidate_ref:
         description: Rust source branch, tag, or commit to benchmark
         required: true
@@ -527,6 +531,7 @@ jobs:
     timeout-minutes: 360
     permissions:
       contents: read
+      actions: read
     steps:
       - *authorize-benchmark
       - uses: actions/checkout@v6
@@ -553,6 +558,15 @@ jobs:
         run: >-
           uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_e2e fetch-release
           --output "$RUNNER_TEMP/official-release"
+      - name: Restore the frozen chain baseline artifact
+        if: ${{ inputs.release_chain_check && inputs.release_chain_baseline_run != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASELINE_RUN: ${{ inputs.release_chain_baseline_run }}
+        run: |
+          [[ "$BASELINE_RUN" =~ ^[0-9]+$ ]] || exit 1
+          gh run download "$BASELINE_RUN" --pattern "qa20-release-0.3.1-$BASELINE_RUN-*" --dir "$RUNNER_TEMP/chain-baseline"
       - name: Technical smokes then three formal rounds
         if: ${{ !inputs.release_native_only && !inputs.release_chain_check }}
         timeout-minutes: 330
@@ -575,20 +589,24 @@ jobs:
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
-        run: >-
-          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_chain_check
-          --release "$RUNNER_TEMP/official-release/release.json"
-          --output "$RUNNER_TEMP/qa20-release-chain-check" --phase minimal
+        run: |
+          baseline_args=()
+          if [ -d "$RUNNER_TEMP/chain-baseline" ]; then baseline_args=(--baseline "$RUNNER_TEMP/chain-baseline"); fi
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_chain_check \
+            --release "$RUNNER_TEMP/official-release/release.json" \
+            --output "$RUNNER_TEMP/qa20-release-chain-check" --phase minimal --model "$SWE_QA_MODEL" "${baseline_args[@]}"
       - name: Check fts and globs independently
         if: ${{ inputs.release_chain_check && !inputs.release_native_only }}
         timeout-minutes: 40
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           GLM_BASE_URL: ${{ vars.SWE_QA_MODEL_BASE_URL }}
-        run: >-
-          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_chain_check
-          --release "$RUNNER_TEMP/official-release/release.json"
-          --output "$RUNNER_TEMP/qa20-release-chain-check" --phase optional
+        run: |
+          baseline_args=()
+          if [ -d "$RUNNER_TEMP/chain-baseline" ]; then baseline_args=(--baseline "$RUNNER_TEMP/chain-baseline"); fi
+          uv run --project benchmarks/swe-qa-bench python -m zg_bench.release_chain_check \
+            --release "$RUNNER_TEMP/official-release/release.json" \
+            --output "$RUNNER_TEMP/qa20-release-chain-check" --phase optional --model "$SWE_QA_MODEL" "${baseline_args[@]}"
       - name: Reject credential leakage in release evidence
         id: release-secret-scan
         if: always() && steps.authorize.outcome == 'success'

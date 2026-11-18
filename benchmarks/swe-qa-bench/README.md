@@ -13,6 +13,14 @@ fixture source. All three published tools, schemas and guidance remain intact.
 The mode never starts QA20 or a judge. Each session has a 12-request/300-second
 cap and stops after three identical tool errors; failures do not suppress other cases.
 
+Select `model=qwen3.8-max` to repeat these seven checks against the same endpoint.
+Set `release_chain_baseline_run` to a previous same-repository chain run to restore
+its hash-verified fixture index. Model-only comparisons preserve the original
+GLM client capabilities (including no interleaved-history extension), generation
+parameters and original error-prefix detector; only the model ID/display name
+changes. The actual model and generation parameters are checked on the wire.
+Both seven-session runs remain separate from QA20 and are not reliability estimates.
+
 ## Official 0.3.1 Caller/Callee E2E
 
 The [release protocol](docs/caller-callee-release-e2e-0.3.1.md) uses the official

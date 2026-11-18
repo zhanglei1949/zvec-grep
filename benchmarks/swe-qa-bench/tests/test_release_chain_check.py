@@ -7,7 +7,9 @@ from pathlib import Path
 
 import yaml
 
-from zg_bench.release_chain_check import CASES, QUERY, evaluate, make_case, useful_output
+from zg_bench.release_chain_check import CASES, QUERY, baseline_protocol, evaluate, make_case, useful_output
+from zg_bench.release_e2e import release_command
+from zg_bench.release_packages import sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -98,6 +100,45 @@ class ChainCheckTests(unittest.TestCase):
         diagnostic = [step for step in steps if "zg_bench.release_chain_check" in step.get("run", "")]
         self.assertEqual(len(diagnostic), 2)
         self.assertTrue(all("--execute-full" not in step["run"] for step in diagnostic))
+        self.assertTrue(all('--model "$SWE_QA_MODEL"' in step["run"] for step in diagnostic))
+
+    def test_model_switch_preserves_all_other_client_and_generation_settings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            suite = make_case(directory, CASES[0])
+            configs = []
+            for model in ("glm-5.2", "qwen3.8-max"):
+                command = release_command(suite, Path("release.json"), Path("jobs"), "agent", 0,
+                                          overlay=Path("compose.json"), smoke=True, model="custom-openai/" + model)
+                self.assertEqual(command[command.index("--model") + 1], "custom-openai/" + model)
+                config = json.loads(next(value.split("=", 1)[1] for value in command if value.startswith("opencode_config=")))
+                selected = config["provider"]["custom-openai"]["models"].pop(model)
+                selected.pop("name")
+                config["provider"]["custom-openai"]["models"]["selected"] = selected
+                config["model"] = "selected"
+                configs.append(config)
+            self.assertEqual(configs[0], configs[1])
+            with self.assertRaisesRegex(ValueError, "limited to technical"):
+                release_command(suite, Path("release.json"), Path("jobs"), "agent", 1,
+                                overlay=Path("compose.json"), model="custom-openai/qwen3.8-max")
+
+    def test_baseline_index_and_cases_must_match_before_reusing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            manifest = {"version": "0.3.1"}
+            protocol = {"protocol": "release-0.3.1-chain-check-v1", "release": manifest, "cases": CASES,
+                        "fixture_sha256": sha256(ROOT / "fixtures/caller-callee-dev/lib.rs")}
+            (directory / "protocol.json").write_text(json.dumps(protocol))
+            seed = directory / "index-snapshots/key"
+            workspace = seed / "workspace"
+            workspace.mkdir(parents=True)
+            source = workspace / "index.bin"
+            source.write_bytes(b"frozen index")
+            (seed / "payload-sha256.json").write_text(json.dumps({"index.bin": sha256(source)}))
+            self.assertEqual(baseline_protocol(directory, manifest)[0], directory)
+            source.write_bytes(b"different index")
+            with self.assertRaisesRegex(ValueError, "recorded hashes"):
+                baseline_protocol(directory, manifest)
 
 
 if __name__ == "__main__":

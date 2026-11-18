@@ -41,7 +41,7 @@ const server = http.createServer(async (request, response) => {
   }
   record({ type: "request", id, path: request.url, body_sha256: createHash("sha256").update(bytes).digest("hex"), body });
   if (contract?.mode === "release") {
-    const repeated = repeatedToolError(body.messages);
+    const repeated = repeatedToolError(body.messages, 3, contract.error_guard_version !== 1);
     const budgetExceeded = body.tools?.length && Number.isSafeInteger(contract.max_task_requests) && taskRequestsForwarded >= contract.max_task_requests;
     if (releaseStopped || repeated || budgetExceeded) {
       releaseStopped = true;

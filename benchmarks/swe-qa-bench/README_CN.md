@@ -12,6 +12,11 @@ OpenCode会话：search/callers/callees最小参数各1个，另有search的fts/
 完整保留发布版三个工具、schema和指导。每会话最多12个带工具请求，最长300秒，
 相同错误连续3次停止。该入口不会启动QA20或评分，参数专项的失败也不阻断其余项目。
 
+选择 `model=qwen3.8-max` 可用同一 endpoint 重复这7项；`release_chain_baseline_run`
+填写此前同仓库的链路验收 run ID，可恢复其经过哈希验证的 fixture 索引。只切换模型时，
+保留 GLM 那轮的客户端能力配置（不额外启用交错推理历史）、生成参数和原始错误识别规则，
+仅改模型标识与显示名，并检查实际请求。每模型每项仅1个会话，不据此估计稳定性。
+
 ## 官方 0.3.1 Caller/Callee E2E
 
 [发布版评测协议与运行方式](docs/caller-callee-release-e2e-0.3.1.md)：使用官方 npm

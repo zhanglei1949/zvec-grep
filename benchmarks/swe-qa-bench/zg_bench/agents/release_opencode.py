@@ -196,8 +196,9 @@ fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:ma
 fs.writeFileSync('/logs/agent/request-contract.json',JSON.stringify({mode:'release',terminate_isolated_agent:true,
  guidance:s.guidance,instructions:s.instructions,tool_names:s.tools.map(t=>'zvec_grep_'+t.name),
  schemas:Object.fromEntries(s.tools.map(t=>['zvec_grep_'+t.name,t.inputSchema]))}));"""
+        contract_js += f"const modelContract=JSON.parse(fs.readFileSync('/logs/agent/request-contract.json'));modelContract.model={json.dumps(self.model_name.split('/')[-1])};fs.writeFileSync('/logs/agent/request-contract.json',JSON.stringify(modelContract));"
         if self._technical_request_limit is not None:
-            contract_js += f"const c=JSON.parse(fs.readFileSync('/logs/agent/request-contract.json'));c.max_task_requests={self._technical_request_limit};fs.writeFileSync('/logs/agent/request-contract.json',JSON.stringify(c));"
+            contract_js += f"const c=JSON.parse(fs.readFileSync('/logs/agent/request-contract.json'));c.max_task_requests={self._technical_request_limit};c.error_guard_version=1;fs.writeFileSync('/logs/agent/request-contract.json',JSON.stringify(c));"
         await self.exec_as_agent(environment, command=NVM + f"node -e {Q(contract_js)}")
         provider = self.model_name.split("/", 1)[0]
         upstream = self._opencode_config["provider"][provider]["options"]["baseURL"]

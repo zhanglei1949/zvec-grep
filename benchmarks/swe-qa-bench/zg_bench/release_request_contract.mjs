@@ -22,12 +22,13 @@ export function verifyReleaseRequest(body, contract, first) {
   }
   if (first && (body.messages.length !== 2 || body.messages[0].role !== "system" || body.messages[1].role !== "user"))
     throw new Error("First task request contains previous conversation history");
-  if (body.tool_choice !== "auto" || body.model !== "glm-5.2" || body.temperature !== 0 || body.seed !== 42 ||
+  const model = contract.model || "glm-5.2";
+  if (!["glm-5.2", "qwen3.8-max"].includes(model) || body.tool_choice !== "auto" || body.model !== model || body.temperature !== 0 || body.seed !== 42 ||
       body.max_tokens !== 32000 || body.enable_thinking !== true || body.reasoning_effort !== "high")
     throw new Error("Actual generation settings differ from frozen protocol");
 }
 
-export function repeatedToolError(messages, threshold = 3) {
+export function repeatedToolError(messages, threshold = 3, extendedWrappers = true) {
   const calls = new Map();
   let previous = null, count = 0;
   for (const message of messages) {
@@ -35,7 +36,9 @@ export function repeatedToolError(messages, threshold = 3) {
     if (message.role !== "tool") continue;
     const call = calls.get(message.tool_call_id);
     const content = text(message.content);
-    if (!call || !(call.name === "invalid" || /^\s*(error\b|invalid\b|json parse error|failed to (deserialize parameters|validate|execute)|validation error\b|the arguments provided to the tool are invalid|model tried to call unavailable tool)/i.test(content))) { previous = null; count = 0; continue; }
+    const knownError = /^\s*(error\b|invalid\b|json parse error|failed to (deserialize parameters|validate|execute)|validation error\b)/i.test(content);
+    const wrapperError = extendedWrappers && /^\s*(the arguments provided to the tool are invalid|model tried to call unavailable tool)/i.test(content);
+    if (!call || !(call.name === "invalid" || knownError || wrapperError)) { previous = null; count = 0; continue; }
     let args = call.arguments;
     try { args = JSON.parse(args); } catch { /* Invalid arguments are evidence. */ }
     const fingerprint = stable({ tool: call.name, arguments: args, error: content });

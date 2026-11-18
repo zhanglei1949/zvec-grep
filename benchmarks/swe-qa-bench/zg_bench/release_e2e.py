@@ -35,10 +35,12 @@ DATA = ROOT / "zg_bench/swe_qa/data"
 MODEL_REVISION = "e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b"
 
 
-def release_command(suite: BenchmarkSuite, manifest: Path, jobs: Path, group: str, number: int, *, overlay: Path, smoke: bool = False) -> list[str]:
+def release_command(suite: BenchmarkSuite, manifest: Path, jobs: Path, group: str, number: int, *, overlay: Path, smoke: bool = False, model: str = "custom-openai/glm-5.2") -> list[str]:
     if group not in GROUPS or number not in (0, 1, 2, 3) or smoke != (number == 0):
         raise ValueError("Invalid release stage or arm")
-    command = build_harbor_command(suite, profile="zvec-grep", agent="opencode", model="custom-openai/glm-5.2",
+    if model not in ("custom-openai/glm-5.2", "custom-openai/qwen3.8-max") or (not smoke and model != "custom-openai/glm-5.2"):
+        raise ValueError("Alternate release models are limited to technical checks")
+    command = build_harbor_command(suite, profile="zvec-grep", agent="opencode", model=model,
         jobs_dir=jobs, job_name=f"r{number}-{group}-zvec-grep", n_attempts=1 if smoke else 5, max_retries=0,
         mcp_toolset=group, record_model_requests=True, embedding_model="local/potion-code-16m-v2",
         zvec_grep_package="@zvec/zvec-grep@0.3.1")
@@ -51,6 +53,14 @@ def release_command(suite: BenchmarkSuite, manifest: Path, jobs: Path, group: st
             command[index] = "zvec_binding_package=@zvec/zvec-grep-linux-x64-gnu@0.3.1"
     if smoke:
         command += ["--agent-kwarg", "technical_smoke=true"]
+    # A model-only technical comparison keeps the original GLM client
+    # capabilities, rather than enabling Qwen-specific interleaved history.
+    if model == "custom-openai/qwen3.8-max":
+        for index, value in enumerate(command):
+            if value.startswith("opencode_config="):
+                config = json.loads(value.split("=", 1)[1])
+                config["provider"]["custom-openai"]["models"]["qwen3.8-max"].pop("interleaved", None)
+                command[index] = "opencode_config=" + json.dumps(config, separators=(",", ":"))
     return command
 
 
@@ -207,11 +217,11 @@ def check_smoke(row: dict) -> list[str]:
     return errors
 
 
-def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None) -> list[dict]:
+def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, number: int, task: str, overlay: Path, smoke: bool = False, request_limit: int | None = None, model: str = "custom-openai/glm-5.2") -> list[dict]:
     destination = output / ("smoke" if smoke else f"round-{number}") / group / task
     destination.mkdir(parents=True, exist_ok=False)
     jobs = destination / "jobs"
-    command = release_command(suite, manifest, jobs, group, number, overlay=overlay, smoke=smoke)
+    command = release_command(suite, manifest, jobs, group, number, overlay=overlay, smoke=smoke, model=model)
     if request_limit is not None:
         if not smoke:
             raise ValueError("Request limit applies only to technical sessions")
@@ -219,7 +229,7 @@ def run_job(suite: BenchmarkSuite, *, manifest: Path, output: Path, group: str, 
     write_json(destination / "command.json", command)
     started = time.monotonic()
     with (destination / "harbor.stdout").open("w") as stdout, (destination / "harbor.stderr").open("w") as stderr:
-        result = subprocess.run(command, env=execution_environment(agent="opencode", model="custom-openai/glm-5.2"), stdout=stdout, stderr=stderr)
+        result = subprocess.run(command, env=execution_environment(agent="opencode", model=model), stdout=stdout, stderr=stderr)
     rows = collect_job(jobs, task=task, group=group, number=number, expected=1 if smoke else 5)
     write_json(destination / "task-report.json", {"returncode": result.returncode, "wall_seconds": time.monotonic() - started, "trials": rows})
     print(json.dumps({"round": number, "group": group, "task": task, "completed": sum(row["status"] == "completed" for row in rows), "planned": len(rows)}), flush=True)
