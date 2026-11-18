@@ -1,6 +1,9 @@
 """The chain check preserves product surfaces and separates actor evidence."""
 import copy
 import json
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,11 +13,40 @@ import yaml
 from zg_bench.release_chain_check import CASES, QUERY, baseline_protocol, evaluate, make_case, useful_output
 from zg_bench.release_e2e import release_command
 from zg_bench.release_packages import sha256
+from zg_bench.agents.release_opencode import MODEL_FILES, MODEL_PREFIX, embedding_cache_warmup_command
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class ChainCheckTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "requires Node for cache preflight")
+    def test_cold_model_cache_warms_outside_frozen_workspace_and_warm_cache_is_reused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            fixture.mkdir()
+            index = fixture / "frozen-index"
+            index.write_bytes(b"unchanged")
+            binary = root / "bin"
+            binary.mkdir()
+            fake = binary / "zg"
+            fake.write_text("#!/bin/sh\nprintf '%s\\n' \"$PWD\" >> \"$WARMUP_TRACE\"\n")
+            fake.chmod(0o755)
+            env = {**os.environ, "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+                   "ZVEC_GREP_MODEL_CACHE": str(root / "cache"), "WARMUP_TRACE": str(root / "trace")}
+            subprocess.run(["bash", "-ec", embedding_cache_warmup_command()], cwd=fixture, env=env, check=True, capture_output=True)
+            scratch = Path((root / "trace").read_text().strip())
+            self.assertNotEqual(scratch, fixture)
+            self.assertFalse(scratch.exists())
+            self.assertEqual(index.read_bytes(), b"unchanged")
+            cache = root / "cache" / MODEL_PREFIX
+            for file in MODEL_FILES:
+                target = cache / file
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"present")
+            subprocess.run(["bash", "-ec", embedding_cache_warmup_command()], cwd=fixture, env=env, check=True, capture_output=True)
+            self.assertEqual(len((root / "trace").read_text().splitlines()), 1)
+
     def test_minimal_and_optional_cases_are_distinct(self):
         self.assertEqual(len(CASES), 7)
         for case in CASES:

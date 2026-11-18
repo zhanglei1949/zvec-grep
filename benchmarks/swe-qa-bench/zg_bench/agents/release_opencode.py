@@ -23,6 +23,17 @@ Q = shlex.quote
 NVM = 'if [ -s "$HOME/.nvm/nvm.sh" ]; then . "$HOME/.nvm/nvm.sh"; fi; '
 
 
+def embedding_cache_warmup_command():
+    cache_present = "const fs=require('fs'),p=require('path');process.exit(" + \
+        f"{json.dumps(list(MODEL_FILES))}.every(f=>fs.existsSync(p.join(process.env.ZVEC_GREP_MODEL_CACHE,{json.dumps(MODEL_PREFIX)},f)))?0:1);"
+    return (f"if ! node -e {Q(cache_present)}; then "
+            "scratch=$(mktemp -d /tmp/zg-embedding-warmup.XXXXXX); "
+            "trap 'rm -rf \"$scratch\"' EXIT; "
+            "printf '%s\\n' 'pub fn warmup(value: i32) -> i32 { value }' > \"$scratch/lib.rs\"; "
+            "cd \"$scratch\"; zg --mode direct --index --embedding local/potion-code-16m-v2; "
+            "printf 'ZG_EMBEDDING_CACHE_WARMED=1\\n'; fi")
+
+
 class ReleaseOpenCode(ZvecOpenCode):
     def __init__(self, *args, release_bundle: str, round_number: int, technical_smoke: bool = False, technical_request_limit: int | None = None, **kwargs):
         self._release_path = Path(release_bundle).resolve()
@@ -151,6 +162,11 @@ fs.writeFileSync('/logs/agent/release-installed.json',JSON.stringify({version:ma
 
     async def _setup_mcp(self, environment, workdir, metadata, *, supports_ready_check):
         started = time.monotonic()
+        # Restoring an index does not populate a fresh embedding-model volume.
+        # Use the published resolver in an isolated scratch workspace; the
+        # frozen answering workspace/index must never be rebuilt to warm it.
+        warmup = await self.exec_as_agent(environment, command="set -e; " + NVM + embedding_cache_warmup_command())
+        metadata["embedding_cache_warmed"] = "ZG_EMBEDDING_CACHE_WARMED=1" in warmup.stdout
         model_check = "const fs=require('fs'),c=require('crypto'),p=require('path');const checked={};" + \
             f"for(const [file,expected] of Object.entries({json.dumps(MODEL_FILES)})){{" + \
             f"const hash=c.createHash('sha256').update(fs.readFileSync(p.join(process.env.ZVEC_GREP_MODEL_CACHE,{json.dumps(MODEL_PREFIX)},file))).digest('hex');" + \
