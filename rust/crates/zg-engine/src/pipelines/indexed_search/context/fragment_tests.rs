@@ -46,6 +46,7 @@ fn hit_with_fragment(source: &str, start: usize, end: usize) -> SearchHit {
         score: 1.0,
         matched_by: MatchedBy::Fts,
         trace: None,
+        graph_evidence: None,
     }
 }
 

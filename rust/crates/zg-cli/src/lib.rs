@@ -50,8 +50,8 @@ use zg_engine::api::{
     context::{
         ContextOptions,
         options::{
-            ContextRoute, ContextRouteMode, FileCategory, FileFormat, QueryFilter, RgGlob,
-            SymbolType,
+            ContextRoute, ContextRouteMode, FileCategory, FileFormat, GraphSearchDirection,
+            GraphSearchMode, GraphSearchOptions, QueryFilter, RgGlob, SymbolType,
         },
     },
     files::FilesOptions,
@@ -525,6 +525,42 @@ fn ordered_glob_rules(matches: &clap::ArgMatches) -> Vec<GlobRule> {
     rules.into_iter().map(|(_, rule)| rule).collect()
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum GraphSearchModeArg {
+    Auto,
+    Off,
+    On,
+}
+
+impl From<GraphSearchModeArg> for GraphSearchMode {
+    fn from(value: GraphSearchModeArg) -> Self {
+        match value {
+            GraphSearchModeArg::Auto => Self::Auto,
+            GraphSearchModeArg::Off => Self::Off,
+            GraphSearchModeArg::On => Self::On,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum GraphSearchDirectionArg {
+    Auto,
+    Incoming,
+    Outgoing,
+    Both,
+}
+
+impl From<GraphSearchDirectionArg> for GraphSearchDirection {
+    fn from(value: GraphSearchDirectionArg) -> Self {
+        match value {
+            GraphSearchDirectionArg::Auto => Self::Auto,
+            GraphSearchDirectionArg::Incoming => Self::Incoming,
+            GraphSearchDirectionArg::Outgoing => Self::Outgoing,
+            GraphSearchDirectionArg::Both => Self::Both,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct QueryArgs {
@@ -556,6 +592,12 @@ pub struct QueryArgs {
     pub refresh: Option<RefreshMode>,
     #[arg(long = "prefer-symbol")]
     pub prefer_symbol: bool,
+    #[arg(long = "graph-search", value_enum)]
+    pub graph_search: Option<GraphSearchModeArg>,
+    #[arg(long = "graph-direction", value_enum)]
+    pub graph_direction: Option<GraphSearchDirectionArg>,
+    #[arg(long = "graph-hops", value_parser = clap::value_parser!(u8).range(1..=2))]
+    pub graph_hops: Option<u8>,
     #[arg(long = "symbol-type", value_enum)]
     pub symbol_types: Vec<SymbolTypeArg>,
     #[arg(long = "modified-after", value_parser = parse_modified_time)]
@@ -1558,6 +1600,14 @@ fn query_plan(mut args: QueryArgs, current_dir: PathBuf) -> Result<CliPlan, CliE
                 && (mode != ClientMode::Direct || matches!(args.refresh, Some(RefreshMode::Wait))),
             trace: args.trace,
             prefer_symbol: args.prefer_symbol,
+            graph_search: GraphSearchOptions {
+                mode: args.graph_search.map_or_else(GraphSearchMode::default, Into::into),
+                direction: args
+                    .graph_direction
+                    .map_or_else(GraphSearchDirection::default, Into::into),
+                max_hops: args.graph_hops,
+                ..GraphSearchOptions::default()
+            },
             filter: QueryFilter {
                 symbol_types: args.symbol_types.into_iter().map(Into::into).collect(),
                 modified_after_epoch_ms: args.modified_after,

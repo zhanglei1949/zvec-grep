@@ -399,6 +399,7 @@ fn context_from_lexical(
         },
         workspace_index: None,
         items,
+        related: Vec::new(),
         group_results: Vec::new(),
         stage_traces: Vec::new(),
         diagnostics: ContextDiagnostics {
@@ -417,6 +418,7 @@ fn context_from_lexical(
                 truncated: reply.diagnostics.truncated,
             }),
             structure,
+            graph: None,
             timings: Vec::new(),
         },
     }
@@ -472,6 +474,7 @@ fn context_item(enriched: EnrichedLexicalMatch, use_entity_ranges: bool) -> Cont
         query_groups: Vec::new(),
         selection_reason: None,
         coverage_group: None,
+        graph_evidence: None,
     }
 }
 

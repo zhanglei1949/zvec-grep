@@ -1973,3 +1973,86 @@ fn pending_call_names_lists_only_bare_pending_calls() {
         vec!["TRACE".to_owned()]
     );
 }
+
+#[test]
+fn scan_neighborhood_paged_returns_deterministic_resolved_pages() {
+    let mut db = SqliteGraphStorage::in_memory().expect("open");
+    let edges = vec![
+        edge(GraphEdgeKind::Calls, "a", "b", 10),
+        edge(GraphEdgeKind::Calls, "a", "c", 20),
+        edge(GraphEdgeKind::Calls, "a", "d", 30),
+        edge(GraphEdgeKind::Contains, "a", "m", 40),
+        edge(GraphEdgeKind::Calls, "x", "a", 50),
+    ];
+    db.write_file_graph(
+        1,
+        None,
+        &graph(
+            &["a", "b", "c", "d", "m", "x"],
+            edges,
+            vec![reference("a", "pending_target")],
+        ),
+        &[],
+        false,
+    )
+    .expect("write");
+
+    // Empty kinds or zero limit yield empty without error.
+    assert!(
+        db.scan_neighborhood_paged("a", Direction::Out, &[], 0, 10)
+            .expect("empty kinds")
+            .is_empty()
+    );
+    assert!(
+        db.scan_neighborhood_paged("a", Direction::Out, &[GraphEdgeKind::Calls], 0, 0)
+            .expect("zero limit")
+            .is_empty()
+    );
+
+    // Cursor pagination over outgoing Calls returns exact ascending row_id order and excludes pending refs.
+    let page1 = db
+        .scan_neighborhood_paged("a", Direction::Out, &[GraphEdgeKind::Calls], 0, 2)
+        .expect("page 1");
+    assert_eq!(page1.len(), 2);
+    assert_eq!(page1[0].edge.target, "b");
+    assert_eq!(page1[1].edge.target, "c");
+    assert!(page1[0].row_id < page1[1].row_id);
+
+    let page2 = db
+        .scan_neighborhood_paged(
+            "a",
+            Direction::Out,
+            &[GraphEdgeKind::Calls],
+            page1[1].row_id,
+            2,
+        )
+        .expect("page 2");
+    assert_eq!(page2.len(), 1);
+    assert_eq!(page2[0].edge.target, "d");
+    assert!(page2[0].row_id > page1[1].row_id);
+
+    let page3 = db
+        .scan_neighborhood_paged(
+            "a",
+            Direction::Out,
+            &[GraphEdgeKind::Calls],
+            page2[0].row_id,
+            2,
+        )
+        .expect("page 3");
+    assert!(page3.is_empty());
+
+    // Incoming Calls uses target = ?1 AND target IS NOT NULL.
+    let incoming = db
+        .scan_neighborhood_paged("a", Direction::In, &[GraphEdgeKind::Calls], 0, 10)
+        .expect("incoming");
+    assert_eq!(incoming.len(), 1);
+    assert_eq!(incoming[0].edge.source, "x");
+
+    // Both direction returns outgoing + incoming Calls in ascending row_id order.
+    let both = db
+        .scan_neighborhood_paged("a", Direction::Both, &[GraphEdgeKind::Calls], 0, 10)
+        .expect("both");
+    assert_eq!(both.len(), 4);
+    assert!(both.windows(2).all(|w| w[0].row_id < w[1].row_id));
+}

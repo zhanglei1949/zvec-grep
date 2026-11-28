@@ -6,10 +6,14 @@ use crate::{
     EngineError, EngineResult,
     domain::FileId,
     storage::{
-        IndexStore, IndexedSourceFile,
+        IndexStore, IndexedSourceFile, ReadView,
         types::{StorageSearchFilter, StorageSearchHit, StoredFileAttributes, StoredSearchData},
     },
 };
+
+pub(crate) trait GraphSearchVisitor {
+    fn visit(&mut self, view: &ReadView<'_>) -> EngineResult<()>;
+}
 
 pub(crate) trait SearchStorage: Send + Sync {
     fn list_file_paths(&self) -> EngineResult<Vec<(FileId, PathBuf)>>;
@@ -20,6 +24,9 @@ pub(crate) trait SearchStorage: Send + Sync {
         Err(EngineError::unsupported(
             "stage index observation unavailable",
         ))
+    }
+    fn visit_graph(&self, _visitor: &mut dyn GraphSearchVisitor) -> EngineResult<bool> {
+        Ok(false)
     }
     fn search_fts(
         &self,
@@ -55,6 +62,16 @@ impl SearchStorage for IndexStore {
 
     fn indexed_sources(&self, paths: &HashSet<PathBuf>) -> EngineResult<Vec<IndexedSourceFile>> {
         self.indexed_sources(paths)
+    }
+
+    fn visit_graph(&self, visitor: &mut dyn GraphSearchVisitor) -> EngineResult<bool> {
+        self.read_snapshot(|view| {
+            if !view.has_graph() {
+                return Ok(false);
+            }
+            visitor.visit(view)?;
+            Ok(true)
+        })
     }
 
     fn search_fts(

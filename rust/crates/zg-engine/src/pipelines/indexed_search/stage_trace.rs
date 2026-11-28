@@ -177,6 +177,17 @@ impl StageTraceCollector {
         }
     }
 
+    pub(super) fn graph_expanded(&mut self, count: usize) {
+        self.capture.sizes.graph_expanded = count;
+    }
+
+    pub(super) fn graph_rank(&mut self, hit: &SearchHit, rank: usize, backfilled: bool) {
+        if let Some(stages) = self.stages(hit.file.id(), hit.entity.id()) {
+            stages.graph_rank = Some(rank);
+            stages.graph_backfilled = backfilled;
+        }
+    }
+
     pub(super) fn finish(mut self, hits: &[SearchHit]) -> StageTrace {
         self.capture.sizes.selected = hits.len();
         for hit in hits {

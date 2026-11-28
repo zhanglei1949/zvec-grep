@@ -11,10 +11,13 @@ use async_trait::async_trait;
 use crate::{
     EngineError,
     api::context::{
-        options::{ContextRoute as SearchRoute, ContextRouteMode as SearchRouteMode, QueryFilter},
+        options::{
+            ContextRoute as SearchRoute, ContextRouteMode as SearchRouteMode, GraphRankingPolicy,
+            GraphSearchMode, GraphSearchOptions, QueryFilter,
+        },
         result::{
-            MatchedBy, SearchFinalTrace, SearchFusionTrace, SearchHitTrace, SearchRecallTrace,
-            TimingEntry,
+            GraphEvidence, GraphSearchDiagnostics, MatchedBy, RelatedGraphItem, SearchFinalTrace,
+            SearchFusionTrace, SearchHitTrace, SearchRecallTrace, TimingEntry,
         },
         stage_trace::StageTrace,
     },
@@ -47,6 +50,7 @@ pub(crate) struct SearchPlan {
     pub trace: bool,
     pub prefer_symbol: bool,
     pub filter: QueryFilter,
+    pub graph_search: GraphSearchOptions,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -70,14 +74,17 @@ pub(crate) struct SearchHit {
     pub score: f64,
     pub matched_by: MatchedBy,
     pub trace: Option<SearchHitTrace>,
+    pub graph_evidence: Option<GraphEvidence>,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct SearchPlanResult {
     pub routes: Vec<ResolvedSearchRoute>,
     pub hits: Vec<SearchHit>,
+    pub related: Vec<RelatedGraphItem>,
     pub timings: Vec<TimingEntry>,
     pub stage_trace: Option<StageTrace>,
+    pub graph_diagnostics: Option<GraphSearchDiagnostics>,
 }
 
 #[async_trait]
@@ -269,21 +276,28 @@ async fn search_with_stage_trace(
         .iter()
         .map(|_| 1.0 / (RRF_K + 1.0))
         .sum();
-    let hits = super::ranking::rank(
+    let effective_graph_search = resolve_graph_search_options(&plan.graph_search);
+    let (hits, related, graph_diagnostics) = super::ranking::rank_with_graph(
         hits,
         &routes,
         &plan.filter,
+        filter.as_ref(),
+        workspace_root,
+        storage,
         maximum_rrf,
         limit,
+        &effective_graph_search,
         observation.as_mut(),
-    );
+    )?;
     let ranking_duration = ranking_started.elapsed();
     let stage_trace = observation.map(|observation| observation.finish(&hits));
 
     Ok(SearchPlanResult {
         routes,
         hits,
+        related,
         stage_trace,
+        graph_diagnostics,
         timings: vec![
             timing("search_plan", plan_duration),
             timing("search_filter", filter_duration),
@@ -685,7 +699,32 @@ fn candidate_to_hit(
                 cutoff_rank: limit,
             },
         }),
+        graph_evidence: None,
     }))
+}
+
+fn resolve_graph_search_options(options: &GraphSearchOptions) -> GraphSearchOptions {
+    if !options.is_default() {
+        return options.clone();
+    }
+    let Ok(policy) = std::env::var("ZG_GRAPH_SEARCH_POLICY") else {
+        return options.clone();
+    };
+    let mut resolved = options.clone();
+    match policy.trim().to_ascii_lowercase().as_str() {
+        "off" => resolved.mode = GraphSearchMode::Off,
+        "in_pool" | "in_pool_rerank_only" => {
+            resolved.policy = GraphRankingPolicy::InPoolRerankOnly;
+        }
+        "local_rwr" | "rwr" => {
+            resolved.policy = GraphRankingPolicy::LocalRwr;
+        }
+        "pattern_two_track" | "two_track" => {
+            resolved.policy = GraphRankingPolicy::PatternTwoTrack;
+        }
+        _ => {}
+    }
+    resolved
 }
 
 fn derive_matched_by(sources: &HashSet<SearchRouteMode>) -> MatchedBy {
@@ -924,8 +963,8 @@ mod tests {
     };
 
     use super::{
-        MatchedBy, QueryFilter, SearchEmbeddingRuntime, SearchPlan, SearchRoute, SearchRouteMode,
-        SearchStorage, search_workspace_index,
+        GraphSearchOptions, MatchedBy, QueryFilter, SearchEmbeddingRuntime, SearchPlan,
+        SearchRoute, SearchRouteMode, SearchStorage, search_workspace_index,
     };
 
     struct FixtureModel {
@@ -2590,6 +2629,7 @@ mod tests {
             trace: true,
             prefer_symbol: false,
             filter: QueryFilter::default(),
+            graph_search: GraphSearchOptions::default(),
         }
     }
 

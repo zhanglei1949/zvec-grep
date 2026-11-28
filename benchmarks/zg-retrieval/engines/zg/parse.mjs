@@ -137,9 +137,23 @@ function parseCompactResponse(text, lines, freshness) {
   const header =
     /^#([1-9]\d*) (?!matchedBy=)(.+?):((?:[1-9]\d*(?:-[1-9]\d*)?)|file|page:[1-9]\d*|bytes:\d+-\d+)$/;
   const items = [];
+  const related = [];
   let item;
   let sourceStarted = false;
+  let inRelated = false;
   for (const line of lines) {
+    if (line === "related:" && items.length > 0) {
+      inRelated = true;
+      continue;
+    }
+    if (inRelated) {
+      if (line === "") continue;
+      if (line.startsWith("  ")) {
+        related.push(line.trim());
+        continue;
+      }
+      fail(`Unknown line in related section: ${line.slice(0, 80)}`);
+    }
     const match = header.exec(line);
     if (match) {
       const rank = Number(match[1]);
@@ -172,7 +186,7 @@ function parseCompactResponse(text, lines, freshness) {
     if (line === "" || line === "  …") continue;
     if (
       !sourceStarted &&
-      /^(?:status: possibly_stale$|symbol: |heading: |heading_level: \d+$|scope: )/.test(
+      /^(?:status: possibly_stale$|symbol: |via: |heading: |heading_level: \d+$|scope: )/.test(
         line,
       )
     ) {
@@ -229,7 +243,7 @@ export function parseVisibleResponse(response) {
   let item;
   let section = "metadata";
   const header =
-    /^#([1-9]\d*)(?: \[(?:group_coverage: [^\]\n]+|global_fill)\])? matchedBy=(fts\+vector|fts|vector|lexical)(?: score=(-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?))? (.+?):((?:[1-9]\d*(?:-[1-9]\d*)?)|file|page:[1-9]\d*|bytes:\d+-\d+)$/;
+    /^#([1-9]\d*)(?: \[(?:group_coverage: [^\]\n]+|global_fill)\])? matchedBy=(fts\+vector|fts|vector|lexical|graph)(?: score=(-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?))? (.+?):((?:[1-9]\d*(?:-[1-9]\d*)?)|file|page:[1-9]\d*|bytes:\d+-\d+)$/;
   if (!lines.some((line) => header.test(line)))
     return parseCompactResponse(text, lines, first[1]);
   for (const line of lines) {
@@ -280,7 +294,7 @@ export function parseVisibleResponse(response) {
     }
     if (
       section === "metadata" &&
-      /^(?:groups: |status: possibly_stale$|symbol: |heading: |heading_level: \d+$|scope: )/.test(
+      /^(?:groups: |status: possibly_stale$|symbol: |via: |heading: |heading_level: \d+$|scope: )/.test(
         line,
       )
     ) {

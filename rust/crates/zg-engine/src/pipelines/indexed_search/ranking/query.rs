@@ -5,11 +5,11 @@ use crate::domain::{CodeMetadata, SymbolType};
 #[derive(Default)]
 // These independent features may all apply at once.
 #[allow(clippy::struct_excessive_bools)]
-pub(super) struct QueryFeatures {
+pub(in crate::pipelines::indexed_search) struct QueryFeatures {
     query_tokens: std::collections::HashSet<String>,
     pub(super) paths: Vec<String>,
     explicit_names: Vec<String>,
-    pub(super) usages: bool,
+    pub(in crate::pipelines::indexed_search) usages: bool,
     pub(super) tests: bool,
     pub(super) examples: bool,
     pub(super) dependencies: bool,
@@ -120,7 +120,80 @@ impl QueryFeatures {
         }
     }
 
-    pub(super) fn describe(&self) -> Vec<String> {
+    pub(in crate::pipelines::indexed_search) fn explicit_names(&self) -> &[String] {
+        &self.explicit_names
+    }
+
+    pub(in crate::pipelines::indexed_search) fn implementations(&self) -> bool {
+        self.implementations
+    }
+
+    pub(in crate::pipelines::indexed_search) fn has_informative_token_match(&self, name: &str) -> bool {
+        if self.explicit_names.iter().any(|explicit| {
+            explicit == name || explicit.eq_ignore_ascii_case(name)
+        }) {
+            return true;
+        }
+        tokens(name).into_iter().any(|token| {
+            informative(&token)
+                && (self.query_tokens.contains(&token)
+                    || (token.chars().count() >= 6
+                        && self.query_tokens.iter().any(|qt| qt.contains(&token))))
+        })
+    }
+
+    /// Lightweight general-purpose lexical/path relevance `[0.0, 1.0]` for an out-of-pool graph
+    /// candidate, used to gate blind topology-only noise without repo-specific heuristics.
+    pub(in crate::pipelines::indexed_search) fn graph_candidate_relevance(
+        &self,
+        stored: &crate::storage::types::StoredEntity,
+    ) -> f64 {
+        let mut sym_tokens = Vec::new();
+        if let Some(crate::domain::EntityMetadata::Code(code)) = stored.entity.metadata() {
+            if let Some(name) = code.symbol_name.as_deref() {
+                sym_tokens.extend(tokens(name).into_iter().filter(|t| informative(t)));
+            }
+            if let Some(scope) = code.scope.as_deref() {
+                sym_tokens.extend(tokens(scope).into_iter().filter(|t| informative(t)));
+            }
+        }
+        let body_text = match stored.entity.content() {
+            crate::domain::Content::Code(s) | crate::domain::Content::Text(s) => {
+                let cap = s.floor_char_boundary(s.len().min(4096));
+                s[..cap].to_lowercase()
+            }
+            crate::domain::Content::Image(_) => String::new(),
+        };
+
+        if self.query_tokens.is_empty() {
+            let explicit_hit = self.explicit_names.iter().any(|name| {
+                let lower = name.to_lowercase();
+                !lower.is_empty() && body_text.contains(&lower)
+            });
+            return if explicit_hit { 1.0 } else { 0.0 };
+        }
+
+        let denom = count_as_f64(self.query_tokens.len().clamp(1, 6));
+        let sym_matched = self
+            .query_tokens
+            .iter()
+            .filter(|qt| sym_tokens.iter().any(|st| related(qt, st)))
+            .count();
+        let sym_score = (count_as_f64(sym_matched) / denom).min(1.0);
+
+        let path_score = self.path_affinity(&stored.file.relative_path().to_string_lossy());
+
+        let body_matched = self
+            .query_tokens
+            .iter()
+            .filter(|qt| body_text.contains(qt.as_str()))
+            .count();
+        let body_score = (count_as_f64(body_matched) / denom).min(1.0);
+
+        (0.55 * sym_score + 0.25 * path_score + 0.20 * body_score).min(1.0)
+    }
+
+    pub(in crate::pipelines::indexed_search) fn describe(&self) -> Vec<String> {
         let mut features = Vec::new();
         if !self.explicit_names.is_empty() {
             features.push("identifier".to_owned());

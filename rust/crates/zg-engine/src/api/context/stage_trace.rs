@@ -21,6 +21,10 @@ pub struct StageTrace {
     pub(crate) files: BTreeMap<String, BTreeMap<String, ObservedEntity>>,
 }
 
+fn is_zero_usize(value: &usize) -> bool {
+    *value == 0
+}
+
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub(crate) struct CandidateStages {
     pub(crate) recall: BTreeMap<String, usize>,
@@ -29,6 +33,10 @@ pub(crate) struct CandidateStages {
     pub(crate) loaded_rrf_rank: Option<usize>,
     pub(crate) loaded_range: Option<StageRange>,
     pub(crate) static_rank: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) graph_rank: Option<usize>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) graph_backfilled: bool,
     pub(crate) final_rank: Option<usize>,
 }
 
@@ -121,6 +129,8 @@ pub(crate) struct StagePoolSizes {
     pub(crate) merged: usize,
     pub(crate) fused: usize,
     pub(crate) loaded: usize,
+    #[serde(default, skip_serializing_if = "is_zero_usize")]
+    pub(crate) graph_expanded: usize,
     pub(crate) selected: usize,
 }
 

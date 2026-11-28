@@ -5,15 +5,15 @@ use crate::api::context::options::QueryFilter;
 #[derive(Clone, Copy, Debug, Default)]
 // These independent features may all apply at once.
 #[allow(clippy::struct_excessive_bools)]
-pub(super) struct Roles {
-    pub(super) tests: bool,
-    pub(super) dependency: bool,
-    pub(super) example: bool,
-    pub(super) generated: bool,
+pub(in crate::pipelines::indexed_search) struct Roles {
+    pub(in crate::pipelines::indexed_search) tests: bool,
+    pub(in crate::pipelines::indexed_search) dependency: bool,
+    pub(in crate::pipelines::indexed_search) example: bool,
+    pub(in crate::pipelines::indexed_search) generated: bool,
 }
 
 impl Roles {
-    pub(super) fn from_path(path: &str) -> Self {
+    pub(in crate::pipelines::indexed_search) fn from_path(path: &str) -> Self {
         let lower = path.replace('\\', "/").to_lowercase();
         let parts = lower
             .split('/')
@@ -52,7 +52,10 @@ impl Roles {
         }
     }
 
-    pub(super) fn overrides(query: &QueryFeatures, filter: &QueryFilter) -> Self {
+    pub(in crate::pipelines::indexed_search) fn overrides(
+        query: &QueryFeatures,
+        filter: &QueryFilter,
+    ) -> Self {
         let included = filter
             .globs
             .iter()
@@ -80,7 +83,7 @@ impl Roles {
         }
     }
 
-    pub(super) fn factor(self, overrides: Self) -> f64 {
+    pub(in crate::pipelines::indexed_search) fn factor(self, overrides: Self) -> f64 {
         [
             (self.tests && !overrides.tests, 0.65_f64),
             (self.dependency && !overrides.dependency, 0.60),
@@ -93,7 +96,7 @@ impl Roles {
         .fold(1.0, f64::min)
     }
 
-    pub(super) fn names(self) -> Vec<String> {
+    pub(in crate::pipelines::indexed_search) fn names(self) -> Vec<String> {
         [
             (self.tests, "test"),
             (self.dependency, "dependency"),

@@ -3,8 +3,9 @@
 use std::io::{self, Write};
 
 use zg_engine::api::context::result::{
-    ContentRange, ContextItem, ContextItemStatus, EntityMetadata,
+    ContentRange, ContextItem, ContextItemStatus, EntityMetadata, GraphEvidence, RelatedGraphItem,
 };
+use zg_engine::api::relationships::{Direction, GraphEdgeKind};
 
 use crate::{
     OutputOptions, PreviewMode, highlight::QueryHighlighter, output_path,
@@ -112,6 +113,11 @@ pub(super) fn write_item_preview(
         }
         Some(EntityMetadata::Markdown(_)) | None => {}
     }
+    if let Some(evidence) = &item.graph_evidence
+        && let Some(via) = format_graph_via(evidence)
+    {
+        writeln!(writer, "{} {via}", theme.metadata_label("via:"))?;
+    }
     let short = options.preview == PreviewMode::Short;
     let max_lines = if short { 10 } else { usize::MAX };
     let first = item.content_range.start_line();
@@ -119,10 +125,18 @@ pub(super) fn write_item_preview(
     let anchor = crate::preview::pdf_excerpt_position(item)
         .map_or_else(
             || {
-                item.excerpt_range
+                let focus_line = item
+                    .graph_evidence
                     .as_ref()
-                    .unwrap_or(&item.range)
-                    .start_line()
+                    .and_then(|ev| ev.source_focus.as_ref())
+                    .map(|focus| focus.line);
+                focus_line
+                    .or_else(|| {
+                        item.excerpt_range
+                            .as_ref()
+                            .unwrap_or(&item.range)
+                            .start_line()
+                    })
                     .zip(first)
                     .map_or(0, |(matched, first)| matched.saturating_sub(first))
             },
@@ -185,4 +199,82 @@ fn range_label(range: &ContentRange) -> String {
         return format!("bytes:{start_offset}-{end_offset}");
     }
     "file".to_owned()
+}
+
+fn format_graph_via(evidence: &GraphEvidence) -> Option<String> {
+    let first = evidence.hops.first()?;
+    let hop_count = evidence.hops.len();
+    let file_name = first
+        .from_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty());
+    let origin_loc = match (file_name, first.from_line) {
+        (Some(file), Some(line)) => format!(" ({file}:{line})"),
+        (Some(file), None) => format!(" ({file})"),
+        _ => String::new(),
+    };
+    let mut parts = vec![format!("{}{origin_loc}", first.from_symbol)];
+    for (idx, hop) in evidence.hops.iter().enumerate() {
+        let is_last = idx + 1 == hop_count;
+        let connector = match (hop.kind, hop.direction, is_last) {
+            (GraphEdgeKind::Calls, Direction::Out, true) => "-> calls",
+            (GraphEdgeKind::Calls, Direction::In, true) => "<- called_by",
+            (GraphEdgeKind::Calls, Direction::Out, false) => "->",
+            (GraphEdgeKind::Calls, Direction::In, false) => "<-",
+            (GraphEdgeKind::Extends | GraphEdgeKind::Implements, Direction::In, _) => {
+                "<- overrides"
+            }
+            (GraphEdgeKind::Extends | GraphEdgeKind::Implements, Direction::Out, _) => "-> base",
+            _ => "->",
+        };
+        parts.push(format!("{connector} {}", hop.to_symbol));
+    }
+    let tag = match first.kind {
+        GraphEdgeKind::Extends => format!("[extends, {hop_count}-hop]"),
+        GraphEdgeKind::Implements => format!("[implements, {hop_count}-hop]"),
+        _ => format!("[{hop_count}-hop]"),
+    };
+    parts.push(tag);
+    Some(parts.join(" "))
+}
+
+pub(super) fn write_related(
+    writer: &mut impl Write,
+    related: &[RelatedGraphItem],
+    theme: StatusTheme,
+) -> io::Result<()> {
+    if related.is_empty() {
+        return Ok(());
+    }
+    writeln!(writer)?;
+    writeln!(writer, "{}", theme.metadata_label("related:"))?;
+    for item in related {
+        let suffix = if matches!(item.range, ContentRange::Pdf { .. }) {
+            String::new()
+        } else {
+            format!(":{}", range_label(&item.range))
+        };
+        write!(
+            writer,
+            "  {}{}",
+            output_path(&item.relative_path).display(),
+            suffix
+        )?;
+        if let Some(name) = &item.symbol_name {
+            if let Some(kind) = item.symbol_type {
+                let kind = serde_json::to_value(kind).map_err(io::Error::other)?;
+                write!(writer, " [{}]", kind.as_str().unwrap_or_default())?;
+            }
+            match item.scope.as_deref().filter(|s| !s.is_empty()) {
+                Some(scope) => write!(writer, " {scope}.{name}")?,
+                None => write!(writer, " {name}")?,
+            }
+        }
+        writeln!(writer)?;
+        if let Some(via) = format_graph_via(&item.graph_evidence) {
+            writeln!(writer, "    {} {via}", theme.metadata_label("via:"))?;
+        }
+    }
+    Ok(())
 }

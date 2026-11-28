@@ -8,8 +8,8 @@ use crate::{
     domain::{CodeMetadata, Entity, EntityId, FileEdge, FileId, FileRecord, GraphEdgeKind},
     storage::{
         fragments,
-        graph::Direction,
-        types::{StorageSearchFilter, StorageSearchHit},
+        graph::{Direction, PagedEdge},
+        types::{StorageSearchFilter, StorageSearchHit, StoredEntity},
     },
 };
 
@@ -105,6 +105,39 @@ impl ReadView<'_> {
         self.state.entities.fetch(ids)
     }
 
+    /// Fetch indexed entities together with their owning file records under one snapshot lock.
+    pub(crate) fn fetch_stored_entities(
+        &self,
+        ids: &[EntityId],
+    ) -> EngineResult<HashMap<EntityId, StoredEntity>> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let entities = self.state.entities.fetch(ids)?;
+        let file_ids: Vec<_> = entities
+            .values()
+            .map(Entity::file_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let files = self.state.files.fetch(&file_ids)?;
+        Ok(entities
+            .into_iter()
+            .filter_map(|(id, entity)| {
+                let file = files
+                    .get(&entity.file_id())
+                    .filter(|file| file.index_status().is_indexed())?;
+                Some((
+                    id,
+                    StoredEntity {
+                        entity,
+                        file: file.clone(),
+                    },
+                ))
+            })
+            .collect())
+    }
+
     pub(crate) fn visible_endpoint_files(
         &self,
         ids: &[EntityId],
@@ -125,12 +158,32 @@ impl ReadView<'_> {
         self.state.files.fetch(ids)
     }
 
+    pub(crate) fn has_graph(&self) -> bool {
+        self.state.graph.is_ok()
+    }
+
     pub(crate) fn ensure_graph(&self) -> EngineResult<()> {
         self.state
             .graph
             .as_ref()
             .map(|_| ())
             .map_err(|error| EngineError::from_report(error.clone()))
+    }
+
+    pub(crate) fn neighborhood_paged(
+        &self,
+        id: &str,
+        direction: Direction,
+        kinds: &[GraphEdgeKind],
+        after_row_id: i64,
+        limit: usize,
+    ) -> EngineResult<Vec<PagedEdge>> {
+        self.state
+            .graph
+            .as_ref()
+            .map_err(|error| EngineError::from_report(error.clone()))?
+            .scan_neighborhood_paged(id, direction, kinds, after_row_id, limit)
+            .map_err(graph_error)
     }
 
     pub(crate) fn neighborhood<T>(

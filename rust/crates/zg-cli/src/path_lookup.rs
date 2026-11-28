@@ -467,6 +467,7 @@ mod tests {
             source: ContextSource::Rg,
             coverage: ContextCoverage::RgExhaustive,
             workspace_index: None,
+            related: Vec::new(),
             items: vec![ContextItem {
                 kind: ContextItemKind::LexicalMatch,
                 rank: 1,
@@ -498,6 +499,7 @@ mod tests {
                 query_groups: vec![],
                 selection_reason: None,
                 coverage_group: None,
+                graph_evidence: None,
             }],
             group_results: vec![],
             diagnostics: ContextDiagnostics::default(),

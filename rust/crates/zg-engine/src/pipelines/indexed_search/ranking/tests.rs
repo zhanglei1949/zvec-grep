@@ -121,6 +121,7 @@ fn fixture_hit(
                 cutoff_rank: 10,
             },
         }),
+        graph_evidence: None,
     }
 }
 

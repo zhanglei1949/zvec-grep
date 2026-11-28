@@ -167,6 +167,7 @@ pub(crate) async fn context_from_index(
                     trace: options.trace,
                     prefer_symbol: options.prefer_symbol,
                     filter: options.filter.clone(),
+                    graph_search: options.graph_search.clone(),
                 },
                 storage,
                 embedding_models,
@@ -199,6 +200,54 @@ fn build_context_result(
         group_items.iter().flatten().cloned().collect(),
         &coverage_groups,
     );
+    let selected_item_keys: HashSet<(std::path::PathBuf, Option<usize>, Option<usize>)> = items
+        .iter()
+        .map(|item| {
+            (
+                item.relative_path.clone(),
+                item.range.start_line(),
+                item.range.last_line(),
+            )
+        })
+        .collect();
+    let mut seen_related = HashSet::new();
+    let mut related = Vec::new();
+    for item in searches.iter().flat_map(|search| search.related.iter()) {
+        let key = (
+            item.relative_path.clone(),
+            item.range.start_line(),
+            item.range.last_line(),
+        );
+        if selected_item_keys.contains(&key) || !seen_related.insert(key) {
+            continue;
+        }
+        related.push(item.clone());
+        if related.len() >= 3 {
+            break;
+        }
+    }
+    let graph_diagnostics = searches
+        .iter()
+        .filter_map(|search| search.graph_diagnostics.as_ref())
+        .fold(
+            None::<crate::api::context::result::GraphSearchDiagnostics>,
+            |acc, diag| {
+                Some(match acc {
+                    None => diag.clone(),
+                    Some(mut merged) => {
+                        merged.active |= diag.active;
+                        merged.seed_count += diag.seed_count;
+                        merged.anchor_count += diag.anchor_count;
+                        merged.expanded_candidates += diag.expanded_candidates;
+                        merged.in_pool_boosted += diag.in_pool_boosted;
+                        merged.backfilled_count += diag.backfilled_count;
+                        merged.containment_deduped += diag.containment_deduped;
+                        merged.truncated_by_budget |= diag.truncated_by_budget;
+                        merged
+                    }
+                })
+            },
+        );
     let timings = searches
         .iter()
         .flat_map(|search| search.timings.iter().cloned())
@@ -228,6 +277,7 @@ fn build_context_result(
             path: workspace.layout().storage_dir().to_path_buf(),
         }),
         items,
+        related,
         stage_traces,
         group_results: groups
             .iter()
@@ -263,6 +313,7 @@ fn build_context_result(
             }),
             rg: None,
             structure: None,
+            graph: graph_diagnostics,
             timings,
         },
     })
@@ -323,6 +374,7 @@ fn search_plan_to_context_items(
                 }],
                 selection_reason: None,
                 coverage_group: None,
+                graph_evidence: hit.graph_evidence.clone(),
             })
         })
         .collect()
@@ -360,7 +412,11 @@ fn select_and_rank_context_items(
             .filter(|item| query_group_match(item, group_id).is_some())
             .cloned()
             .collect::<Vec<_>>();
-        candidates.sort_by(|left, right| compare_group_rank(left, right, group_id));
+        candidates.sort_by(|left, right| {
+            (left.matched_by == MatchedBy::Graph)
+                .cmp(&(right.matched_by == MatchedBy::Graph))
+                .then_with(|| compare_group_rank(left, right, group_id))
+        });
         if let Some(mut candidate) = candidates.into_iter().next() {
             selected.insert(context_item_dedupe_key(&candidate));
             candidate.selection_reason = Some(ContextSelectionReason::Coverage);
@@ -413,10 +469,15 @@ fn merged_matched_by(matches: &[ContextQueryGroupMatch]) -> MatchedBy {
     let has_vector = matches
         .iter()
         .any(|item| matches!(item.matched_by, MatchedBy::Vector | MatchedBy::FtsAndVector));
-    match (has_fts, has_vector) {
-        (true, true) => MatchedBy::FtsAndVector,
-        (false, true) => MatchedBy::Vector,
-        (true | false, false) => MatchedBy::Fts,
+    let has_graph = matches
+        .iter()
+        .any(|item| item.matched_by == MatchedBy::Graph);
+    match (has_fts, has_vector, has_graph) {
+        (true, true, _) => MatchedBy::FtsAndVector,
+        (false, true, _) => MatchedBy::Vector,
+        (true, false, _) => MatchedBy::Fts,
+        (false, false, true) => MatchedBy::Graph,
+        (false, false, false) => MatchedBy::Fts,
     }
 }
 
@@ -660,6 +721,7 @@ mod tests {
             score: 1.0,
             matched_by: MatchedBy::Fts,
             trace: None,
+            graph_evidence: None,
         };
         let target = super::context_item_target(&hit).expect("context");
         assert_eq!(target.content, text);
@@ -743,6 +805,7 @@ mod tests {
             score: 1.0,
             matched_by: MatchedBy::Fts,
             trace: None,
+            graph_evidence: None,
         };
         let target = super::context_item_target(&hit).expect("fragment content");
         assert_eq!(target.content_role, ContextContentRole::Source);
@@ -756,8 +819,10 @@ mod tests {
         let search = SearchPlanResult {
             routes: Vec::new(),
             hits: vec![hit.clone()],
+            related: Vec::new(),
             timings: Vec::new(),
             stage_trace: None,
+            graph_diagnostics: None,
         };
         let request = normalize_context_request(&ContextOptions {
             query: Some("source".into()),
@@ -855,6 +920,7 @@ mod tests {
                 score: 1.0,
                 matched_by: MatchedBy::Fts,
                 trace: None,
+                graph_evidence: None,
             };
             let target = super::context_item_target(&hit).expect("source fragment");
             let start = usize::try_from(bytes.start_offset()).expect("start");
@@ -929,6 +995,8 @@ mod tests {
         let search = SearchPlanResult {
             routes: Vec::new(),
             stage_trace: None,
+            graph_diagnostics: None,
+            related: Vec::new(),
             hits: vec![SearchHit {
                 entity: Entity::new(id, source.id(), source_range, content, None, vec![fragment])
                     .expect("entity"),
@@ -938,6 +1006,7 @@ mod tests {
                 score: 1.0,
                 matched_by: MatchedBy::Fts,
                 trace: None,
+                graph_evidence: None,
             }],
             timings: Vec::new(),
         };
@@ -1176,6 +1245,7 @@ mod tests {
             query_groups: vec![query_group],
             selection_reason: None,
             coverage_group: None,
+            graph_evidence: None,
         }
     }
 }

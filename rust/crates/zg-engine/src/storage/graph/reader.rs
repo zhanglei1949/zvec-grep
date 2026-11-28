@@ -9,10 +9,74 @@ use super::{
     decode_metadata, nonempty,
 };
 use crate::domain::{FileEdge, GraphEdgeKind};
-use rusqlite::{Row, params_from_iter};
+use rusqlite::{Row, params_from_iter, types::Value as SqlValue};
 use serde_json::Value;
 
+/// One resolved edge returned with its monotonic SQLite row ID cursor.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PagedEdge {
+    pub row_id: i64,
+    pub edge: FileEdge,
+}
+
 impl SqliteGraphStorage {
+    /// Read one deterministic page of resolved edges ordered by ascending row ID.
+    ///
+    /// # Errors
+    /// Rejects blank IDs, invalid stored data, and SQLite errors.
+    pub(crate) fn scan_neighborhood_paged(
+        &self,
+        id: &str,
+        direction: super::Direction,
+        kinds: &[GraphEdgeKind],
+        after_row_id: i64,
+        limit: usize,
+    ) -> Result<Vec<PagedEdge>> {
+        nonempty(id)?;
+        if limit == 0 || kinds.is_empty() {
+            return Ok(Vec::new());
+        }
+        let endpoint = match direction {
+            Direction::In => "target = ?1 AND target IS NOT NULL",
+            Direction::Out => "source = ?1",
+            Direction::Both => "(source = ?1 OR (target = ?1 AND target IS NOT NULL))",
+        };
+        let mut names: Vec<&str> = kinds.iter().map(|kind| kind.as_str()).collect();
+        names.sort_unstable();
+        names.dedup();
+        let placeholders = vec!["?"; names.len()].join(", ");
+        let sql = format!(
+            "SELECT id, kind, source, target, line, col, provenance, metadata
+             FROM edges
+             WHERE {endpoint} AND status = 'resolved' AND id > ?2 AND kind IN ({placeholders})
+             ORDER BY id ASC
+             LIMIT ?"
+        );
+        let mut values = Vec::with_capacity(3 + names.len());
+        values.push(SqlValue::Text(id.to_owned()));
+        values.push(SqlValue::Integer(after_row_id));
+        for name in names {
+            values.push(SqlValue::Text(name.to_owned()));
+        }
+        values.push(SqlValue::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
+        let mut statement = self.connection.prepare_cached(&sql)?;
+        let rows = statement.query_map(params_from_iter(values), |row| {
+            Ok(PagedEdge {
+                row_id: row.get(0)?,
+                edge: FileEdge {
+                    kind: decode_enum(row.get(1)?)?,
+                    source: row.get(2)?,
+                    target: row.get(3)?,
+                    line: row.get(4)?,
+                    column: row.get(5)?,
+                    provenance: decode_enum(row.get(6)?)?,
+                    metadata: decode_metadata(&row.get::<_, String>(7)?)?,
+                },
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     /// Stream resolved one-hop edges from one SQL execution, without ordering them.
     /// The callback may stop before exhausting the cursor.
     /// `None` selects all kinds; `Some(&[])` selects none.

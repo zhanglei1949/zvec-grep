@@ -3,25 +3,32 @@ mod paths;
 mod query;
 mod support;
 
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap, path::Path};
 
 use super::{
+    graph_search,
     pipeline::{ResolvedSearchRoute, SearchHit},
     stage_trace::StageTraceCollector,
+    storage::SearchStorage,
 };
 use crate::{
-    api::context::{options::QueryFilter, result::SearchRankingTrace},
+    EngineResult,
+    api::context::{
+        options::{GraphSearchMode, GraphSearchOptions, QueryFilter},
+        result::{GraphSearchDiagnostics, RelatedGraphItem, SearchRankingTrace},
+    },
     domain::{ContentKind, EntityMetadata, FileId},
+    storage::types::StorageSearchFilter,
 };
-use paths::Roles;
-use query::QueryFeatures;
+pub(super) use paths::Roles;
+pub(super) use query::QueryFeatures;
 
-const FILE_DECAY: f64 = 0.50;
+pub(super) const FILE_DECAY: f64 = 0.50;
 
 /// Internal policy values also provide a fixed-pool ablation seam for tests.
 #[derive(Clone, Copy)]
-struct Policy {
-    name: &'static str,
+pub(super) struct Policy {
+    pub(super) name: &'static str,
     path_weight: f64,
     weak_names: bool,
     definition_intent: bool,
@@ -50,21 +57,23 @@ impl Policy {
     };
 }
 
-struct Scored {
-    hit: SearchHit,
-    base: f64,
-    static_score: f64,
-    symbol_match: &'static str,
-    symbol_bonus: f64,
-    definition_bonus: f64,
-    path_bonus: f64,
-    support_bonus: f64,
-    support_count: u32,
-    roles: Roles,
-    overrides: Roles,
+#[derive(Clone)]
+pub(super) struct Scored {
+    pub(super) hit: SearchHit,
+    pub(super) base: f64,
+    pub(super) static_score: f64,
+    pub(super) symbol_match: &'static str,
+    pub(super) symbol_bonus: f64,
+    pub(super) definition_bonus: f64,
+    pub(super) path_bonus: f64,
+    pub(super) support_bonus: f64,
+    pub(super) support_count: u32,
+    pub(super) roles: Roles,
+    pub(super) overrides: Roles,
 }
 
 /// Rank without widening recall, inspecting source files, or loading a model.
+#[cfg(test)]
 pub(super) fn rank(
     hits: Vec<SearchHit>,
     routes: &[ResolvedSearchRoute],
@@ -84,6 +93,93 @@ pub(super) fn rank(
     )
 }
 
+/// Rank code hits with optional bounded graph expansion and two-track fusion.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn rank_with_graph(
+    mut hits: Vec<SearchHit>,
+    routes: &[ResolvedSearchRoute],
+    filter: &QueryFilter,
+    storage_filter: Option<&StorageSearchFilter>,
+    workspace_root: &Path,
+    storage: &dyn SearchStorage,
+    maximum_rrf: f64,
+    limit: usize,
+    graph_options: &GraphSearchOptions,
+    mut observation: Option<&mut StageTraceCollector>,
+) -> EngineResult<(Vec<SearchHit>, Vec<RelatedGraphItem>, Option<GraphSearchDiagnostics>)> {
+    let result_count = limit.min(hits.len());
+    let is_code = |hit: &SearchHit| hit.entity.content().kind() == ContentKind::Code;
+    let slot_count = if observation.is_some() {
+        hits.len()
+    } else {
+        result_count
+    };
+    let code_ranks: Vec<_> = hits
+        .iter()
+        .take(slot_count)
+        .enumerate()
+        .filter_map(|(index, hit)| is_code(hit).then_some(index + 1))
+        .collect();
+
+    let mut ranked_code = Vec::new();
+    let mut related_items = Vec::new();
+    let mut graph_diagnostics = None;
+    let visible = code_ranks.partition_point(|rank| *rank <= result_count);
+    if visible > 0 {
+        let code = hits.extract_if(.., |hit| is_code(hit)).collect();
+        let (query, scored) = score_code(code, routes, filter, maximum_rrf, Policy::CURRENT);
+        if let Some(obs) = observation.as_deref_mut() {
+            let mut order = scored.iter().collect::<Vec<_>>();
+            order.sort_by(|a, b| compare(a, b, a.static_score, b.static_score));
+            for (item, &rank) in order.into_iter().zip(&code_ranks) {
+                obs.static_rank(&item.hit, rank);
+            }
+        }
+        if graph_options.mode != GraphSearchMode::Off {
+            if let Some((selected, related, diag)) = graph_search::run_graph_ranking(
+                scored.clone(),
+                &query,
+                &code_ranks[..visible],
+                Policy::CURRENT,
+                filter,
+                storage_filter,
+                workspace_root,
+                storage,
+                graph_options,
+                observation.as_deref_mut(),
+            )? {
+                ranked_code = selected;
+                related_items = related;
+                graph_diagnostics = Some(diag);
+            } else {
+                ranked_code = select(scored, &query, &code_ranks[..visible], Policy::CURRENT);
+            }
+        } else {
+            ranked_code = select(scored, &query, &code_ranks[..visible], Policy::CURRENT);
+        }
+    }
+    let mut ranked_code = ranked_code.into_iter().peekable();
+    let mut documents = hits.into_iter();
+    let mut output = Vec::with_capacity(result_count);
+    for rank in 1..=result_count {
+        let Some(mut hit) = ranked_code
+            .next_if(|hit| hit.rank == rank)
+            .or_else(|| documents.next())
+            .or_else(|| ranked_code.next())
+        else {
+            break;
+        };
+        hit.rank = output.len() + 1;
+        if let Some(trace) = &mut hit.trace {
+            trace.final_selection.returned_by_limit = true;
+            trace.final_selection.cutoff_rank = limit;
+        }
+        output.push(hit);
+    }
+    Ok((output, related_items, graph_diagnostics))
+}
+
+#[cfg(test)]
 fn rank_with_policy(
     mut hits: Vec<SearchHit>,
     routes: &[ResolvedSearchRoute],
@@ -198,7 +294,7 @@ fn score_code(
     (query, scored)
 }
 
-fn compare(a: &Scored, b: &Scored, a_score: f64, b_score: f64) -> Ordering {
+pub(super) fn compare(a: &Scored, b: &Scored, a_score: f64, b_score: f64) -> Ordering {
     b_score
         .total_cmp(&a_score)
         .then_with(|| a.hit.rank.cmp(&b.hit.rank))
@@ -259,6 +355,8 @@ fn select(
                 static_score: item.static_score,
                 file_count_at_selection: *count,
                 diversity_factor: factor,
+                graph_bonus: 0.0,
+                graph_backfilled: false,
                 score: item.hit.score,
                 rank: item.hit.rank,
             });

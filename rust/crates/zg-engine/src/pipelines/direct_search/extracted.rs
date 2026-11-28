@@ -330,5 +330,6 @@ fn context_item(
         query_groups: Vec::new(),
         selection_reason: None,
         coverage_group: None,
+        graph_evidence: None,
     })
 }

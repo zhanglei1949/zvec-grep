@@ -1151,6 +1151,7 @@ mod output_tests {
             query_groups: vec![],
             selection_reason: None,
             coverage_group: None,
+            graph_evidence: None,
         }
     }
 
@@ -1168,6 +1169,7 @@ mod output_tests {
             stage_traces: vec![],
             diagnostics: ContextDiagnostics::default(),
             items: vec![indexed_item()],
+            related: vec![],
         }
     }
 
@@ -1750,5 +1752,145 @@ mod output_tests {
             let rendered = String::from_utf8(buffer).expect("UTF-8");
             assert_eq!(rendered.lines().next(), Some(expected));
         }
+    }
+
+    #[test]
+    fn graph_via_line_and_call_site_focus_render_cleanly_in_short_and_full_previews() {
+        use zg_engine::api::{
+            context::result::{GraphEvidence, GraphHop, SourceFocus, SourceFocusKind},
+            relationships::{Direction, GraphEdgeKind},
+        };
+        let mut item = indexed_item();
+        item.graph_evidence = Some(GraphEvidence {
+            hops: vec![GraphHop {
+                kind: GraphEdgeKind::Calls,
+                direction: Direction::In,
+                from_symbol: "Sheet.setActiveCell".into(),
+                from_path: "src/sheet.py".into(),
+                from_line: Some(15),
+                to_symbol: "SelectionRecord.update".into(),
+                to_path: "src/record.py".into(),
+            }],
+            graph_score: 0.72,
+            pattern: "P1".into(),
+            backfilled: true,
+            source_focus: Some(SourceFocus {
+                kind: SourceFocusKind::CallSite,
+                line: 15,
+            }),
+        });
+
+        let mut short_buf = Vec::new();
+        write_item_preview(
+            &mut short_buf,
+            &item,
+            OutputOptions {
+                preview: crate::PreviewMode::Short,
+                ..OutputOptions::default()
+            },
+            &QueryHighlighter::default(),
+            crate::theme::StatusTheme::new(crate::ColorMode::Never, false),
+        )
+        .expect("render short preview");
+        let short_rendered = String::from_utf8(short_buf).expect("UTF-8");
+        assert!(
+            short_rendered.contains(
+                "via: Sheet.setActiveCell (sheet.py:15) <- called_by SelectionRecord.update [1-hop]"
+            ),
+            "short output missing via line:\n{short_rendered}"
+        );
+        assert!(
+            short_rendered.contains("  15: line15"),
+            "short preview should focus around call site line 15:\n{short_rendered}"
+        );
+
+        let mut full_buf = Vec::new();
+        write_item_preview(
+            &mut full_buf,
+            &item,
+            OutputOptions {
+                preview: crate::PreviewMode::Full,
+                ..OutputOptions::default()
+            },
+            &QueryHighlighter::default(),
+            crate::theme::StatusTheme::new(crate::ColorMode::Never, false),
+        )
+        .expect("render full preview");
+        let full_rendered = String::from_utf8(full_buf).expect("UTF-8");
+        assert!(full_rendered.contains("  1: line1"));
+        assert!(full_rendered.contains("  20: line20"));
+    }
+
+    #[test]
+    fn context_output_renders_trailing_related_section_only_when_present() {
+        use zg_engine::api::{
+            context::result::{GraphEvidence, GraphHop, RelatedGraphItem},
+            relationships::{Direction, GraphEdgeKind},
+        };
+        use zg_engine::api::context::options::SymbolType;
+
+        let mut result = indexed_result();
+        let mut empty_buf = Vec::new();
+        write_context_with_options(
+            &mut empty_buf,
+            &result,
+            OutputOptions {
+                preview: crate::PreviewMode::Short,
+                color: crate::ColorMode::Never,
+                ..OutputOptions::default()
+            },
+            false,
+        )
+        .expect("render without related");
+        let empty_rendered = String::from_utf8(empty_buf).expect("UTF-8");
+        assert!(!empty_rendered.contains("related:"));
+
+        result.related = vec![RelatedGraphItem {
+            relative_path: "src/ops.py".into(),
+            range: ContentRange::Text {
+                start_line: 177,
+                end_line: 178,
+                start_byte_offset: 0,
+                end_byte_offset: 20,
+                start_byte_column: 0,
+                end_byte_column: 20,
+            },
+            symbol_name: Some("reversible".into()),
+            symbol_type: Some(SymbolType::Function),
+            scope: Some("RunPython".into()),
+            graph_evidence: GraphEvidence {
+                hops: vec![GraphHop {
+                    kind: GraphEdgeKind::Extends,
+                    direction: Direction::In,
+                    from_symbol: "Operation".into(),
+                    from_path: "src/base.py".into(),
+                    from_line: Some(16),
+                    to_symbol: "RunPython.reversible".into(),
+                    to_path: "src/ops.py".into(),
+                }],
+                graph_score: 0.68,
+                pattern: "P3".into(),
+                backfilled: false,
+                source_focus: None,
+            },
+        }];
+
+        let mut buf = Vec::new();
+        write_context_with_options(
+            &mut buf,
+            &result,
+            OutputOptions {
+                preview: crate::PreviewMode::Short,
+                color: crate::ColorMode::Never,
+                ..OutputOptions::default()
+            },
+            false,
+        )
+        .expect("render with related");
+        let rendered = String::from_utf8(buf).expect("UTF-8");
+        assert!(
+            rendered.contains("\nrelated:\n  src/ops.py:177-178 [function] RunPython.reversible\n    via: Operation (base.py:16) <- overrides RunPython.reversible [extends, 1-hop]\n"),
+            "unexpected related section:\n{rendered}"
+        );
     }
 }

@@ -52,6 +52,62 @@ pub mod options {
         pub symbol_types: Vec<SymbolType>,
     }
 
+    /// Controls whether indexed search augments code results with code-graph signals.
+    #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum GraphSearchMode {
+        #[default]
+        Auto,
+        Off,
+        On,
+    }
+
+    /// Direction preference for graph expansion around retrieved code seeds.
+    #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum GraphSearchDirection {
+        #[default]
+        Auto,
+        Incoming,
+        Outgoing,
+        Both,
+    }
+
+    /// Internal/ablation ranking strategy for graph-assisted code search.
+    #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum GraphRankingPolicy {
+        #[default]
+        PatternTwoTrack,
+        InPoolRerankOnly,
+        LocalRwr,
+    }
+
+    impl GraphRankingPolicy {
+        fn is_default(&self) -> bool {
+            *self == Self::default()
+        }
+    }
+
+    /// Bounded code-graph augmentation options for indexed search.
+    #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(default, deny_unknown_fields)]
+    pub struct GraphSearchOptions {
+        pub mode: GraphSearchMode,
+        pub direction: GraphSearchDirection,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub max_hops: Option<u8>,
+        #[serde(default, skip_serializing_if = "GraphRankingPolicy::is_default")]
+        pub policy: GraphRankingPolicy,
+    }
+
+    impl GraphSearchOptions {
+        #[must_use]
+        pub fn is_default(&self) -> bool {
+            *self == Self::default()
+        }
+    }
+
     #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
     #[serde(deny_unknown_fields)]
     #[allow(clippy::struct_excessive_bools)]
@@ -72,6 +128,9 @@ pub mod options {
         pub refresh: Option<RefreshPolicy>,
         pub trace: bool,
         pub prefer_symbol: bool,
+        /// Optional code-graph expansion and fusion controls for indexed search.
+        #[serde(default, skip_serializing_if = "GraphSearchOptions::is_default")]
+        pub graph_search: GraphSearchOptions,
         /// Temporary filter over indexed files; does not alter workspace selection.
         #[serde(default)]
         pub filter: QueryFilter,
@@ -119,7 +178,17 @@ pub mod options {
 
     impl ContextOptions {
         pub(crate) fn validate_file_selection(&self) -> crate::EngineResult<()> {
+            if self.graph_search.max_hops.is_some_and(|hops| hops == 0 || hops > 2) {
+                return Err(crate::EngineError::invalid_argument(
+                    "graph_search.max_hops must be 1 or 2",
+                ));
+            }
             if self.rg {
+                if self.graph_search.mode == GraphSearchMode::On {
+                    return Err(crate::EngineError::invalid_argument(
+                        "graph search cannot be combined with rg mode",
+                    ));
+                }
                 if self.filter != QueryFilter::default() {
                     return Err(crate::EngineError::invalid_argument(
                         "indexed file filters cannot be combined with rg; use rg glob and type options",
@@ -162,6 +231,7 @@ pub mod options {
                 refresh: None,
                 trace: false,
                 prefer_symbol: false,
+                graph_search: GraphSearchOptions::default(),
                 filter: QueryFilter::default(),
                 globs: Vec::new(),
                 insensitive_globs: Vec::new(),
@@ -317,6 +387,78 @@ pub mod result {
         #[serde(rename = "fts+vector")]
         FtsAndVector,
         Lexical,
+        Graph,
+    }
+
+    /// One directed hop along the strongest graph path connecting a seed to a result.
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    pub struct GraphHop {
+        pub kind: crate::domain::GraphEdgeKind,
+        pub direction: crate::domain::Direction,
+        pub from_symbol: String,
+        pub from_path: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub from_line: Option<usize>,
+        pub to_symbol: String,
+        pub to_path: PathBuf,
+    }
+
+    /// Which location inside a graph-discovered entity a compact preview should focus on.
+    #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(rename_all = "snake_case")]
+    pub enum SourceFocusKind {
+        CallSite,
+        Definition,
+    }
+
+    /// One-based line focus inside a graph-discovered entity for short previews.
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    pub struct SourceFocus {
+        pub kind: SourceFocusKind,
+        pub line: usize,
+    }
+
+    /// Compact relational provenance explaining why a code hit was boosted or recalled via graph.
+    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+    pub struct GraphEvidence {
+        pub hops: Vec<GraphHop>,
+        pub graph_score: f64,
+        pub pattern: String,
+        pub backfilled: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub source_focus: Option<SourceFocus>,
+    }
+
+    /// Compact structural pointer for a high-confidence out-of-pool symbol discovered via graph.
+    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+    pub struct RelatedGraphItem {
+        pub relative_path: PathBuf,
+        pub range: ContentRange,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub symbol_name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub symbol_type: Option<crate::domain::SymbolType>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub scope: Option<String>,
+        pub graph_evidence: GraphEvidence,
+    }
+
+    /// Diagnostics summarizing graph-assisted expansion and two-track fusion for a search.
+    #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+    pub struct GraphSearchDiagnostics {
+        pub active: bool,
+        pub policy: String,
+        pub seed_count: usize,
+        pub anchor_count: usize,
+        pub expanded_candidates: usize,
+        pub in_pool_boosted: usize,
+        pub backfilled_count: usize,
+        pub containment_deduped: usize,
+        pub truncated_by_budget: bool,
+    }
+
+    fn is_zero_f64(value: &f64) -> bool {
+        *value == 0.0
     }
 
     #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -350,6 +492,10 @@ pub mod result {
         pub static_score: f64,
         pub file_count_at_selection: u32,
         pub diversity_factor: f64,
+        #[serde(default, skip_serializing_if = "is_zero_f64")]
+        pub graph_bonus: f64,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub graph_backfilled: bool,
         pub score: f64,
         pub rank: usize,
     }
@@ -419,6 +565,9 @@ pub mod result {
         pub coverage: ContextCoverage,
         pub workspace_index: Option<ContextWorkspaceIndex>,
         pub items: Vec<ContextItem>,
+        /// High-confidence structurally related out-of-pool symbols surfaced outside Top-K.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub related: Vec<RelatedGraphItem>,
         pub group_results: Vec<ContextGroupResult>,
         /// Opt-in stage observations for the caller, separate from displayed results.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -541,6 +690,8 @@ pub mod result {
         pub query_groups: Vec<ContextQueryGroupMatch>,
         pub selection_reason: Option<ContextSelectionReason>,
         pub coverage_group: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub graph_evidence: Option<GraphEvidence>,
     }
 
     #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -600,6 +751,8 @@ pub mod result {
         pub index: Option<IndexDiagnostics>,
         pub rg: Option<RgDiagnostics>,
         pub structure: Option<StructureEnrichmentDiagnostics>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub graph: Option<GraphSearchDiagnostics>,
         pub timings: Vec<TimingEntry>,
     }
 

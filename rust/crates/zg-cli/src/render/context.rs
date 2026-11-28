@@ -39,7 +39,11 @@ pub(super) fn write(
         {
             return writeln!(writer, "No searchable files.");
         }
-        return write_items(writer, &result.items, &result.query, options, theme);
+        write_items(writer, &result.items, &result.query, options, theme)?;
+        if !result.items.is_empty() && !result.related.is_empty() {
+            super::compact::write_related(writer, &result.related, theme)?;
+        }
+        return Ok(());
     }
     let groups = result
         .group_results
@@ -68,6 +72,9 @@ pub(super) fn write(
             )?;
         }
         write_items(writer, &group.items, &group.query, options, theme)?;
+    }
+    if !result.related.is_empty() {
+        super::compact::write_related(writer, &result.related, theme)?;
     }
     Ok(())
 }

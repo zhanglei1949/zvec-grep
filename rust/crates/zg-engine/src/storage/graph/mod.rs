@@ -14,7 +14,7 @@ mod schema;
 mod types;
 mod writer;
 
-pub(crate) use reader::parse_file_endpoint;
+pub(crate) use reader::{PagedEdge, parse_file_endpoint};
 use rusqlite::{Connection, OpenFlags};
 use std::{path::Path, time::Duration};
 pub(crate) use types::*;

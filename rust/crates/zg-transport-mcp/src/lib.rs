@@ -42,8 +42,8 @@ use zg_engine::{
         context::{
             ContextOptions, ContextResult,
             options::{
-                ContextRoute, ContextRouteMode, FileCategory, FileFormat, QueryFilter,
-                RefreshPolicy, SymbolType,
+                ContextRoute, ContextRouteMode, FileCategory, FileFormat, GraphSearchDirection,
+                GraphSearchMode, GraphSearchOptions, QueryFilter, RefreshPolicy, SymbolType,
             },
         },
         index::{
@@ -105,7 +105,7 @@ pub const AGENT_INSTRUCTIONS: &str = concat!(
     "Use zvec-grep with these workspace retrieval rules:\n",
     workspace_evidence_rules!(),
     search_routing_rules!("native Grep or rg", "Read, Grep, or rg"),
-    "- For workspaces indexed with graph support, use zvec_grep_callers or zvec_grep_callees for known symbols. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
+    "- For workspaces indexed with graph support, zvec_grep_search automatically surfaces structurally related code with compact via: provenance lines and may append a trailing related: section of high-confidence graph-linked symbols outside Top-K (open those cited ranges if needed); use zvec_grep_callers or zvec_grep_callees when you need exhaustive call sites for a known symbol. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
     "- Every workspace operation requires an absolute root path visible to the daemon.\n",
     "- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n",
     "- Use returned search evidence without a status preflight.\n",
@@ -117,7 +117,7 @@ pub const FULL_INSTRUCTIONS: &str = concat!(
     "Use zvec-grep with these workspace retrieval and lifecycle rules:\n",
     workspace_evidence_rules!(),
     search_routing_rules!("zvec_grep_rg", "Read or zvec_grep_rg"),
-    "- For workspaces indexed with graph support, use zvec_grep_callers or zvec_grep_callees for known symbols. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
+    "- For workspaces indexed with graph support, zvec_grep_search automatically surfaces structurally related code with compact via: provenance lines and may append a trailing related: section of high-confidence graph-linked symbols outside Top-K (open those cited ranges if needed); use zvec_grep_callers or zvec_grep_callees when you need exhaustive call sites for a known symbol. Empty results do not prove absence. Enable graph indexing only with user authorization: zg --index --graph (add --rebuild for an existing index).\n",
     "- Every workspace operation requires an absolute root path visible to the daemon.\n",
     "- Respect declined or cancelled index setup; do not repeat it without a renewed user request.\n",
     "- Use the zvec_grep_* tools directly for workspace search, status, indexing, deletion, and exhaustive lexical search.\n",
@@ -139,7 +139,7 @@ macro_rules! compact_workspace_rules {
             "- For questions about whether related local material exists without an exact anchor, try one focused semantic search. If irrelevant, report insufficient indexed evidence. For exact-only tasks, fall back to ", $exact, " if the index is missing or search fails.\n",
             "- Use sufficient snippets as evidence. Open cited ranges for missing details, stop when evidence suffices, and avoid delegating solely to locate material.\n",
             "- Pass an absolute root visible to the daemon. Read freshness and background_refresh without a status preflight. Use sufficient served_from_current_index results immediately.\n",
-            "- Use zvec_grep_callers or zvec_grep_callees for known symbols in graph-enabled indexes. Empty results are inconclusive. Enable with zg --index --graph (add --rebuild for an existing index).\n",
+            "- Use zvec_grep_search via: lines and any trailing related: pointers for structural links; use zvec_grep_callers or zvec_grep_callees for exhaustive call sites. Empty results are inconclusive. Enable with zg --index --graph (add --rebuild for an existing index).\n",
             "- Combine hybrid query with supplemental fts or vector as needed. Groups rank separately unless fused. Example: {\"root\":\"/absolute/workspace\",\"query\":\"how are results ranked\",\"fts\":[\"RRF\"],\"fuse\":true}.\n",
             "- Require explicit user authorization to create, rebuild, or drop an index. For missing-index setup, retry search after the approved build completes. Respect declined or cancelled setup."
         )
@@ -949,6 +949,8 @@ pub struct SearchInput {
     /// Prefer exact indexed symbols.
     #[schemars(extend("type" = "boolean"))]
     pub prefer_symbol: Option<bool>,
+    /// Optional code-graph expansion settings for graph-enabled indexes.
+    pub graph_search: Option<GraphSearchInput>,
     /// Restrict indexed results to symbol types.
     #[serde(default)]
     #[schemars(length(max = 7))]
@@ -968,6 +970,38 @@ pub struct SearchInput {
     /// Allow eventual search to schedule a background index update.
     #[serde(default = "default_auto_update")]
     pub auto_update: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[schemars(inline)]
+pub enum GraphSearchModeInput {
+    #[default]
+    Auto,
+    Off,
+    On,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[schemars(inline)]
+pub enum GraphSearchDirectionInput {
+    #[default]
+    Auto,
+    Incoming,
+    Outgoing,
+    Both,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GraphSearchInput {
+    #[serde(default)]
+    pub mode: GraphSearchModeInput,
+    #[serde(default)]
+    pub direction: GraphSearchDirectionInput,
+    #[schemars(range(min = 1, max = 2), extend("type" = "integer"))]
+    pub max_hops: Option<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -1761,6 +1795,29 @@ impl SearchInput {
             }),
             trace: self.trace.unwrap_or(false),
             prefer_symbol: self.prefer_symbol.unwrap_or(false),
+            graph_search: match self.graph_search {
+                Some(graph) => {
+                    if graph.max_hops.is_some_and(|hops| hops == 0 || hops > 2) {
+                        return Err("graphSearch.maxHops must be 1 or 2".to_owned());
+                    }
+                    GraphSearchOptions {
+                        mode: match graph.mode {
+                            GraphSearchModeInput::Auto => GraphSearchMode::Auto,
+                            GraphSearchModeInput::Off => GraphSearchMode::Off,
+                            GraphSearchModeInput::On => GraphSearchMode::On,
+                        },
+                        direction: match graph.direction {
+                            GraphSearchDirectionInput::Auto => GraphSearchDirection::Auto,
+                            GraphSearchDirectionInput::Incoming => GraphSearchDirection::Incoming,
+                            GraphSearchDirectionInput::Outgoing => GraphSearchDirection::Outgoing,
+                            GraphSearchDirectionInput::Both => GraphSearchDirection::Both,
+                        },
+                        max_hops: graph.max_hops,
+                        ..GraphSearchOptions::default()
+                    }
+                }
+                None => GraphSearchOptions::default(),
+            },
             filter: QueryFilter {
                 file_types: normalize_types(self.file_types, "fileTypes")?,
                 excluded_file_types: normalize_types(
@@ -2673,6 +2730,7 @@ mod tests {
             embedding_concurrency: Some(2),
             fuse: Some(true),
             prefer_symbol: Some(true),
+            graph_search: None,
             symbol_types: Vec::new(),
             modified_after: None,
             modified_before: None,
